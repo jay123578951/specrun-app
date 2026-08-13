@@ -25,11 +25,27 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 - Tauri webview 是 WKWebView（Safari 核心），避免 Chrome-only CSS。
 - Tauri v2 capabilities 權限模型：fs 路徑與 shell 指令需明確白名單。
 
-## 里程碑
+## 里程碑與 change 堆疊
 
-### M1 — Viewer MVP
+**原則：change 一律切小、功能逐步堆疊，一次只開一個進行中的 change。** 每個 change 小到「審 spec 五分鐘、做完當天 archive」。
 
-唯讀為主的核心畫面：專案（openspec 目錄）切換、change 列表與狀態（artifacts / tasks 進度）、spec 瀏覽。資料全部來自 openspec CLI 的 `--json`。本專案自身的 `openspec/` 目錄就是第一份測試資料（dogfooding）。
+### M1 — Viewer（拆為小 change 堆疊）
+
+資料全部來自 openspec CLI 的 `--json`。本專案自身的 `openspec/` 目錄就是第一份測試資料（dogfooding）。
+
+| # | change | 內容 | 狀態 |
+|---|--------|------|------|
+| C0 | scaffold-app-shell | 純環境骨架（Vite+Vue+Nitro 通路），**零視覺決策** | ✅ 2026-08-14 archived |
+| D1 | （待討論後命名） | 設計基礎：tokens、主題、視覺語言——先進行 UI 美觀需求討論再 propose（使用者對美觀要求高，需專門收斂） | 待討論 |
+| C1 | | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | |
+| C2 | | artifact 唯讀渲染（Markdown） | |
+| C3 | | file watcher 即時刷新 | |
+| C4 | | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | |
+| C5 | | 多專案清單與切換（路徑管理從這裡才真正做） | |
+| C6 | | parked 唯讀清單（資料來源屆時再決策：Spectra 轉接器 vs 自訂目錄） | |
+| C7 | | UI 視覺精修（畫面到齊後的整體打磨） | |
+
+**UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C7 收尾精修。
 
 ### M2 — Park 機制
 
@@ -43,6 +59,14 @@ Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀�
 
 套上 Tauri v2 外殼、capabilities 設定、CLI 路徑偵測、`tauri build` 產出 .app 日常使用。
 
+## 已收斂決策補充（srun:decisions 產出，propose 時寫入各 change design）
+
+- tasks 勾選併發策略：寫入前重讀檔案、只翻目標行、該行已變則放棄並提示（C4）
+- artifact 顯示依 `openspec status --json` 的 `artifactPaths` 動態列出，不寫死名稱（custom schema 必須可用）
+- 專案清單手動加入、不做全機掃描；設定存平台慣例位置（macOS：`~/Library/Application Support/`）
+- 空狀態：無專案引導加入目錄；openspec CLI 缺失時明確提示
+- 仍開放（刻意留白）：change 列表排序（預設 lastModified 新→舊）、多專案側欄進度徽章（C5 再看）
+
 ### 後續觀察項（不排程）
 
 - OpenSpec Stores 模型穩定後，評估 park 是否可映射過去。
@@ -51,5 +75,6 @@ Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀�
 
 ## 工作方式
 
-- 本檔管**方向**（里程碑全貌）；每個里程碑動工時開 openspec change 管**執行**（proposal / design / tasks）。
-- 里程碑順序可調，但每次只開一個進行中的 change。
+- 本檔管**方向**（里程碑全貌與 change 堆疊順序）；執行細節在各 change 的 proposal / design / tasks。
+- 堆疊順序可調，但每次只開一個進行中的 change；change 完成 archive 後更新上表狀態欄。
+- 流程：探索討論（/opsx:explore）→ 決策收斂（/srun:decisions，分支多時）→ propose → 人工審 spec → 實作（/srun:feat）→ archive。

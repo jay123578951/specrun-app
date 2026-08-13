@@ -1,0 +1,35 @@
+{
+  "name": "specrun-app",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"pnpm run dev:api\" \"pnpm run dev:web\"",
+    "dev:api": "nitro dev --port 3210",
+    "dev:web": "vite",
+    "build": "vite build && nitro build",
+    "lint": "eslint .",
+    "typecheck": "nitro prepare && vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json"
+  },
+  "dependencies": {
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.3.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "concurrently": "^10.0.4",
+    "eslint": "^10.8.1",
+    "nitropack": "^2.13.4",
+    "typescript": "^5.9.3",
+    "unocss": "^66.7.5",
+    "vite": "^8.2.1",
+    "vue-tsc": "^3.3.9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}
