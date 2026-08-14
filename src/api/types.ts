@@ -55,6 +55,25 @@ export type ChangeDetailResult
   = { ok: true, detail: ChangeDetail }
     | { ok: false, error: GatewayError }
 
+/** 勾選寫入的請求：不帶路徑，只帶行號與該行原文（design D1） */
+export interface TaskToggleInput {
+  /** 0-based 來源行號 */
+  line: number
+  /** 呼叫端所見的該行原文，不含行尾符；伺服端據此比對併發 */
+  expectedText: string
+  /** 目標勾選狀態 */
+  checked: boolean
+}
+
+/**
+ * 勾選寫入的三分結果（design D1）：成功／目標行已被外部改寫／其他失敗。
+ * 衝突自成一類——UI 的提示文案必須與一般失敗可區分（spec artifact-view）。
+ */
+export type ToggleResult
+  = { ok: true }
+    | { ok: false, kind: 'conflict' }
+    | { ok: false, kind: 'failed', message: string, detail?: string }
+
 /**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
@@ -62,6 +81,12 @@ export type ChangeDetailResult
 export interface OpenSpecGateway {
   listChanges: () => Promise<ChangeListResult>
   getChangeDetail: (name: string) => Promise<ChangeDetailResult>
+  /**
+   * 翻轉某 change tasks 檔案中單一 task 行的勾選狀態——App 的唯一寫入通道。
+   * 寫入是檔案層操作、不經 CLI 改寫內容；進度數字仍由引擎於後續讀取時重算。
+   * 目標檔案由實作端自 `artifactPaths` 解析，呼叫端無從指定路徑（spec openspec-gateway）。
+   */
+  toggleTask: (name: string, input: TaskToggleInput) => Promise<ToggleResult>
   /**
    * 訂閱目標專案 `openspec/changes/` 的變動通知；回傳取消訂閱。
    * 通知粗粒度、不帶 payload，收到就自行重取。斷線由實作靜默重連，不對外拋錯。

@@ -1,7 +1,9 @@
-import type { ChangeDetail, ChangeDetailResult, GatewayError } from '../api'
+import type { ArtifactFile, ChangeDetail, ChangeDetailResult, GatewayError } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
+import { isCheckedLine, isTaskLine, lineTextAt, toggleTaskLine } from '../utils/task-line'
+import { useChangesStore } from './changes'
 
 /**
  * 詳情檢視的狀態（design D7：同畫面變形無 URL 需求，不引入 router）。
@@ -223,6 +225,72 @@ export const useDetailStore = defineStore('detail', () => {
     currentTab.value = id
   }
 
+  /** 寫入進行中的來源行號：同顆連點忽略，UI 也據此呈現 pending（spec in-flight 連點忽略） */
+  const pendingTaskLines = ref<number[]>([])
+
+  /**
+   * tasks checkbox 的翻轉（design D5）：對快取的來源字串就地翻行 → 重渲染 → 才發請求。
+   * 樂觀更新後的字串與寫入成功後檔案的真實內容逐 byte 相同，watcher 重取回來與快取全等，
+   * 既有的「無差異不重繪」自然吸收，畫面零閃爍。
+   */
+  async function toggleTask(line: number): Promise<void> {
+    const name = changeName.value
+    const file = tasksFile(detail.value)
+    if (!name || !file || pendingTaskLines.value.includes(line))
+      return
+
+    const expectedText = lineTextAt(file.content, line)
+    if (expectedText === null || !isTaskLine(expectedText))
+      return
+
+    // 目標狀態取自來源字串而非 DOM——單一資料源，被忽略的點擊不會讓兩邊分岔
+    const checked = !isCheckedLine(expectedText)
+    const optimistic = toggleTaskLine(file.content, line, expectedText, checked)
+    if (!optimistic.ok)
+      return
+
+    const before = file.content
+    setTasksContent(name, optimistic.content)
+    pendingTaskLines.value = [...pendingTaskLines.value, line]
+
+    try {
+      const result = await gateway.toggleTask(name, { line, expectedText, checked })
+      if (result.ok)
+        return // 成功路徑靜默：畫面已是目標狀態，後續刷新交給變動通知
+
+      // 彈回不依賴變動通知（衝突時檔案可能根本沒變）；但只在畫面仍是我們寫上去的那份時才彈，
+      // 期間若已被通知換成更新的內容就不覆蓋
+      setTasksContent(name, before, optimistic.content)
+      const toast = result.kind === 'conflict'
+        ? { message: 'This task changed elsewhere. Reloading the latest version.' }
+        : { message: result.message, detail: result.detail }
+      useChangesStore().notify(toast.message, toast.detail)
+    }
+    finally {
+      pendingTaskLines.value = pendingTaskLines.value.filter(pending => pending !== line)
+    }
+  }
+
+  /** 換上新的 tasks 內容；`onlyIf` 有值時只在目前內容與它相符才動（彈回用） */
+  function setTasksContent(name: string, content: string, onlyIf?: string): void {
+    if (changeName.value !== name)
+      return
+
+    const current = detail.value
+    const file = tasksFile(current)
+    if (!current || !file || (onlyIf !== undefined && file.content !== onlyIf))
+      return
+
+    const next: ChangeDetail = {
+      ...current,
+      artifacts: current.artifacts.map(artifact => artifact.id === 'tasks'
+        ? { ...artifact, files: artifact.files.map(each => ({ ...each, content })) }
+        : artifact),
+    }
+    detail.value = next
+    remember(name, next) // 快取一起走，下次墊底的才是同一份
+  }
+
   return {
     changeName,
     detail,
@@ -235,6 +303,8 @@ export const useDetailStore = defineStore('detail', () => {
     isOpen,
     artifacts,
     currentArtifact,
+    pendingTaskLines,
+    toggleTask,
     show,
     load,
     syncWithChanges,
@@ -299,6 +369,12 @@ function resolveTab(detail: ChangeDetail, preferred: string | null): string | nu
   if (ids.includes('proposal'))
     return 'proposal'
   return ids[0] ?? null
+}
+
+/** 可寫入的 tasks 檔案：恰一個既存檔才算（design D6），其餘情形一律唯讀 */
+function tasksFile(detail: ChangeDetail | null): ArtifactFile | null {
+  const artifact = detail?.artifacts.find(each => each.id === 'tasks')
+  return artifact?.files.length === 1 ? artifact.files[0]! : null
 }
 
 /** artifact 只有數 KB，序列化比對足夠且不會漏欄位 */

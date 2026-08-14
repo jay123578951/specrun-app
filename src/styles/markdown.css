@@ -198,6 +198,29 @@
   cursor: default;
 }
 
+/* 可勾選的 checkbox（tasks tab）：data-line 同時是行號載體與互動態的選擇器 */
+.md-body .task-list-item-checkbox[data-line] {
+  cursor: pointer;
+  transition:
+    border-color 150ms var(--sr-ease-out),
+    background-color 150ms var(--sr-ease-out);
+}
+
+.md-body .task-list-item-checkbox[data-line]:hover {
+  border-color: var(--sr-text-3);
+}
+
+.md-body .task-list-item-checkbox[data-line]:checked:hover {
+  border-color: var(--sr-text-2);
+}
+
+.md-body .task-list-item-checkbox[data-line]:focus-visible {
+  outline: 2px solid var(--sr-accent-bright);
+  outline-offset: 2px;
+}
+
+/* pending 鎖定不做視覺暗示：狀態已是樂觀後的目標值，變暗／progress 游標會被讀成「載入等待」 */
+
 .md-body .task-list-item-checkbox:checked {
   border-color: var(--sr-done);
   background-color: var(--sr-done);

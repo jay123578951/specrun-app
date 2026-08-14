@@ -4,6 +4,8 @@ import type {
   ChangeListProbe,
   ChangeListResult,
   OpenSpecGateway,
+  TaskToggleInput,
+  ToggleResult,
 } from './types'
 import { normalizeChangeDetail, normalizeChangeList } from './normalize'
 
@@ -45,6 +47,31 @@ export const webGateway: OpenSpecGateway = {
       }
     }
     return normalizeChangeDetail(probe)
+  },
+
+  async toggleTask(name: string, input: TaskToggleInput): Promise<ToggleResult> {
+    try {
+      const res = await fetch(`/api/changes/${encodeURIComponent(name)}/tasks/toggle`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+
+      // route 的三分結果原樣轉送（409／500 的 body 同樣是 ToggleResult）；
+      // 狀態碼只給網路層看，分類一律以 body 為準
+      const result = await res.json() as ToggleResult
+      if (typeof result?.ok !== 'boolean')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch (error) {
+      return {
+        ok: false,
+        kind: 'failed',
+        message: 'Could not save this task.',
+        detail: describe(error),
+      }
+    }
   },
 
   subscribeToChanges(onChange: () => void): () => void {

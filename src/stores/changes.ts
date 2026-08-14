@@ -76,14 +76,15 @@ export const useChangesStore = defineStore('changes', () => {
     }
   }
 
-  function pushToast(error: GatewayError): void {
-    const toast: Toast = {
-      id: ++toastSeq,
-      message: 'Refresh failed.',
-      ...(error.detail ? { detail: error.detail } : {}),
-    }
+  /** 全 App 共用的非阻斷提示；detail store 的寫入失敗也走這裡 */
+  function notify(message: string, detail?: string): void {
+    const toast: Toast = { id: ++toastSeq, message, ...(detail ? { detail } : {}) }
     toasts.value = [...toasts.value, toast]
     setTimeout(dismissToast, TOAST_TTL_MS, toast.id)
+  }
+
+  function pushToast(error: GatewayError): void {
+    notify('Refresh failed.', error.detail)
   }
 
   function dismissToast(id: number): void {
@@ -102,6 +103,7 @@ export const useChangesStore = defineStore('changes', () => {
     busy,
     load,
     loadSilently,
+    notify,
     dismissToast,
   }
 })

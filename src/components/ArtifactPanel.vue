@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useDetailStore } from '../stores/detail'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
 import MarkdownView from './MarkdownView.vue'
@@ -10,6 +10,14 @@ import StateNotice from './StateNotice.vue'
 const detail = useDetailStore()
 
 const scroller = ref<HTMLElement>()
+
+/**
+ * 勾選只在單檔 tasks tab 開放（design D6）：其他 artifact、多檔 tasks（非預設 schema）
+ * 與 custom schema 的任何 tab 一律維持唯讀。
+ */
+const interactiveTasks = computed(() =>
+  detail.currentArtifact?.id === 'tasks' && detail.currentArtifact.files.length === 1,
+)
 
 // 換 change 或換 tab 都是新內容，捲動位置從頭開始（沿用上一份的位置只會讀到半途）
 watch(() => [detail.changeName, detail.currentTab], () => {
@@ -124,7 +132,12 @@ watch(() => [detail.changeName, detail.currentTab], () => {
           >
             {{ file.path }}
           </h3>
-          <MarkdownView :source="file.content" />
+          <MarkdownView
+            :source="file.content"
+            :interactive="interactiveTasks"
+            :pending-lines="detail.pendingTaskLines"
+            @toggle="detail.toggleTask($event)"
+          />
         </article>
       </div>
     </div>
