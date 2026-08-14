@@ -1,0 +1,49 @@
+/**
+ * Design tokens（色板 v2 ＋ 字體家族）
+ *
+ * 值的權威來源：docs/ui-structure-decisions.md「風格層決策」段落，改值請兩邊同步。
+ * uno.config.ts 的 theme 以 var() 引用這裡，元件只寫語意 utility（bg-surface、text-text-2、border-line），
+ * 不得 hardcode 色值——日後加亮色主題只要換這一層（或加 [data-theme] scope），元件零改動。
+ *
+ * 前綴 --sr-：避開 UnoCSS Wind4 自己產生的 --colors-* / --font-* / --text-* / --radius-* 變數空間。
+ *
+ * Elevation 規範：層次靠 surface 色階＋1px 邊框做，全域禁用 box-shadow；
+ * 唯一例外是浮層（dropdown、toast）用的 --sr-shadow-overlay。
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* 色彩：微藍冷底、飽和度鎖同一低水位，accent 是唯一「顏色」 */
+  --sr-bg: #11151a; /* 視窗底 */
+  --sr-surface: #1a1f27; /* 卡片、側欄 */
+  --sr-surface-hover: #222834; /* hover 抬升 */
+  --sr-line: #323b48; /* 分隔線與卡片輪廓 */
+  --sr-text: #dfe5ed; /* 主文字 */
+  --sr-text-2: #a7b0bd; /* 次要：時間、n/m */
+  --sr-text-3: #6c7583; /* 摘錄、佔位 */
+  --sr-accent: #3a7791; /* 品牌色：進度條填色、選中底、chip 底 */
+  --sr-accent-bright: #82b4c9; /* active 文字、focus ring、圖示高亮 */
+  --sr-parked: #c4956b; /* 霧橙 */
+  --sr-done: #6bafa3; /* 霧青綠 */
+  --sr-error: #c07886; /* 霧紅 */
+
+  /* 字體：Manrope 不含中文字形，鏈尾接 TC 讓中英混排自然 fallback */
+  --sr-font-ui: 'Manrope', 'IBM Plex Sans TC', 'PingFang TC', system-ui, sans-serif;
+  --sr-font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sr-font-tc: 'IBM Plex Sans TC', 'PingFang TC', system-ui, sans-serif;
+  --sr-font-serif: 'Lora', Georgia, serif; /* 僅 wordmark */
+
+  /* 浮層陰影：全 App 唯一允許的 box-shadow */
+  --sr-shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.55);
+}
+
+html,
+body {
+  background-color: var(--sr-bg);
+  color: var(--sr-text);
+  font-family: var(--sr-font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}

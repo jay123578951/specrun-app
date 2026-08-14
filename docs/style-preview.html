@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>specrun style preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Inter:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+TC:wght@400;500;600&family=Lora:wght@500;600&family=Playfair+Display:wght@500;600&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #11151A;
+    --surface: #1A1F27;
+    --surface-hover: #222834;
+    --border: #323B48;
+    --text: #DFE5ED;
+    --text-2: #A7B0BD;
+    --text-3: #6C7583;
+    --accent: #3A7791;
+    --accent-bright: #82B4C9;
+    --parked: #C4956B;
+    --done: #6BAFA3;
+    --error: #C07886;
+    --mono: 'IBM Plex Mono', monospace;
+    --tc: 'IBM Plex Sans TC', 'PingFang TC', sans-serif;
+    --r: 5px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', var(--tc);
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 56px clamp(24px, 6vw, 80px) 120px;
+  }
+  h2.section {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-bright);
+    margin: 88px 0 8px;
+  }
+  h2.section:first-of-type { margin-top: 0; }
+  p.section-note { color: var(--text-3); font-size: 13px; margin-bottom: 28px; max-width: 640px; }
+
+  /* ===== palette ===== */
+  .palette { display: flex; flex-wrap: wrap; gap: 12px; }
+  .swatch {
+    width: 118px; border-radius: var(--r);
+    border: 1px solid var(--border); overflow: hidden;
+    background: var(--surface);
+  }
+  .swatch .chip { height: 56px; }
+  .swatch .meta { padding: 8px 10px; }
+  .swatch .name { font-size: 12px; color: var(--text-2); }
+  .swatch .hex { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+
+  /* ===== font grid ===== */
+  .font-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+  .candidate {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 24px;
+  }
+  .candidate.pick { border-color: var(--accent); }
+  .candidate-label { display: flex; align-items: baseline; gap: 10px; margin-bottom: 20px; }
+  .candidate-label .fname { font-size: 16px; font-weight: 600; }
+  .candidate-label .ftag { font-family: var(--mono); font-size: 11px; color: var(--text-3); }
+  .candidate-label .rec {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .08em;
+    color: var(--accent-bright); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 1px 8px; margin-left: auto;
+  }
+  .f-manrope { font-family: 'Manrope', var(--tc); }
+  .f-inter   { font-family: 'Inter', var(--tc); }
+  .f-dmsans  { font-family: 'DM Sans', var(--tc); }
+  .f-plex    { font-family: 'IBM Plex Sans', var(--tc); }
+
+  /* ===== app pieces (shared) ===== */
+  .group-label {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 10px;
+  }
+  .group-label .count { color: var(--text-3); font-weight: 400; }
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 16px 18px;
+    transition: border-color .15s ease, transform .15s ease, background .15s ease;
+    position: relative;
+  }
+  .candidate .card { background: #14181E; }
+  .card:hover { border-color: #414B5B; background: var(--surface-hover); transform: translateY(-1px); }
+  .card:hover .actions { opacity: 1; }
+  .card-top { display: flex; align-items: baseline; gap: 12px; }
+  .card-title { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--text); }
+  .card-time { margin-left: auto; font-size: 12px; color: var(--text-3); }
+  .actions {
+    opacity: 0; transition: opacity .15s ease;
+    display: flex; gap: 4px; margin-left: 8px;
+  }
+  .actions button {
+    all: unset; cursor: pointer; font-size: 12px; color: var(--text-2);
+    padding: 2px 7px; border-radius: 4px; transition: background .12s ease, color .12s ease;
+  }
+  .actions button:hover { background: var(--surface-hover); color: var(--accent-bright); }
+  .actions button.danger:hover { color: var(--error); }
+  .progress-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 10px; }
+  .bar {
+    flex: 1; height: 4px; border-radius: 999px; background: var(--border);
+    overflow: hidden;
+  }
+  .bar > i {
+    display: block; height: 100%; border-radius: 999px;
+    background: var(--accent);
+    animation: fill 0.9s cubic-bezier(.22,1,.36,1) both;
+  }
+  @keyframes fill { from { width: 0 } }
+  .bar-num { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); }
+  .excerpt {
+    font-family: var(--tc);
+    font-size: 12.5px; color: var(--text-3);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card.parked-card .bar > i { background: var(--parked); }
+  .card.parked-card .card-title { color: var(--text-2); }
+
+  .tabs { display: flex; gap: 2px; margin-bottom: 14px; }
+  .tab {
+    font-size: 12.5px; color: var(--text-3); padding: 5px 12px;
+    border-radius: 4px; cursor: pointer; transition: color .12s ease, background .12s ease;
+  }
+  .tab:hover { color: var(--text-2); background: var(--surface-hover); }
+  .tab.active { color: var(--accent-bright); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .chip-row { display: flex; gap: 8px; margin-top: 16px; }
+  .chip {
+    font-size: 11.5px; padding: 2px 10px; border-radius: 999px;
+  }
+  .chip.c-accent { color: var(--accent-bright); background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  .chip.c-parked { color: var(--parked); background: color-mix(in srgb, var(--parked) 14%, transparent); }
+  .chip.c-done   { color: var(--done);   background: color-mix(in srgb, var(--done) 14%, transparent); }
+  .chip.c-error  { color: var(--error);  background: color-mix(in srgb, var(--error) 14%, transparent); }
+
+  /* ===== wordmark ===== */
+  .wordmarks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .wm {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+    padding: 28px 24px;
+  }
+  .wm .mark { display: flex; align-items: center; gap: 10px; font-size: 24px; color: var(--text); }
+  .wm .mark .dia { color: var(--accent-bright); font-size: 15px; }
+  .wm .wm-label { font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 14px; }
+  .wm-lora .mark { font-family: 'Lora', serif; font-weight: 500; }
+  .wm-playfair .mark { font-family: 'Playfair Display', serif; font-weight: 500; }
+  .wm-instrument .mark { font-family: 'Instrument Serif', serif; }
+
+  /* ===== full mockup ===== */
+  .mockup {
+    display: grid; grid-template-columns: 208px 1fr;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    min-height: 480px; background: var(--bg);
+  }
+  .sidebar {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 20px 14px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .sidebar .logo {
+    font-family: 'Lora', serif; font-size: 17px; display: flex; align-items: center; gap: 8px;
+    padding: 2px 8px 18px;
+  }
+  .sidebar .logo .dia { color: var(--accent-bright); font-size: 11px; }
+  .side-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--text-3); padding: 10px 8px 6px;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--text-2); padding: 6px 8px;
+    border-radius: 4px; cursor: pointer; transition: background .12s ease, color .12s ease;
+  }
+  .side-item:hover { background: var(--surface-hover); color: var(--text); }
+  .side-item.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-bright); }
+  .side-item .badge {
+    margin-left: auto; font-family: var(--mono); font-size: 10.5px;
+    color: var(--text-3);
+    background: var(--surface-hover); border-radius: 999px; padding: 0 7px;
+  }
+  .side-item.active .badge { color: var(--accent-bright); background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  .side-item .x { margin-left: auto; opacity: 0; color: var(--text-3); transition: opacity .12s; }
+  .side-item:hover .x { opacity: .8; }
+  .side-spacer { flex: 1; }
+  .side-foot { border-top: 1px solid var(--border); padding-top: 10px; }
+  .main { padding: 28px 32px; display: flex; flex-direction: column; gap: 12px; }
+  .main .group-label { margin-top: 10px; }
+  .main .group-label:first-child { margin-top: 0; }
+
+  /* ===== reading ===== */
+  .reading {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 40px clamp(24px, 6vw, 64px);
+  }
+  .md {
+    font-family: var(--tc); font-size: 15px; line-height: 1.85; color: var(--text);
+    max-width: 68ch;
+  }
+  .md h3 {
+    font-family: 'Manrope', var(--tc); font-size: 19px; font-weight: 600;
+    margin: 0 0 14px; color: var(--text);
+  }
+  .md h3 + p { margin-bottom: 22px; }
+  .md p { color: var(--text-2); margin-bottom: 14px; }
+  .md code {
+    font-family: var(--mono); font-size: 13px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 6px; color: var(--accent-bright);
+  }
+  .md ul { margin: 0 0 14px 22px; color: var(--text-2); }
+</style>
+</head>
+<body>
+
+<h2 class="section">Palette</h2>
+<p class="section-note">TokyoNight Night 校準後：微藍冷底、#2E5C6E 錨點、語意色壓同一飽和水位。</p>
+<div class="palette">
+  <div class="swatch"><div class="chip" style="background:#11151A"></div><div class="meta"><div class="name">bg</div><div class="hex">#11151A</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#1A1F27"></div><div class="meta"><div class="name">surface</div><div class="hex">#1A1F27</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#222834"></div><div class="meta"><div class="name">surface-hover</div><div class="hex">#222834</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#323B48"></div><div class="meta"><div class="name">border</div><div class="hex">#323B48</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#DFE5ED"></div><div class="meta"><div class="name">text</div><div class="hex">#DFE5ED</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#A7B0BD"></div><div class="meta"><div class="name">text-2</div><div class="hex">#A7B0BD</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#6C7583"></div><div class="meta"><div class="name">text-3</div><div class="hex">#6C7583</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#3A7791"></div><div class="meta"><div class="name">accent</div><div class="hex">#3A7791</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#82B4C9"></div><div class="meta"><div class="name">accent-bright</div><div class="hex">#82B4C9</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#C4956B"></div><div class="meta"><div class="name">parked</div><div class="hex">#C4956B</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#6BAFA3"></div><div class="meta"><div class="name">done</div><div class="hex">#6BAFA3</div></div></div>
+  <div class="swatch"><div class="chip" style="background:#C07886"></div><div class="meta"><div class="name">error</div><div class="hex">#C07886</div></div></div>
+</div>
+
+<h2 class="section">UI Font Candidates</h2>
+<p class="section-note">四組並排：同一張卡片＋tabs＋chips。change 名固定 IBM Plex Mono、中文摘錄固定 IBM Plex Sans TC，只有 UI 字（群組標籤、tabs、時間、chips）在變。把滑鼠移到卡片上看 hover 動作。</p>
+<div class="font-grid">
+
+  <div class="candidate f-manrope pick">
+    <div class="candidate-label"><span class="fname">Manrope</span><span class="ftag">semi-geometric</span><span class="rec">RECOMMENDED</span></div>
+    <div class="group-label">Active <span class="count">(2)</span></div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">add-park-mechanism</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">2h ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:43%"></i></div><span class="bar-num">3/7</span></div>
+      <div class="excerpt">讓暫停中的 change 移出 repo，避免 git 狀態污染，並提供可逆的恢復機制與獨立索引。</div>
+    </div>
+    <div class="chip-row" style="margin-top:14px">
+      <span class="chip c-accent">active</span><span class="chip c-parked">parked</span><span class="chip c-done">done</span><span class="chip c-error">error</span>
+    </div>
+    <div class="tabs" style="margin-top:16px">
+      <span class="tab active">proposal</span><span class="tab">design</span><span class="tab">specs</span><span class="tab">tasks</span>
+    </div>
+  </div>
+
+  <div class="candidate f-inter">
+    <div class="candidate-label"><span class="fname" style="font-family:'Inter'">Inter</span><span class="ftag">neutral / UI-native</span></div>
+    <div class="group-label">Active <span class="count">(2)</span></div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">add-park-mechanism</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">2h ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:43%"></i></div><span class="bar-num">3/7</span></div>
+      <div class="excerpt">讓暫停中的 change 移出 repo，避免 git 狀態污染，並提供可逆的恢復機制與獨立索引。</div>
+    </div>
+    <div class="chip-row" style="margin-top:14px">
+      <span class="chip c-accent">active</span><span class="chip c-parked">parked</span><span class="chip c-done">done</span><span class="chip c-error">error</span>
+    </div>
+    <div class="tabs" style="margin-top:16px">
+      <span class="tab active">proposal</span><span class="tab">design</span><span class="tab">specs</span><span class="tab">tasks</span>
+    </div>
+  </div>
+
+  <div class="candidate f-dmsans">
+    <div class="candidate-label"><span class="fname" style="font-family:'DM Sans'">DM Sans</span><span class="ftag">geometric / antfu lineage</span></div>
+    <div class="group-label">Active <span class="count">(2)</span></div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">add-park-mechanism</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">2h ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:43%"></i></div><span class="bar-num">3/7</span></div>
+      <div class="excerpt">讓暫停中的 change 移出 repo，避免 git 狀態污染，並提供可逆的恢復機制與獨立索引。</div>
+    </div>
+    <div class="chip-row" style="margin-top:14px">
+      <span class="chip c-accent">active</span><span class="chip c-parked">parked</span><span class="chip c-done">done</span><span class="chip c-error">error</span>
+    </div>
+    <div class="tabs" style="margin-top:16px">
+      <span class="tab active">proposal</span><span class="tab">design</span><span class="tab">specs</span><span class="tab">tasks</span>
+    </div>
+  </div>
+
+  <div class="candidate f-plex">
+    <div class="candidate-label"><span class="fname" style="font-family:'IBM Plex Sans'">IBM Plex Sans</span><span class="ftag">原 B 方案 / 與 Mono·TC 同家族</span></div>
+    <div class="group-label">Active <span class="count">(2)</span></div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">add-park-mechanism</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">2h ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:43%"></i></div><span class="bar-num">3/7</span></div>
+      <div class="excerpt">讓暫停中的 change 移出 repo，避免 git 狀態污染，並提供可逆的恢復機制與獨立索引。</div>
+    </div>
+    <div class="chip-row" style="margin-top:14px">
+      <span class="chip c-accent">active</span><span class="chip c-parked">parked</span><span class="chip c-done">done</span><span class="chip c-error">error</span>
+    </div>
+    <div class="tabs" style="margin-top:16px">
+      <span class="tab active">proposal</span><span class="tab">design</span><span class="tab">specs</span><span class="tab">tasks</span>
+    </div>
+  </div>
+
+</div>
+
+<h2 class="section">Wordmark</h2>
+<p class="section-note">側欄 logo 一處使用的襯線字。</p>
+<div class="wordmarks">
+  <div class="wm wm-lora"><div class="mark"><span class="dia">◆</span>specrun</div><div class="wm-label">Lora — 書法筆意、溫和</div></div>
+  <div class="wm wm-playfair"><div class="mark"><span class="dia">◆</span>specrun</div><div class="wm-label">Playfair Display — 高對比、華麗</div></div>
+  <div class="wm wm-instrument"><div class="mark"><span class="dia">◆</span>specrun</div><div class="wm-label">Instrument Serif — 銳利、微復古</div></div>
+</div>
+
+<h2 class="section">Layout Mockup</h2>
+<p class="section-note">推薦組合（Manrope＋Plex Mono＋Plex Sans TC＋Lora wordmark）套進定案佈局。滑過專案項、卡片看 hover 反饋。</p>
+<div class="mockup f-manrope">
+  <div class="sidebar">
+    <div class="logo"><span class="dia">◆</span>specrun</div>
+    <div class="side-label">Projects</div>
+    <div class="side-item active">specrun-app<span class="badge">3</span></div>
+    <div class="side-item">side-project<span class="badge">1</span></div>
+    <div class="side-item">＋ Add project</div>
+    <div class="side-label">Library</div>
+    <div class="side-item">Specs</div>
+    <div class="side-item">Archive</div>
+    <div class="side-spacer"></div>
+    <div class="side-item side-foot">⚙ Settings</div>
+  </div>
+  <div class="main">
+    <div class="group-label">Active <span class="count">(2)</span></div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">add-park-mechanism</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">2h ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:43%"></i></div><span class="bar-num">3/7</span></div>
+      <div class="excerpt">讓暫停中的 change 移出 repo，避免 git 狀態污染，並提供可逆的恢復機制與獨立索引。</div>
+    </div>
+    <div class="card">
+      <div class="card-top">
+        <span class="card-title">fix-watcher-debounce</span>
+        <div class="actions"><button>Park</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">1d ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:25%"></i></div><span class="bar-num">1/4</span></div>
+      <div class="excerpt">file watcher 在大量寫入時重複觸發刷新，需要 debounce 與批次合併策略。</div>
+    </div>
+    <div class="group-label">Parked <span class="count">(1)</span></div>
+    <div class="card parked-card">
+      <div class="card-top">
+        <span class="card-title">big-refactor-idea</span>
+        <div class="actions"><button>Restore</button><button>Copy</button><button class="danger">Delete</button></div>
+        <span class="card-time">parked 3w ago</span>
+      </div>
+      <div class="progress-row"><div class="bar"><i style="width:8%"></i></div><span class="bar-num">1/12</span></div>
+      <div class="excerpt">整體 API 層重構構想，等 M2 之後重新評估必要性。</div>
+    </div>
+  </div>
+</div>
+
+<h2 class="section">Markdown Reading</h2>
+<p class="section-note">詳情面板的閱讀區：IBM Plex Sans TC、15px、行高 1.85、內文欄寬 68ch。</p>
+<div class="reading">
+  <div class="md">
+    <h3>Why</h3>
+    <p>specrun-app（OpenSpec 相容的桌面 spec 管理 App）目前只有 roadmap 與規格目錄，沒有可執行的程式骨架。後續所有功能 change（change 列表、artifact 渲染、watcher 等）都需要一個跑得起來的專案環境作為地基。</p>
+    <h3>What Changes</h3>
+    <ul>
+      <li>建立 pnpm 專案與單套件結構，前端 Vite + Vue 3 + TypeScript + Pinia</li>
+      <li>本地後端 Nitro server，提供第一支 <code>GET /api/health</code> 端點驗證前後端通路</li>
+      <li>樣式工具安裝 UnoCSS，僅裝 preset 與管線，不定義任何 design tokens</li>
+    </ul>
+    <p>不包含任何視覺設計決策——tokens、配色、字階、明暗主題由 <code>D1</code> change 專門處理。</p>
+  </div>
+</div>
+
+</body>
+</html>

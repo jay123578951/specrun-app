@@ -36,7 +36,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | # | change | 內容 | 狀態 |
 |---|--------|------|------|
 | C0 | scaffold-app-shell | 純環境骨架（Vite+Vue+Nitro 通路），**零視覺決策** | ✅ 2026-08-14 archived |
-| D1 | （待討論後命名） | 設計基礎：tokens、主題、視覺語言——先進行 UI 美觀需求討論再 propose（使用者對美觀要求高，需專門收斂） | 待討論 |
+| D1 | add-design-foundation | 設計基礎：tokens、主題、視覺語言。結構層決策見 `docs/ui-structure-decisions.md` | ✅ 2026-08-14 archived |
 | C1 | | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | |
 | C2 | | artifact 唯讀渲染（Markdown） | |
 | C3 | | file watcher 即時刷新 | |
@@ -69,6 +69,7 @@ Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀�
 
 ### 後續觀察項（不排程）
 
+- in-app 陽春編輯（改錯字／小措辭情境）：先以「用編輯器開啟」按鈕滿足，dogfood 後痛感真實存在才評估開 change（成本在併發衝突與編輯體驗無底洞，非存檔本身）。
 - OpenSpec Stores 模型穩定後，評估 park 是否可映射過去。
 - srun kit 的 openspec 後端行升級為一級公民（實際 dogfood 驗證覆蓋度）。
 - 把自行設計的 specrun kit 整合進來。
