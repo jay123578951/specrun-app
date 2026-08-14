@@ -155,6 +155,44 @@ export const useDetailStore = defineStore('detail', () => {
   }
 
   /**
+   * watcher 通知觸發：先看重載後的清單還有沒有這個 change——不在＝被 archive／刪除，
+   * 那是正常消失不是錯誤，走 Esc 同一條返回路徑（design D6）；還在才靜默重取內容。
+   */
+  async function syncWithChanges(names: string[]): Promise<void> {
+    const name = changeName.value
+    if (!name)
+      return
+
+    if (!names.includes(name)) {
+      close()
+      return
+    }
+
+    await loadSilently()
+  }
+
+  /**
+   * 背景重取當前 change：內容有變才靜默換上，失敗什麼都不做——不設 staleWarning、
+   * 不進錯誤畫面，留著舊內容等下一次通知（spec artifact-view 自動重取失敗靜默）。
+   */
+  async function loadSilently(): Promise<void> {
+    const name = changeName.value
+    if (!name)
+      return
+
+    const mine = ++seq
+    const result = await fetchDetail(name)
+    if (mine !== seq || !result.ok)
+      return
+
+    remember(name, result.detail)
+    if (!isSameDetail(detail.value, result.detail)) {
+      detail.value = result.detail
+      currentTab.value = resolveTab(result.detail, currentTab.value)
+    }
+  }
+
+  /**
    * 手動刷新：清空面板＋skeleton（spec 詳情手動刷新）。刷新是「我要等新資料」的明示，
    * 這裡刻意不吃快取墊底——留著舊內容就看不出資料到底換過沒有。
    */
@@ -199,6 +237,7 @@ export const useDetailStore = defineStore('detail', () => {
     currentArtifact,
     show,
     load,
+    syncWithChanges,
     prefetch,
     refresh,
     close,

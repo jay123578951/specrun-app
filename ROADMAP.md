@@ -39,7 +39,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | D1 | add-design-foundation | 設計基礎：tokens、主題、視覺語言。結構層決策見 `docs/ui-structure-decisions.md` | ✅ 2026-08-14 archived |
 | C1 | add-change-list | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | ✅ 2026-08-14 archived |
 | C2 | add-artifact-view | artifact 唯讀渲染（Markdown）＋收合變形詳情檢視（窄軌＋內容面板、動態 tabs） | ✅ 2026-08-14 archived |
-| C3 | | file watcher 即時刷新 | |
+| C3 | add-live-refresh | file watcher 即時刷新 | ✅ 2026-08-14 archived |
 | C4 | | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | |
 | C5 | | 多專案清單與切換（路徑管理從這裡才真正做） | |
 | C6 | | parked 唯讀清單（資料來源屆時再決策：Spectra 轉接器 vs 自訂目錄） | |

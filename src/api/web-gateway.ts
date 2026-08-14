@@ -46,6 +46,15 @@ export const webGateway: OpenSpecGateway = {
     }
     return normalizeChangeDetail(probe)
   },
+
+  subscribeToChanges(onChange: () => void): () => void {
+    const source = new EventSource('/api/watch')
+    source.onmessage = () => onChange()
+    source.onerror = () => {
+      // EventSource 自帶重連：斷線期間不通知、恢復後照常，全程不對外拋錯（spec 韌性）
+    }
+    return () => source.close()
+  },
 }
 
 async function fetchProbe<T>(url: string): Promise<T> {

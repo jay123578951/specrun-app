@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
+import { gateway } from './api'
 import AppSidebar from './components/AppSidebar.vue'
 import ArtifactPanel from './components/ArtifactPanel.vue'
 import ChangeList from './components/ChangeList.vue'
@@ -11,12 +12,30 @@ import { useDetailStore } from './stores/detail'
 const store = useChangesStore()
 const detail = useDetailStore()
 
-// design D5：掛載時載入一次，之後只有手動 refresh（watcher 是 C3）
+let unsubscribe: (() => void) | null = null
+
 onMounted(async () => {
+  // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過
+  unsubscribe = gateway.subscribeToChanges(syncFromWatcher)
+
   await store.load()
   // 清單抓齊後把各 change 的詳情依序預載進快取，之後點開零等待（design D4）
   detail.prefetch(store.changes.map(change => change.name))
 })
+
+onUnmounted(() => {
+  unsubscribe?.()
+  unsubscribe = null
+})
+
+/**
+ * 通知只說「有變動」，所以清單一律重載；詳情只重取當前開啟的那個
+ * ——未開啟 change 的快取過期交給點開時的既有重取，這裡不重跑預載。
+ */
+async function syncFromWatcher(): Promise<void> {
+  await store.loadSilently()
+  await detail.syncWithChanges(store.changes.map(change => change.name))
+}
 </script>
 
 <template>

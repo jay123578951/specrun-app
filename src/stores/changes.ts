@@ -12,8 +12,8 @@ export interface Toast {
 const TOAST_TTL_MS = 6000
 
 /**
- * 清單畫面的單一狀態源。刷新策略 design D5：掛載抓一次＋手動 refresh，沒有其他自動重抓
- * （watcher 是 C3 的事）。刷新期間保留舊資料，只有控制項顯示進行中。
+ * 清單畫面的單一狀態源。刷新策略：掛載抓一次＋手動 refresh＋watcher 通知的靜默重載，
+ * 沒有其他自動重抓。刷新期間保留舊資料，只有控制項顯示進行中。
  */
 export const useChangesStore = defineStore('changes', () => {
   const changes = shallowRef<ChangeSummary[]>([])
@@ -29,6 +29,20 @@ export const useChangesStore = defineStore('changes', () => {
   const busy = computed(() => firstLoadPending.value || refreshing.value)
 
   let toastSeq = 0
+
+  /**
+   * watcher 通知觸發的重載：資料照換，但失敗完全靜默（design D5 的來源分流）。
+   * 進行中狀態也不打旗標——旁邊每存一次檔就轉一圈 refresh 圖示只是噪音。
+   */
+  async function loadSilently(): Promise<void> {
+    const result = await gateway.listChanges()
+    if (!result.ok)
+      return
+
+    changes.value = result.changes
+    targetPath.value = result.targetPath
+    blockingError.value = null
+  }
 
   async function load(): Promise<void> {
     if (!firstLoadPending.value)
@@ -87,6 +101,7 @@ export const useChangesStore = defineStore('changes', () => {
     cliUnavailable,
     busy,
     load,
+    loadSilently,
     dismissToast,
   }
 })

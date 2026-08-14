@@ -62,6 +62,12 @@ export type ChangeDetailResult
 export interface OpenSpecGateway {
   listChanges: () => Promise<ChangeListResult>
   getChangeDetail: (name: string) => Promise<ChangeDetailResult>
+  /**
+   * 訂閱目標專案 `openspec/changes/` 的變動通知；回傳取消訂閱。
+   * 通知粗粒度、不帶 payload，收到就自行重取。斷線由實作靜默重連，不對外拋錯。
+   * web 版走 SSE route，M4 Tauri 版換成 fs plugin 的 watch 事件——呼叫端只認 callback。
+   */
+  subscribeToChanges: (onChange: () => void) => () => void
 }
 
 /**
