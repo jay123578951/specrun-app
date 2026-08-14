@@ -3,7 +3,7 @@ import type { ChangeListProbe, ProbeFailure } from '../../src/api/types'
 import { execFile } from 'node:child_process'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
-import process from 'node:process'
+import { currentProjectPath } from './project-state'
 
 /**
  * route 共用的 CLI 呼叫層：解析目標路徑、spawn、把 spawn 層失敗轉成 probe 欄位。
@@ -21,18 +21,26 @@ interface ExecOutcome {
 }
 
 /**
- * design D4：env 指定目標專案，未設定時 fallback App repo 自身（dogfooding）。
- * 開發時指向多 change 的測試 repo：`SPECRUN_PROJECT_PATH=/path/to/repo pnpm dev`
+ * 目標路徑取自伺服端的執行期狀態（C5 起可切換，見 project-state）；
+ * 不是既存資料夾、或根本沒有目標專案時，回傳 target-missing 型 probe 骨架。
  */
-export function resolveTargetPath(): string {
-  return process.env.SPECRUN_PROJECT_PATH?.trim() || process.cwd()
-}
-
-/** 目標路徑 canonical 化；不是既存資料夾時回傳 target-missing 型 probe 骨架 */
 export async function resolveTargetDir(): Promise<
   { ok: true, targetPath: string } | { ok: false, probe: ChangeListProbe }
 > {
-  const requested = resolveTargetPath()
+  const requested = await currentProjectPath()
+  if (!requested) {
+    return {
+      ok: false,
+      probe: {
+        targetPath: '',
+        exitCode: null,
+        stdout: '',
+        stderr: '',
+        failure: { kind: 'target-missing', message: 'No project is selected.' },
+      },
+    }
+  }
+
   try {
     const targetPath = await realpath(requested)
     if (!(await stat(targetPath)).isDirectory())

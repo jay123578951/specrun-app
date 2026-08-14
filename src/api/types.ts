@@ -74,6 +74,34 @@ export type ToggleResult
     | { ok: false, kind: 'conflict' }
     | { ok: false, kind: 'failed', message: string, detail?: string }
 
+/** 側欄專案清單的一項 */
+export interface ProjectEntry {
+  /** canonical 化後的絕對路徑，同時是各操作的識別鍵 */
+  path: string
+  /** 顯示名＝目錄名，與別項同名時帶父層消歧（design D2：不另存顯示名） */
+  name: string
+  current: boolean
+  /** 由 env／cwd 決定但不在持久化清單中——顯示為暫時項（spec 覆寫與 fallback 為暫時項） */
+  temporary: boolean
+  /** 未 archive 的 change 數；取不到就是 null，UI 不顯示徽章、不編數字 */
+  badge: number | null
+}
+
+export interface ProjectsSnapshot {
+  projects: ProjectEntry[]
+  /** null＝無目標專案（空清單引導） */
+  currentPath: string | null
+  /**
+   * 本次回應是否帶徽章數。切換／加入／移除刻意不等徽章（每項一趟 CLI，~1s）——
+   * false 時呼叫端沿用既有數字，另行刷新（spec 徽章弱一致）。
+   */
+  badgesIncluded: boolean
+}
+
+export type ProjectActionResult
+  = { ok: true, snapshot: ProjectsSnapshot, alreadyExisted?: boolean }
+    | { ok: false, message: string, detail?: string }
+
 /**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
@@ -93,6 +121,21 @@ export interface OpenSpecGateway {
    * web 版走 SSE route，M4 Tauri 版換成 fs plugin 的 watch 事件——呼叫端只認 callback。
    */
   subscribeToChanges: (onChange: () => void) => () => void
+
+  /** 專案清單（含目前專案標示與徽章數）；徽章取不到的項回 null */
+  listProjects: () => Promise<ProjectActionResult>
+  /** 加入並立即切換；已在清單中則回 `alreadyExisted` 並照樣切過去 */
+  addProject: (path: string) => Promise<ProjectActionResult>
+  /** 只移出清單，不動磁碟 */
+  removeProject: (path: string) => Promise<ProjectActionResult>
+  switchProject: (path: string) => Promise<ProjectActionResult>
+
+  /**
+   * 原生選資料夾的縫（design D5）：M4 Tauri 版走 dialog plugin，回傳使用者選的路徑。
+   * web 版沒有這個能力（`canPickFolder` 為 false），呼叫端改走貼路徑輸入列。
+   */
+  canPickFolder: boolean
+  pickFolder: () => Promise<string | null>
 }
 
 /**

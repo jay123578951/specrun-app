@@ -41,7 +41,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C2 | add-artifact-view | artifact 唯讀渲染（Markdown）＋收合變形詳情檢視（窄軌＋內容面板、動態 tabs） | ✅ 2026-08-14 archived |
 | C3 | add-live-refresh | file watcher 即時刷新 | ✅ 2026-08-14 archived |
 | C4 | add-task-toggle | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | ✅ 2026-08-15 archived |
-| C5 | | 多專案清單與切換（路徑管理從這裡才真正做） | |
+| C5 | add-project-switcher | 多專案清單與切換（路徑管理從這裡才真正做）：側欄清單、加入／移除／切換、設定檔持久化、每專案徽章 | ✅ 2026-08-15 archived |
 | C6 | | parked 唯讀清單（資料來源屆時再決策：Spectra 轉接器 vs 自訂目錄） | |
 | C7 | | UI 視覺精修（畫面到齊後的整體打磨） | |
 
@@ -67,7 +67,8 @@ Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀�
 - artifact 顯示依 `openspec status --json` 的 `artifactPaths` 動態列出，不寫死名稱（custom schema 必須可用）
 - 專案清單手動加入、不做全機掃描；設定存平台慣例位置（macOS：`~/Library/Application Support/`）
 - 空狀態：無專案引導加入目錄；openspec CLI 缺失時明確提示
-- 仍開放（刻意留白）：change 列表排序（預設 lastModified 新→舊）、多專案側欄進度徽章（C5 再看）
+- 多專案側欄徽章＝未 archive 的 change 數，弱一致：啟動與切換時刷新，current 隨變動通知即時；取不到不編數字（C5 定案）
+- 仍開放（刻意留白）：change 列表排序（預設 lastModified 新→舊）
 
 ### 後續觀察項（不排程）
 

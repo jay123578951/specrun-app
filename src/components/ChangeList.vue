@@ -2,12 +2,14 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
+import { useProjectsStore } from '../stores/projects'
 import ChangeCard from './ChangeCard.vue'
 import ChangeCardSkeleton from './ChangeCardSkeleton.vue'
 import StateNotice from './StateNotice.vue'
 
 const store = useChangesStore()
 const detail = useDetailStore()
+const projects = useProjectsStore()
 
 // 進詳情時清單整個卸載（換成窄軌），捲動位置得自己存回來——Esc 回來要在原地
 const scroller = ref<HTMLElement>()
@@ -16,7 +18,13 @@ onBeforeUnmount(() => {
   detail.listScrollTop = scroller.value?.scrollTop ?? 0
 })
 
-const showSkeleton = computed(() => store.firstLoadPending)
+/**
+ * 無目標專案是「還沒開始」不是錯誤——排在所有錯誤分支之前，
+ * 免得使用者第一次開 App 就先讀到一則 CLI 錯誤（spec 空清單引導）。
+ * 清單取回來之前不算數，否則首幀會閃一下空狀態。
+ */
+const noProject = computed(() => projects.loaded && !projects.hasProject)
+const showSkeleton = computed(() => store.firstLoadPending && !noProject.value)
 const notOpenSpecProject = computed(() => store.blockingError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => store.blockingError?.kind === 'call-failed')
 const isEmpty = computed(() => !store.blockingError && store.changes.length === 0)
@@ -28,7 +36,7 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
     <div class="mx-auto max-w-5xl">
       <!-- CLI 不可用是環境問題，不是這次載入的問題：常駐 banner，直到下次成功刷新 -->
       <div
-        v-if="store.cliUnavailable"
+        v-if="store.cliUnavailable && !noProject"
         class="mb-6 flex items-start gap-3 border border-error/40 rounded bg-error/10 px-4 py-3"
       >
         <span class="i-lucide-unplug mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
@@ -49,7 +57,7 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
         </div>
       </div>
 
-      <header class="flex items-center justify-between gap-4">
+      <header v-if="!noProject" class="flex items-center justify-between gap-4">
         <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
           Active<span v-if="!showSkeleton && !store.blockingError"> ({{ store.activeCount }})</span>
         </h2>
@@ -71,7 +79,19 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
       </header>
 
       <section class="mt-4 space-y-3">
-        <template v-if="showSkeleton">
+        <StateNotice
+          v-if="noProject"
+          icon="i-lucide-folder-plus"
+          title="No project yet"
+          body="Add a folder that contains an openspec/ directory and its changes show up here."
+        >
+          <button type="button" class="btn-quiet" @click="projects.addFormOpen = true">
+            <span class="i-lucide-plus h-3.5 w-3.5" aria-hidden="true" />
+            Add project
+          </button>
+        </StateNotice>
+
+        <template v-else-if="showSkeleton">
           <ChangeCardSkeleton v-for="n in 3" :key="n" />
         </template>
 
@@ -79,7 +99,7 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
           v-else-if="notOpenSpecProject"
           icon="i-lucide-folder-x"
           title="Not an OpenSpec project"
-          body="specrun found no openspec/ directory at this path. Point SPECRUN_PROJECT_PATH at a project root, then refresh."
+          body="specrun found no openspec/ directory at this path. The folder may have moved — switch to another project, or remove this one from the list."
           :detail="store.targetPath"
         />
 

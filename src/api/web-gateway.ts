@@ -4,6 +4,7 @@ import type {
   ChangeListProbe,
   ChangeListResult,
   OpenSpecGateway,
+  ProjectActionResult,
   TaskToggleInput,
   ToggleResult,
 } from './types'
@@ -82,6 +83,61 @@ export const webGateway: OpenSpecGateway = {
     }
     return () => source.close()
   },
+
+  listProjects(): Promise<ProjectActionResult> {
+    return projectRequest('/api/projects', {}, 'Could not read the project list.')
+  },
+
+  addProject(path: string): Promise<ProjectActionResult> {
+    return projectRequest(
+      '/api/projects',
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) },
+      'Could not add this project.',
+    )
+  },
+
+  removeProject(path: string): Promise<ProjectActionResult> {
+    return projectRequest(
+      `/api/projects?path=${encodeURIComponent(path)}`,
+      { method: 'DELETE' },
+      'Could not remove this project.',
+    )
+  },
+
+  switchProject(path: string): Promise<ProjectActionResult> {
+    return projectRequest(
+      '/api/project/switch',
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) },
+      'Could not switch to this project.',
+    )
+  },
+
+  // web 沒有原生選資料夾——呼叫端看到 false 就改用貼路徑輸入列（design D5 的縫）
+  canPickFolder: false,
+  async pickFolder(): Promise<string | null> {
+    return null
+  },
+}
+
+/**
+ * 四個 project 端點的共同形狀：成功與驗證失敗都以 body 為準（400 的 body 同樣是
+ * ProjectActionResult，與 toggle route 同一套姿態），只有連 route 都到不了才自己造錯誤。
+ */
+async function projectRequest(
+  url: string,
+  init: RequestInit,
+  failureMessage: string,
+): Promise<ProjectActionResult> {
+  try {
+    const res = await fetch(url, init)
+    const result = await res.json() as ProjectActionResult
+    if (typeof result?.ok !== 'boolean')
+      throw new TypeError(`Unexpected response: ${res.status}`)
+    return result
+  }
+  catch (error) {
+    return { ok: false, message: failureMessage, detail: describe(error) }
+  }
 }
 
 async function fetchProbe<T>(url: string): Promise<T> {

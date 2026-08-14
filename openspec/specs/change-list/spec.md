@@ -95,11 +95,11 @@ App 的主畫面：以卡片清單呈現目標專案的進行中 change 與任�
 - **THEN** 主區顯示空狀態文案（英文），不顯示 skeleton 或錯誤
 
 ### Requirement: 側欄靜態殼
-側欄 SHALL 呈現四段結構（Logo＋App 名／專案清單／Specs 與 Archive 入口／Settings）；專案清單 SHALL 只含目標專案一項，其徽章 SHALL 顯示真實的進行中 change 數；除徽章外各項 MUST NOT 具備功能（點擊無反應），且 MUST NOT 以灰化樣式呈現。
+側欄 SHALL 呈現四段結構（Logo＋App 名／專案清單／Specs 與 Archive 入口／Settings）；專案清單段 SHALL 為可互動的多專案清單，其行為（列項、切換、加入、移除、徽章）由 project-management capability 規範；Specs／Archive／Settings 各項 MUST NOT 具備功能（點擊無反應），且 MUST NOT 以灰化樣式呈現。
 
 #### Scenario: 專案徽章
-- **WHEN** 目標專案有 3 個進行中 change
-- **THEN** 側欄專案項徽章顯示 3
+- **WHEN** 目前專案有 3 個進行中 change
+- **THEN** 側欄清單中目前專案項的徽章顯示 3（多專案徽章行為詳見 project-management）
 
 #### Scenario: 死項點擊
 - **WHEN** 使用者點擊 Specs／Archive／Settings

@@ -8,9 +8,11 @@ import ChangeRail from './components/ChangeRail.vue'
 import ToastStack from './components/ToastStack.vue'
 import { useChangesStore } from './stores/changes'
 import { useDetailStore } from './stores/detail'
+import { useProjectsStore } from './stores/projects'
 
 const store = useChangesStore()
 const detail = useDetailStore()
+const projects = useProjectsStore()
 
 let unsubscribe: (() => void) | null = null
 
@@ -18,6 +20,8 @@ onMounted(async () => {
   // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過
   unsubscribe = gateway.subscribeToChanges(syncFromWatcher)
 
+  // 專案清單先到位：主區才知道現在是「無目標專案」還是「這個專案讀不到」
+  await projects.load()
   await store.load()
   // 清單抓齊後把各 change 的詳情依序預載進快取，之後點開零等待（design D4）
   detail.prefetch(store.changes.map(change => change.name))

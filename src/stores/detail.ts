@@ -225,6 +225,18 @@ export const useDetailStore = defineStore('detail', () => {
     currentTab.value = id
   }
 
+  /**
+   * 切換專案：關掉詳情、清空快取與預載隊伍（spec 切換專案「已開啟的詳情視圖關閉」）。
+   * 快取以 change 名為鍵，跨專案可能撞名——留著就會拿 A 專案的內容墊 B 專案的底。
+   * 代價是切回來時快取要重建，比餵錯內容划算得多。
+   */
+  function resetForProject(): void {
+    close()
+    prefetchQueue.length = 0
+    cache.clear()
+    writePersistedCache(cache)
+  }
+
   /** 寫入進行中的來源行號：同顆連點忽略，UI 也據此呈現 pending（spec in-flight 連點忽略） */
   const pendingTaskLines = ref<number[]>([])
 
@@ -311,6 +323,7 @@ export const useDetailStore = defineStore('detail', () => {
     prefetch,
     refresh,
     close,
+    resetForProject,
     selectTab,
   }
 })
