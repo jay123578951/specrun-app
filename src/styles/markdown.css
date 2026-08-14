@@ -1,0 +1,208 @@
+/**
+ * artifact 內容的排版層。渲染後的 HTML 沒有 class 可掛 utility，
+ * 只能在這裡用後代選擇器補回被 preset reset 拿掉的語意樣式——值一律引 tokens。
+ *
+ * 字級走 read-* 階（15px／1.85／68ch），與 UI 字級刻意分開：這是拿來讀的，不是拿來掃的。
+ */
+
+.md-body {
+  max-width: 68ch;
+  color: var(--sr-text);
+  font-size: 15px;
+  line-height: 1.85;
+  overflow-wrap: break-word;
+}
+
+.md-body > :first-child {
+  margin-top: 0;
+}
+
+/* 標題：靠上緣留白拉開段落群組，字重差異比字級差異更擔得起層級 */
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  margin: 1.9em 0 0.7em;
+  color: var(--sr-text);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.md-body h1 { font-size: 20px; }
+.md-body h2 { font-size: 18px; }
+.md-body h3 { font-size: 15.5px; }
+.md-body h4 { font-size: 15px; color: var(--sr-text-2); }
+
+.md-body p,
+.md-body ul,
+.md-body ol,
+.md-body blockquote,
+.md-body table,
+.md-body pre {
+  margin: 0.9em 0;
+}
+
+.md-body ul,
+.md-body ol {
+  padding-left: 1.4em;
+}
+
+.md-body ul { list-style: disc; }
+.md-body ol { list-style: decimal; }
+.md-body li::marker { color: var(--sr-text-3); }
+.md-body li + li { margin-top: 0.25em; }
+.md-body li > ul,
+.md-body li > ol { margin: 0.25em 0; }
+
+.md-body strong {
+  color: var(--sr-text);
+  font-weight: 600;
+}
+
+.md-body em { font-style: italic; }
+
+.md-body hr {
+  margin: 2em 0;
+  border: 0;
+  border-top: 1px solid var(--sr-line);
+}
+
+.md-body blockquote {
+  padding-left: 1em;
+  border-left: 2px solid var(--sr-line);
+  color: var(--sr-text-2);
+}
+
+/* inline code：與正文同流，只靠底色與 mono 區隔，不加邊框免得句子被切碎 */
+.md-body code {
+  padding: 0.12em 0.36em;
+  border-radius: 3px;
+  background-color: var(--sr-surface-hover);
+  color: var(--sr-text);
+  font-family: var(--sr-font-mono);
+  font-size: 13px;
+}
+
+.md-body pre {
+  padding: 0.9em 1.1em;
+  border: 1px solid var(--sr-line);
+  border-radius: 5px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.md-body pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: inherit;
+}
+
+/* shiki 主題自帶 inline 背景色，換成 App 的底色階：面板上凹一階才有 inset 感 */
+.md-body pre.shiki {
+  background-color: var(--sr-bg) !important;
+}
+
+.md-body pre:not(.shiki) {
+  background-color: var(--sr-bg);
+  color: var(--sr-text-2);
+}
+
+.md-body pre:focus-visible {
+  outline: 2px solid var(--sr-accent-bright);
+  outline-offset: 2px;
+}
+
+/* 表格：橫線分隔即可，縱線會讓密集的規格表變格子紙 */
+.md-body table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.md-body th,
+.md-body td {
+  padding: 0.45em 0.9em;
+  border-bottom: 1px solid var(--sr-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-body th {
+  color: var(--sr-text-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.md-body tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.md-body a {
+  color: var(--sr-accent-bright);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sr-accent-bright) 40%, transparent);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 150ms var(--sr-ease-out);
+}
+
+.md-body a:hover {
+  text-decoration-color: var(--sr-accent-bright);
+}
+
+.md-body a:active {
+  color: var(--sr-accent);
+  text-decoration-color: var(--sr-accent);
+}
+
+.md-body a:focus-visible {
+  outline: 2px solid var(--sr-accent-bright);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 相對路徑連結：看得出是引用，但不假裝可點（design D6） */
+.md-body .md-link-inert {
+  color: var(--sr-text-2);
+  text-decoration: underline dotted;
+  text-decoration-color: var(--sr-text-3);
+  text-underline-offset: 3px;
+  cursor: default;
+}
+
+/* task list：勾選框只呈現狀態。原生 disabled 樣式在暗底會糊成一團，改自繪 */
+.md-body .contains-task-list {
+  padding-left: 0.15em;
+  list-style: none;
+}
+
+/* 換行的字對齊第一行的文字、不跑到勾選框底下（負 text-indent 抵掉 padding） */
+.md-body .task-list-item {
+  padding-left: 1.45em;
+  text-indent: -1.45em;
+}
+
+.md-body .task-list-item-checkbox {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-right: 0.55em;
+  border: 1px solid var(--sr-line);
+  border-radius: 3px;
+  background-color: var(--sr-bg);
+  vertical-align: -1px;
+  cursor: default;
+}
+
+.md-body .task-list-item-checkbox:checked {
+  border-color: var(--sr-done);
+  background-color: var(--sr-done);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%2311151a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2 4.8 8.5 9.5 3.8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 11px;
+}

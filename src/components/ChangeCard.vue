@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { ChangeSummary } from '../api'
 import { computed } from 'vue'
+import { useDetailStore } from '../stores/detail'
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time'
 
 const props = defineProps<{ change: ChangeSummary }>()
+
+const detail = useDetailStore()
 
 const hasTasks = computed(() => props.change.totalTasks > 0)
 const isComplete = computed(() => props.change.status === 'complete')
@@ -14,8 +17,17 @@ const ratio = computed(() => hasTasks.value
 </script>
 
 <template>
-  <!-- C1 的卡片是純展示：不可點、無 hover 動作，hover 只給視覺抬升（spec change-list） -->
-  <article class="card-lift border border-line rounded bg-surface px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)]">
+  <!-- 卡片是詳情的入口；hover 仍只有視覺抬升，不浮現任何動作（spec change-list）。
+       role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法 -->
+  <article
+    class="card-lift cursor-pointer border border-line rounded bg-surface px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
+    role="button"
+    tabindex="0"
+    :aria-label="`Open ${change.name}`"
+    @click="detail.show(change.name)"
+    @keydown.enter.prevent="detail.show(change.name)"
+    @keydown.space.prevent="detail.show(change.name)"
+  >
     <div class="h-[1.6em] flex items-center gap-3 text-mono-base">
       <h3 class="truncate text-text font-mono" :title="change.name">
         {{ change.name }}

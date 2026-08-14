@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useChangesStore } from '../stores/changes'
+import { useDetailStore } from '../stores/detail'
 import ChangeCard from './ChangeCard.vue'
 import ChangeCardSkeleton from './ChangeCardSkeleton.vue'
 import StateNotice from './StateNotice.vue'
 
 const store = useChangesStore()
+const detail = useDetailStore()
+
+// 進詳情時清單整個卸載（換成窄軌），捲動位置得自己存回來——Esc 回來要在原地
+const scroller = ref<HTMLElement>()
+onMounted(() => scroller.value?.scrollTo({ top: detail.listScrollTop }))
+onBeforeUnmount(() => {
+  detail.listScrollTop = scroller.value?.scrollTop ?? 0
+})
 
 const showSkeleton = computed(() => store.firstLoadPending)
 const notOpenSpecProject = computed(() => store.blockingError?.kind === 'not-openspec-project')
@@ -14,7 +23,7 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
 </script>
 
 <template>
-  <main class="overflow-y-auto px-8 py-7">
+  <main ref="scroller" class="overflow-y-auto px-8 py-7">
     <!-- 內容欄封頂 1024px：進度條是「一排掃過去」的總覽視圖，拉到 1200px+ 就讀不出比例了 -->
     <div class="mx-auto max-w-5xl">
       <!-- CLI 不可用是環境問題，不是這次載入的問題：常駐 banner，直到下次成功刷新 -->

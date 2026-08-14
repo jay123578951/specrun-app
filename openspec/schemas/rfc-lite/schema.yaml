@@ -1,0 +1,19 @@
+name: rfc-lite
+version: 1
+description: Custom schema for verifying dynamic artifact tabs
+artifacts:
+  - id: rfc
+    generates: rfc.md
+    description: Short RFC describing the problem and the proposed direction
+    template: rfc.md
+    requires: []
+  - id: plan
+    generates: plan.md
+    description: Implementation checklist with trackable tasks
+    template: plan.md
+    requires:
+      - rfc
+apply:
+  requires:
+    - plan
+  tracks: plan.md

@@ -6,6 +6,10 @@
  */
 
 import type {
+  ArtifactFile,
+  ArtifactView,
+  ChangeDetailProbe,
+  ChangeDetailResult,
   ChangeListProbe,
   ChangeListResult,
   ChangeStatus,
@@ -98,6 +102,95 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
 
   // 順序即 CLI 順序（lastModified 新→舊）；前端不重排（spec openspec-gateway）
   return { ok: true, targetPath: probe.targetPath, changes }
+}
+
+/**
+ * 詳情的判定順序與清單同構：spawn 層失敗 → 可否解析 → exit code → 組裝 artifact。
+ *
+ * root 是否為目標專案不在這裡重判——詳情只從成功的清單點進來，那一關清單已把過；
+ * 真出現 root 類診斷（點開瞬間專案被搬走）會落在 exit code 那關，一樣分類得出來。
+ */
+export function normalizeChangeDetail(probe: ChangeDetailProbe): ChangeDetailResult {
+  const fail = (kind: GatewayErrorKind, message: string, detail?: string): ChangeDetailResult => ({
+    ok: false,
+    error: detail ? { kind, message, detail } : { kind, message },
+  })
+  const failLoad = (detail?: string): ChangeDetailResult =>
+    fail('call-failed', 'Could not load this change.', detail)
+
+  if (probe.failure) {
+    switch (probe.failure.kind) {
+      case 'cli-unavailable':
+        return fail('cli-unavailable', 'The openspec CLI is not available.', probe.failure.message)
+      case 'target-missing':
+        return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', probe.failure.message)
+      default:
+        return failLoad(probe.failure.message)
+    }
+  }
+
+  const payload = parseJson(probe.stdout)
+  if (!payload)
+    return failLoad(describeUnparsable(probe))
+
+  if (probe.exitCode !== 0) {
+    const diagnostic = firstDiagnostic(payload)
+    if (diagnostic && isRootDiagnostic(diagnostic))
+      return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', joinDetail(diagnostic.message, diagnostic.fix))
+    // change 不存在（已被 archive／刪除）走這裡：CLI 的 change_error 診斷歸「呼叫或解析失敗」
+    return failLoad(
+      diagnostic ? joinDetail(diagnostic.message, diagnostic.fix) : `openspec exited with code ${probe.exitCode}.`,
+    )
+  }
+
+  const name = typeof payload.changeName === 'string' && payload.changeName
+    ? payload.changeName
+    : probe.changeName
+  if (!name)
+    return failLoad('The CLI response carried no change name.')
+
+  const changeRoot = typeof payload.changeRoot === 'string' ? payload.changeRoot : ''
+  const ids = artifactIds(payload)
+  if (!ids)
+    return failLoad('The CLI response carried no artifact list.')
+
+  const artifacts: ArtifactView[] = []
+  for (const id of ids) {
+    const files: ArtifactFile[] = []
+    for (const entry of probe.files?.[id] ?? []) {
+      // 白名單內的檔案讀不到＝真失敗，不是缺件（spec openspec-gateway）
+      if (typeof entry.content !== 'string')
+        return failLoad(joinDetail(`Could not read ${entry.path}.`, entry.error))
+      files.push({ path: displayPath(entry.path, changeRoot), content: entry.content })
+    }
+    artifacts.push({ id, files, missing: files.length === 0 })
+  }
+
+  return { ok: true, detail: { name, artifacts } }
+}
+
+/** tabs 的內容與順序沿用 CLI；`artifacts` 陣列是權威順序，缺了才退回 artifactPaths 的鍵序 */
+function artifactIds(payload: Record<string, unknown>): string[] | null {
+  if (Array.isArray(payload.artifacts)) {
+    const ids: string[] = []
+    for (const raw of payload.artifacts) {
+      const id = asRecord(raw)?.id
+      if (typeof id !== 'string' || !id)
+        return null
+      ids.push(id)
+    }
+    return ids
+  }
+  const paths = asRecord(payload.artifactPaths)
+  return paths ? Object.keys(paths) : null
+}
+
+/** 絕對路徑對使用者無資訊量；specs 多檔標頭只需 change 目錄內的相對位置 */
+function displayPath(absolute: string, changeRoot: string): string {
+  const prefix = trimTrailingSlash(changeRoot)
+  if (prefix && absolute.startsWith(prefix))
+    return absolute.slice(prefix.length).replace(/^[/\\]+/, '') || absolute
+  return absolute
 }
 
 function parseJson(stdout: string): Record<string, unknown> | null {

@@ -11,6 +11,13 @@
   }
 }
 
+/* 按下＝把抬起來的卡片壓回去。整片卡片用 scale 縮會位移太大，改用取消抬升做按壓感。
+   放在 hover 規則之後：同權重、後者勝，press 期間不會被 hover 的位移蓋掉 */
+.card-lift:active {
+  transform: none;
+  background-color: var(--sr-surface-hover);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 降級不是關閉：留下顏色與透明度變化，移除位移與循環動畫 */
   *,

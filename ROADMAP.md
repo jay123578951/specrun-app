@@ -38,12 +38,14 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C0 | scaffold-app-shell | 純環境骨架（Vite+Vue+Nitro 通路），**零視覺決策** | ✅ 2026-08-14 archived |
 | D1 | add-design-foundation | 設計基礎：tokens、主題、視覺語言。結構層決策見 `docs/ui-structure-decisions.md` | ✅ 2026-08-14 archived |
 | C1 | add-change-list | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | ✅ 2026-08-14 archived |
-| C2 | | artifact 唯讀渲染（Markdown） | |
+| C2 | add-artifact-view | artifact 唯讀渲染（Markdown）＋收合變形詳情檢視（窄軌＋內容面板、動態 tabs） | ✅ 2026-08-14 archived |
 | C3 | | file watcher 即時刷新 | |
 | C4 | | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | |
 | C5 | | 多專案清單與切換（路徑管理從這裡才真正做） | |
 | C6 | | parked 唯讀清單（資料來源屆時再決策：Spectra 轉接器 vs 自訂目錄） | |
 | C7 | | UI 視覺精修（畫面到齊後的整體打磨） | |
+
+> `openspec/changes/check-custom-schema-tabs/` 不是真的 change，是 custom schema（`rfc-lite`）的驗收測試資料，刻意常駐於 dogfooding 資料集中；「一次只開一個進行中的 change」的原則不把它算在內。
 
 **UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C7 收尾精修。
 

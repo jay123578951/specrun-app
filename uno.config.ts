@@ -48,6 +48,15 @@ export default defineConfig<Theme>({
     // 側欄項目：D8 死項不灰化——保留 hover 態，但不給 pointer cursor（點了不會有事）
     'side-item': 'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
 
+    // 窄軌項目：選中態由呼叫端加 accent 底，這裡只備齊 hover／focus／active
+    'rail-item': 'w-full flex flex-col items-start gap-1.5 px-2.5 py-2 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 kbd-focus',
+
+    // artifact tab：選中態的底線與文字色由呼叫端切換。40px 高是密集工具介面的點擊面積下限
+    'tab-item': 'h-10 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',
+
+    // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（::before 撐開，不動版面）
+    'icon-btn': 'relative h-7 w-7 flex shrink-0 items-center justify-center border border-line rounded text-text-2 transition-[background-color,color] duration-150 before:absolute before:-inset-2 before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+
     // 具名層級，template 不出現裸 z 值
     'z-toast': 'z-100',
   },

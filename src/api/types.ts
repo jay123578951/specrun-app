@@ -31,12 +31,37 @@ export type ChangeListResult
   = { ok: true, targetPath: string, changes: ChangeSummary[] }
     | { ok: false, targetPath: string, error: GatewayError }
 
+/** artifact 的一個既存檔案；specs 這類 glob artifact 可有多個 */
+export interface ArtifactFile {
+  /** 相對 changeRoot 的顯示路徑，specs 多檔串接時當標頭 */
+  path: string
+  content: string
+}
+
+/** 內容面板的一個 tab；順序沿用 CLI，名稱不寫死（custom schema 必須可用） */
+export interface ArtifactView {
+  id: string
+  files: ArtifactFile[]
+  /** 尚無既存檔案——是缺件不是錯誤（spec openspec-gateway） */
+  missing: boolean
+}
+
+export interface ChangeDetail {
+  name: string
+  artifacts: ArtifactView[]
+}
+
+export type ChangeDetailResult
+  = { ok: true, detail: ChangeDetail }
+    | { ok: false, error: GatewayError }
+
 /**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
  */
 export interface OpenSpecGateway {
   listChanges: () => Promise<ChangeListResult>
+  getChangeDetail: (name: string) => Promise<ChangeDetailResult>
 }
 
 /**
@@ -57,4 +82,26 @@ export interface ChangeListProbe {
 export interface ProbeFailure {
   kind: 'cli-unavailable' | 'target-missing' | 'spawn-failed'
   message: string
+}
+
+/**
+ * `GET /api/changes/:name` 的回傳：一次 `status --change` 呼叫的原始輸出，
+ * 加上依 `artifactPaths` 讀齊的檔案內容（design D1 的一趟打包）。
+ * 同樣只轉送不解析——分類與組裝在 shared normalize。
+ */
+export interface ChangeDetailProbe extends ChangeListProbe {
+  changeName: string
+  /**
+   * artifact id → 該 artifact 各既存檔案的讀取結果，順序沿用 `existingOutputPaths`。
+   * 只在 CLI 呼叫成功時出現；讀檔範圍即 CLI 列出的路徑（design D3 白名單）。
+   */
+  files?: Record<string, ArtifactFileProbe[]>
+}
+
+export interface ArtifactFileProbe {
+  /** CLI 給的絕對路徑，原樣帶回 */
+  path: string
+  content?: string
+  /** 讀檔失敗的系統訊息；有值時 content 必為 undefined */
+  error?: string
 }

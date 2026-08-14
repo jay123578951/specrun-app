@@ -28,12 +28,16 @@ App 的主畫面：以卡片清單呈現目標專案的進行中 change 與任�
 - **WHEN** 有 3 個進行中 change
 - **THEN** 群組標題顯示「Active (3)」
 
-### Requirement: 卡片為純展示
-C1 的卡片 MUST NOT 提供點擊開啟詳情或 hover 動作（Park／複製／刪除）；hover SHALL 僅有視覺抬升回饋。
+### Requirement: 卡片點擊開啟詳情
+卡片 SHALL 可點擊，點擊後開啟該 change 的詳情檢視（收合變形，行為見 `artifact-view`）；卡片 MUST NOT 提供 hover 動作（Park／複製／刪除為後續里程碑範圍），hover SHALL 僅有視覺抬升回饋。
 
 #### Scenario: 點擊卡片
-- **WHEN** 使用者點擊卡片
-- **THEN** 不發生導航或畫面變形
+- **WHEN** 使用者點擊某張卡片
+- **THEN** 主區變形為該 change 的詳情檢視
+
+#### Scenario: hover 僅視覺回饋
+- **WHEN** 使用者 hover 卡片
+- **THEN** 卡片僅呈現視覺抬升，不浮現任何動作按鈕
 
 ### Requirement: 首次載入顯示 skeleton
 清單資料首次載入期間，主區 SHALL 顯示與真實卡片同尺寸的 skeleton 卡片（2–3 張），資料到達後替換為真實卡片且無版面跳動。
