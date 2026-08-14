@@ -36,6 +36,10 @@
 
   /* 浮層陰影：全 App 唯一允許的 box-shadow */
   --sr-shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.55);
+
+  /* 曲線：ui-motion skill 的固定值，內建 easing 對 UI 太軟；元件寫 ease-[var(--sr-ease-out)] */
+  --sr-ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* 進出場、預設 */
+  --sr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* 畫面內移動、變形 */
 }
 
 html,

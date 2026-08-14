@@ -1,0 +1,200 @@
+/**
+ * CLI 原始輸出 → App 型別的唯一轉換點（純函式，web 與 M4 Tauri 版共用）。
+ *
+ * 判定順序刻意固定：spawn 層失敗 → 輸出可否解析 → exit code → root 是否為目標專案 → 逐筆欄位。
+ * 每一關都往前收斂，後面的分支才能假設前面成立。
+ */
+
+import type {
+  ChangeListProbe,
+  ChangeListResult,
+  ChangeStatus,
+  ChangeSummary,
+  GatewayErrorKind,
+} from './types'
+
+const CHANGE_STATUSES: ChangeStatus[] = ['no-tasks', 'in-progress', 'complete']
+
+/** CLI 失敗時 stdout 上的診斷條目（`{ changes: [], root: null, status: [...] }`） */
+interface CliDiagnostic {
+  code: string
+  message: string
+  fix?: string
+  target?: string
+}
+
+export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
+  const fail = (kind: GatewayErrorKind, message: string, detail?: string): ChangeListResult => ({
+    ok: false,
+    targetPath: probe.targetPath,
+    error: detail ? { kind, message, detail } : { kind, message },
+  })
+
+  if (probe.failure) {
+    switch (probe.failure.kind) {
+      case 'cli-unavailable':
+        return fail('cli-unavailable', 'The openspec CLI is not available.', probe.failure.message)
+      // 路徑不存在的資料夾當然不是 openspec 專案；與 CLI 找不到執行檔分開才不會誤導使用者
+      case 'target-missing':
+        return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', probe.failure.message)
+      default:
+        return fail('call-failed', 'Could not read the change list.', probe.failure.message)
+    }
+  }
+
+  const payload = parseJson(probe.stdout)
+  if (!payload)
+    return fail('call-failed', 'Could not read the change list.', describeUnparsable(probe))
+
+  if (probe.exitCode !== 0) {
+    const diagnostic = firstDiagnostic(payload)
+    // exit 非 0＋root 解析類診斷 payload＝目標路徑無 openspec root（design D3）
+    if (diagnostic && isRootDiagnostic(diagnostic)) {
+      return fail(
+        'not-openspec-project',
+        'The target folder is not an OpenSpec project.',
+        joinDetail(diagnostic.message, diagnostic.fix),
+      )
+    }
+    return fail(
+      'call-failed',
+      'Could not read the change list.',
+      diagnostic ? joinDetail(diagnostic.message, diagnostic.fix) : `openspec exited with code ${probe.exitCode}.`,
+    )
+  }
+
+  const root = asRecord(payload.root)
+  const rootPath = typeof root?.path === 'string' ? root.path : null
+  if (!rootPath)
+    return fail('call-failed', 'Could not read the change list.', 'The CLI response carried no root path.')
+
+  // 判準是 root.path 比對（design D3）；`implicit` 只是補強訊號——CLI 在找不到任何
+  // openspec root 時會以 cwd 造一個 implicit root，此時路徑會「相符」但專案並不存在。
+  if (!samePath(rootPath, probe.targetPath)) {
+    return fail(
+      'not-openspec-project',
+      'The target folder is not an OpenSpec project.',
+      `openspec resolved its root to ${rootPath} instead.`,
+    )
+  }
+  if (root?.source === 'implicit') {
+    return fail(
+      'not-openspec-project',
+      'The target folder is not an OpenSpec project.',
+      'No openspec/ directory was found in this folder or its parents.',
+    )
+  }
+
+  if (!Array.isArray(payload.changes))
+    return fail('call-failed', 'Could not read the change list.', 'The CLI response carried no change list.')
+
+  const changes: ChangeSummary[] = []
+  for (const raw of payload.changes) {
+    const change = toSummary(raw)
+    if (!change)
+      return fail('call-failed', 'Could not read the change list.', 'The CLI response had an unexpected shape.')
+    changes.push(change)
+  }
+
+  // 順序即 CLI 順序（lastModified 新→舊）；前端不重排（spec openspec-gateway）
+  return { ok: true, targetPath: probe.targetPath, changes }
+}
+
+function parseJson(stdout: string): Record<string, unknown> | null {
+  try {
+    return asRecord(JSON.parse(stdout))
+  }
+  catch {
+    return null
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function toSummary(raw: unknown): ChangeSummary | null {
+  const item = asRecord(raw)
+  if (!item)
+    return null
+
+  const { name, completedTasks, totalTasks, status } = item
+  if (typeof name !== 'string' || !name)
+    return null
+  if (!Number.isFinite(completedTasks) || !Number.isFinite(totalTasks))
+    return null
+  if (!CHANGE_STATUSES.includes(status as ChangeStatus))
+    return null
+
+  const lastModified = toEpochMs(item.lastModified)
+  if (lastModified === null)
+    return null
+
+  return {
+    name,
+    completedTasks: completedTasks as number,
+    totalTasks: totalTasks as number,
+    status: status as ChangeStatus,
+    lastModified,
+  }
+}
+
+function toEpochMs(value: unknown): number | null {
+  if (typeof value === 'number')
+    return Number.isFinite(value) ? value : null
+  if (typeof value !== 'string')
+    return null
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function firstDiagnostic(payload: Record<string, unknown>): CliDiagnostic | null {
+  if (!Array.isArray(payload.status))
+    return null
+  for (const raw of payload.status) {
+    const entry = asRecord(raw)
+    if (typeof entry?.code === 'string' && typeof entry.message === 'string') {
+      return {
+        code: entry.code,
+        message: entry.message,
+        ...(typeof entry.fix === 'string' ? { fix: entry.fix } : {}),
+        ...(typeof entry.target === 'string' ? { target: entry.target } : {}),
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * root 解析失敗的診斷（`no_openspec_root`、`no_root_with_registered_stores`、
+ * store 家族…）→「非 openspec 專案」；其餘診斷（如 `list_error`）是引擎自身出錯，
+ * 歸「呼叫或解析失敗」，免得把 CLI 內部錯誤講成「這裡沒有專案」。
+ */
+function isRootDiagnostic(diagnostic: CliDiagnostic): boolean {
+  const haystack = `${diagnostic.code} ${diagnostic.target ?? ''}`
+  return haystack.includes('root') || haystack.includes('store')
+}
+
+/** 兩邊都已 realpath 過，只需吸收尾斜線差異 */
+function samePath(a: string, b: string): boolean {
+  return trimTrailingSlash(a) === trimTrailingSlash(b)
+}
+
+function trimTrailingSlash(value: string): string {
+  return value.length > 1 ? value.replace(/[/\\]+$/, '') : value
+}
+
+function joinDetail(...parts: (string | undefined)[]): string | undefined {
+  const detail = parts.filter(Boolean).join(' ')
+  return detail || undefined
+}
+
+function describeUnparsable(probe: ChangeListProbe): string | undefined {
+  return joinDetail(firstLine(probe.stderr) || firstLine(probe.stdout))
+}
+
+function firstLine(value: string): string {
+  return value.trim().split('\n', 1)[0]?.slice(0, 200) ?? ''
+}

@@ -18,8 +18,9 @@ import '@ibm/plex-sans-tc/fonts/split/woff2/hinted/IBMPlexSansTC-Regular.css'
 import '@ibm/plex-sans-tc/fonts/split/woff2/hinted/IBMPlexSansTC-Medium.css'
 import '@ibm/plex-sans-tc/fonts/split/woff2/hinted/IBMPlexSansTC-SemiBold.css'
 
-// 放最後：base 樣式要蓋過 preset reset
+// 放最後：base 樣式與互動例外要蓋過 preset reset 與 utility
 import './styles/tokens.css'
+import './styles/interactions.css'
 
 createApp(App)
   .use(createPinia())

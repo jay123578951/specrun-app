@@ -37,7 +37,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 |---|--------|------|------|
 | C0 | scaffold-app-shell | 純環境骨架（Vite+Vue+Nitro 通路），**零視覺決策** | ✅ 2026-08-14 archived |
 | D1 | add-design-foundation | 設計基礎：tokens、主題、視覺語言。結構層決策見 `docs/ui-structure-decisions.md` | ✅ 2026-08-14 archived |
-| C1 | | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | |
+| C1 | add-change-list | change 列表＋任務進度（design 附 wireframe 審過才做；路徑先寫死單專案） | ✅ 2026-08-14 archived |
 | C2 | | artifact 唯讀渲染（Markdown） | |
 | C3 | | file watcher 即時刷新 | |
 | C4 | | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | |

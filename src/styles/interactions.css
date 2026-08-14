@@ -1,0 +1,31 @@
+/**
+ * 互動與動效的少數例外：需要 media query 條件（指標能力、reduced motion）
+ * 才成立的規則放這裡，其餘一律走語意 utility 與 uno.config 的 shortcuts。
+ */
+
+/* 卡片 hover 抬升：只在真指標裝置生效——觸控裝置點一下就會卡在 hover 態 */
+@media (hover: hover) and (pointer: fine) {
+  .card-lift:hover {
+    transform: translateY(-1px);
+    background-color: var(--sr-surface-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 降級不是關閉：留下顏色與透明度變化，移除位移與循環動畫 */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+  }
+
+  .card-lift:hover {
+    transform: none;
+  }
+
+  /* 帶位移進出場的浮層（toast）改為純淡入淡出 */
+  .sr-motion {
+    transform: none !important;
+    transition-property: opacity !important;
+  }
+}

@@ -15,5 +15,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts", "uno.config.ts", "nitro.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts", "vitest.config.ts", "uno.config.ts", "nitro.config.ts"]
 }

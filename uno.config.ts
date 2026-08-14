@@ -33,6 +33,25 @@ export default defineConfig<Theme>({
     }),
   ],
 
+  /**
+   * 語意化組合：元件寫 shortcut、不在 template 堆長串 utility。
+   * 互動八態（ui-interaction-states）在這裡一次備齊，元件只補 loading／error 的內容差異。
+   */
+  shortcuts: {
+    // 鍵盤 focus ring：accent-bright、2px、永不做動畫（淡入的 ring 等於鍵盤使用者前半段沒有指示）。
+    // 名稱刻意避開 focus-ring——那會先被解析成 focus: 變體＋ring utility。
+    'kbd-focus': 'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent-bright focus-visible:outline-offset-2',
+
+    // 次要按鈕：default／hover／focus／active／disabled 齊備；loading 由呼叫端接 aria-busy＋轉圈圖示
+    'btn-quiet': 'inline-flex items-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+
+    // 側欄項目：D8 死項不灰化——保留 hover 態，但不給 pointer cursor（點了不會有事）
+    'side-item': 'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
+
+    // 具名層級，template 不出現裸 z 值
+    'z-toast': 'z-100',
+  },
+
   theme: {
     // 語意色：值定義於 src/styles/tokens.css，這裡只接 var()
     colors: {

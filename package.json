@@ -10,6 +10,7 @@
     "dev:web": "vite",
     "build": "vite build && nitro build",
     "lint": "eslint .",
+    "test": "vitest run",
     "typecheck": "nitro prepare && vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
   "devDependencies": {
     "@antfu/eslint-config": "^9.3.0",
     "@iconify-json/lucide": "^1.2.123",
+    "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "concurrently": "^10.0.4",
     "eslint": "^10.8.1",
@@ -30,6 +32,7 @@
     "typescript": "^5.9.3",
     "unocss": "^66.7.5",
     "vite": "^8.2.1",
+    "vitest": "^4.1.10",
     "vue-tsc": "^3.3.9"
   },
   "pnpm": {
