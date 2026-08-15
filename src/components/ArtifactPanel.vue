@@ -13,10 +13,11 @@ const scroller = ref<HTMLElement>()
 
 /**
  * 勾選只在單檔 tasks tab 開放（design D6）：其他 artifact、多檔 tasks（非預設 schema）
- * 與 custom schema 的任何 tab 一律維持唯讀。
+ * 與 custom schema 的任何 tab 一律維持唯讀。parked change 整份唯讀——渲染端把
+ * checkbox 交回 markdown-it 的 disabled 預設（視覺與行為一次到位）。
  */
 const interactiveTasks = computed(() =>
-  detail.currentArtifact?.id === 'tasks' && detail.currentArtifact.files.length === 1,
+  !detail.isParked && detail.currentArtifact?.id === 'tasks' && detail.currentArtifact.files.length === 1,
 )
 
 // 換 change 或換 tab 都是新內容，捲動位置從頭開始（沿用上一份的位置只會讀到半途）
@@ -33,6 +34,15 @@ watch(() => [detail.changeName, detail.currentTab], () => {
         <h2 class="truncate text-mono-base text-text font-mono" :title="detail.changeName ?? ''">
           {{ detail.changeName }}
         </h2>
+
+        <!-- 唯讀不是壞掉：講清楚「這是 parked 的樣貌」比讓人納悶 checkbox 為何點不動好 -->
+        <span
+          v-if="detail.isParked"
+          class="shrink-0 flex items-center gap-1.5 rounded-full bg-parked/12 px-2 py-0.5 text-ui-xs text-parked"
+        >
+          <span class="i-lucide-pause h-3 w-3" aria-hidden="true" />
+          Parked · read-only
+        </span>
 
         <!-- 背景重取失敗但畫面有內容：不換錯誤畫面，只在頭部留一個小記號（spec 詳情錯誤呈現） -->
         <span

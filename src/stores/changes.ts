@@ -1,4 +1,4 @@
-import type { ChangeSummary, GatewayError } from '../api'
+import type { ChangeSummary, GatewayError, ParkActionResult, ParkedSummary, ParkUnavailableReason } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
@@ -29,7 +29,18 @@ export const useChangesStore = defineStore('changes', () => {
    */
   const generation = ref(0)
 
+  /**
+   * parked 群組併在這裡（design D6）：同頁、同刷新節奏、同 invalidate 時機，
+   * 清單畫面仍只有一個狀態源。資料來源與 active 完全不同（現場解析檔案，不經 CLI）。
+   */
+  const parked = shallowRef<ParkedSummary[]>([])
+  const parkAvailable = ref(false)
+  const parkReason = ref<ParkUnavailableReason | null>(null)
+  /** 進行中的 park／unpark 對象；同時只允許一個，按鈕據此進入 pending */
+  const parkPending = ref<string | null>(null)
+
   const activeCount = computed(() => changes.value.length)
+  const parkedCount = computed(() => parked.value.length)
   const cliUnavailable = computed(() => blockingError.value?.kind === 'cli-unavailable')
   const busy = computed(() => firstLoadPending.value || refreshing.value)
 
@@ -61,6 +72,24 @@ export const useChangesStore = defineStore('changes', () => {
     blockingError.value = null
     firstLoadPending.value = true
     refreshing.value = false
+    parked.value = []
+    parkAvailable.value = false
+    parkReason.value = null
+  }
+
+  /**
+   * parked 清單：與 active 同時發，兩邊互不等待。失敗保留既有內容——parked 是次要群組，
+   * 為了一次讀不到就把卡片清空、或彈一則 toast，都比安靜留著舊清單吵。
+   */
+  async function loadParked(): Promise<void> {
+    const mine = generation.value
+    const result = await gateway.listParked()
+    if (!result.ok || mine !== generation.value)
+      return
+
+    parked.value = result.items
+    parkAvailable.value = result.parkAvailable
+    parkReason.value = result.reason ?? null
   }
 
   async function load(): Promise<void> {
@@ -69,7 +98,7 @@ export const useChangesStore = defineStore('changes', () => {
       refreshing.value = true
 
     try {
-      const result = await gateway.listChanges()
+      const [result] = await Promise.all([gateway.listChanges(), loadParked()])
       if (mine !== generation.value)
         return
 
@@ -101,6 +130,36 @@ export const useChangesStore = defineStore('changes', () => {
     }
   }
 
+  /**
+   * park／unpark：兩者都是「搬移目錄 → 兩個群組都變了」，所以成功後主動重載兩群組
+   * （不等 watcher——它只看得到 `openspec/changes/` 那一半，且要等 debounce）。
+   * 失敗只丟 toast，畫面維持操作前的樣子：實際狀態以重新列舉的結果為準（spec 操作失敗呈現）。
+   */
+  function park(name: string): Promise<void> {
+    return runParkAction(name, () => gateway.parkChange(name))
+  }
+
+  function unpark(name: string): Promise<void> {
+    return runParkAction(name, () => gateway.unparkChange(name))
+  }
+
+  async function runParkAction(name: string, call: () => Promise<ParkActionResult>): Promise<void> {
+    if (parkPending.value)
+      return
+
+    parkPending.value = name
+    try {
+      const result = await call()
+      if (result.ok)
+        await load()
+      else
+        notify(result.message, result.detail)
+    }
+    finally {
+      parkPending.value = null
+    }
+  }
+
   /** 全 App 共用的非阻斷提示；detail store 的寫入失敗也走這裡 */
   function notify(message: string, detail?: string): void {
     const toast: Toast = { id: ++toastSeq, message, ...(detail ? { detail } : {}) }
@@ -123,12 +182,20 @@ export const useChangesStore = defineStore('changes', () => {
     refreshing,
     blockingError,
     toasts,
+    parked,
+    parkAvailable,
+    parkReason,
+    parkPending,
     activeCount,
+    parkedCount,
     cliUnavailable,
     busy,
     load,
     loadSilently,
+    loadParked,
     invalidate,
+    park,
+    unpark,
     notify,
     dismissToast,
   }

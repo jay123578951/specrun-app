@@ -15,6 +15,11 @@ import { useChangesStore } from './changes'
 export const useDetailStore = defineStore('detail', () => {
   /** 目前開啟的 change 名；null＝詳情未開 */
   const changeName = ref<string | null>(null)
+  /**
+   * 開著的是 parked change（design D6 的資料路徑分流）：
+   * 走快照 bundle 而非 `openspec status`，且整份詳情唯讀（tasks 不可勾）。
+   */
+  const isParked = ref(false)
   const detail = shallowRef<ChangeDetail | null>(null)
   /** 跨 change 記住的 tab 選取，fallback 後會被覆寫成實際落點 */
   const currentTab = ref<string | null>(null)
@@ -101,10 +106,13 @@ export const useDetailStore = defineStore('detail', () => {
     }
   }
 
-  async function show(name: string): Promise<void> {
+  async function show(name: string, parked = false): Promise<void> {
     changeName.value = name
+    isParked.value = parked
 
-    const cached = cache.get(name)
+    // parked 詳情不進快取：鍵是 change 名，與 active 撞名就會互相餵錯內容，
+    // 而預載的清理邏輯（不在 active 清單中就淘汰）也會把它們掃掉。冷、小、少，重取即可。
+    const cached = parked ? undefined : cache.get(name)
     if (cached) {
       // 暖路徑：先把上次的內容擺上去，重取在背景進行
       detail.value = cached
@@ -135,12 +143,13 @@ export const useDetailStore = defineStore('detail', () => {
     if (queued !== -1)
       prefetchQueue.splice(queued, 1)
 
-    const result = await fetchDetail(name)
+    const result = isParked.value ? await gateway.getParkedDetail(name) : await fetchDetail(name)
     if (mine !== seq)
       return
 
     if (result.ok) {
-      remember(name, result.detail)
+      if (!isParked.value)
+        remember(name, result.detail)
       // 內容一模一樣就不動 detail：重賦值會整片重繪 markdown、白費一次高亮與捲動
       if (!warm || !isSameDetail(detail.value, result.detail)) {
         detail.value = result.detail
@@ -165,6 +174,11 @@ export const useDetailStore = defineStore('detail', () => {
     if (!name)
       return
 
+    // parked 是冷凍狀態：watcher 只看 `openspec/changes/`，那裡本來就不會有它——
+    // 拿 active 清單來判斷「還在不在」會立刻把畫面關掉
+    if (isParked.value)
+      return
+
     if (!names.includes(name)) {
       close()
       return
@@ -179,7 +193,7 @@ export const useDetailStore = defineStore('detail', () => {
    */
   async function loadSilently(): Promise<void> {
     const name = changeName.value
-    if (!name)
+    if (!name || isParked.value)
       return
 
     const mine = ++seq
@@ -215,6 +229,7 @@ export const useDetailStore = defineStore('detail', () => {
   function close(): void {
     seq++ // 讓飛在路上的請求作廢，免得關掉後才回來寫狀態
     changeName.value = null
+    isParked.value = false
     detail.value = null
     error.value = null
     staleWarning.value = false
@@ -248,7 +263,8 @@ export const useDetailStore = defineStore('detail', () => {
   async function toggleTask(line: number): Promise<void> {
     const name = changeName.value
     const file = tasksFile(detail.value)
-    if (!name || !file || pendingTaskLines.value.includes(line))
+    // parked 是唯讀（spec parked tasks 不可勾）：UI 已把 checkbox 停用，這裡是第二道
+    if (!name || !file || isParked.value || pendingTaskLines.value.includes(line))
       return
 
     const expectedText = lineTextAt(file.content, line)
@@ -305,6 +321,7 @@ export const useDetailStore = defineStore('detail', () => {
 
   return {
     changeName,
+    isParked,
     detail,
     currentTab,
     loading,

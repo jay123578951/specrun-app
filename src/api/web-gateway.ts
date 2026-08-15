@@ -4,11 +4,16 @@ import type {
   ChangeListProbe,
   ChangeListResult,
   OpenSpecGateway,
+  ParkActionResult,
+  ParkedDetailProbe,
+  ParkedListProbe,
+  ParkedListResult,
   ProjectActionResult,
   TaskToggleInput,
   ToggleResult,
 } from './types'
 import { normalizeChangeDetail, normalizeChangeList } from './normalize'
+import { normalizeParkedDetail, normalizeParkedList } from './normalize-parked'
 
 /** web（Vite dev／Nitro 部署）版 gateway：向本地 route 取 CLI 原始輸出，再交給 shared normalize */
 export const webGateway: OpenSpecGateway = {
@@ -112,6 +117,50 @@ export const webGateway: OpenSpecGateway = {
     )
   },
 
+  async listParked(): Promise<ParkedListResult> {
+    let probe: ParkedListProbe
+    try {
+      probe = await fetchProbe<ParkedListProbe>('/api/parked')
+    }
+    catch (error) {
+      return {
+        ok: false,
+        error: {
+          kind: 'call-failed',
+          message: 'Could not read the parked list.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeParkedList(probe)
+  },
+
+  parkChange(name: string): Promise<ParkActionResult> {
+    return parkRequest(`/api/changes/${encodeURIComponent(name)}/park`, 'Could not park this change.')
+  },
+
+  unparkChange(name: string): Promise<ParkActionResult> {
+    return parkRequest(`/api/parked/${encodeURIComponent(name)}/unpark`, 'Could not restore this change.')
+  },
+
+  async getParkedDetail(name: string): Promise<ChangeDetailResult> {
+    let probe: ParkedDetailProbe
+    try {
+      probe = await fetchProbe<ParkedDetailProbe>(`/api/parked/${encodeURIComponent(name)}`)
+    }
+    catch (error) {
+      return {
+        ok: false,
+        error: {
+          kind: 'call-failed',
+          message: 'Could not load this parked change.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeParkedDetail(probe)
+  },
+
   // web 沒有原生選資料夾——呼叫端看到 false 就改用貼路徑輸入列（design D5 的縫）
   canPickFolder: false,
   async pickFolder(): Promise<string | null> {
@@ -131,6 +180,23 @@ async function projectRequest(
   try {
     const res = await fetch(url, init)
     const result = await res.json() as ProjectActionResult
+    if (typeof result?.ok !== 'boolean')
+      throw new TypeError(`Unexpected response: ${res.status}`)
+    return result
+  }
+  catch (error) {
+    return { ok: false, message: failureMessage, detail: describe(error) }
+  }
+}
+
+/**
+ * park／unpark 的共同形狀：與 project 端點同一套姿態——分類一律以 body 為準
+ * （400 的 body 同樣是 ParkActionResult），只有連 route 都到不了才自己造訊息。
+ */
+async function parkRequest(url: string, failureMessage: string): Promise<ParkActionResult> {
+  try {
+    const res = await fetch(url, { method: 'POST' })
+    const result = await res.json() as ParkActionResult
     if (typeof result?.ok !== 'boolean')
       throw new TypeError(`Unexpected response: ${res.status}`)
     return result

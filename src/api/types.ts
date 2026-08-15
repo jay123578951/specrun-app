@@ -102,6 +102,33 @@ export type ProjectActionResult
   = { ok: true, snapshot: ProjectsSnapshot, alreadyExisted?: boolean }
     | { ok: false, message: string, detail?: string }
 
+/** park 不可用的兩種形態；UI 據此禁用按鈕並給對應提示（spec park 降級） */
+export type ParkUnavailableReason = 'not-git-repo' | 'git-worktree'
+
+/**
+ * parked 卡片所需的摘要。進度與摘錄不經 CLI——parked change 對 openspec 不可見，
+ * 一律現場解析 parked 目錄內的檔案（design D4）。
+ */
+export interface ParkedSummary {
+  name: string
+  completedTasks: number
+  totalTasks: number
+  status: ChangeStatus
+  /** park 時點（epoch ms）；metadata 缺項時為 null，卡片顯示未知（spec fallback） */
+  parkedAt: number | null
+  /** proposal `## Why` 首句的機械摘錄；抽不到就是空字串 */
+  summary: string
+}
+
+export type ParkedListResult
+  = { ok: true, parkAvailable: boolean, reason?: ParkUnavailableReason, items: ParkedSummary[] }
+    | { ok: false, error: GatewayError }
+
+/** park／unpark 的結果；失敗一律帶可直接顯示的英文訊息（spec 操作失敗呈現） */
+export type ParkActionResult
+  = { ok: true }
+    | { ok: false, message: string, detail?: string }
+
 /**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
@@ -129,6 +156,15 @@ export interface OpenSpecGateway {
   /** 只移出清單，不動磁碟 */
   removeProject: (path: string) => Promise<ProjectActionResult>
   switchProject: (path: string) => Promise<ProjectActionResult>
+
+  /** parked 清單；`parkAvailable` 隨清單一併回傳，前端據此禁用 park 按鈕（design D5） */
+  listParked: () => Promise<ParkedListResult>
+  /** 把 active change 搬進 `.git/specrun-app/parked/`；撞名與殘留檢查在實作端 */
+  parkChange: (name: string) => Promise<ParkActionResult>
+  /** 搬回 `openspec/changes/`；目標已有同名 change 時拒絕，不覆蓋、不自動改名 */
+  unparkChange: (name: string) => Promise<ParkActionResult>
+  /** parked change 的詳情打包；tabs 依 park 當下的快照，不打 openspec status */
+  getParkedDetail: (name: string) => Promise<ChangeDetailResult>
 
   /**
    * 原生選資料夾的縫（design D5）：M4 Tauri 版走 dialog plugin，回傳使用者選的路徑。
@@ -178,4 +214,44 @@ export interface ArtifactFileProbe {
   content?: string
   /** 讀檔失敗的系統訊息；有值時 content 必為 undefined */
   error?: string
+}
+
+/**
+ * `GET /api/parked` 的回傳：目錄列舉結果＋各 parked change 的原始檔案內容。
+ * route 一樣只做 IO，勾選計數與首句摘錄的解析在 shared normalize（design D4）。
+ */
+export interface ParkedListProbe {
+  parkAvailable: boolean
+  reason?: ParkUnavailableReason
+  entries: ParkedEntryProbe[]
+  /** 列舉本身失敗（權限等）；有值時 entries 為空 */
+  failure?: string
+}
+
+export interface ParkedEntryProbe {
+  name: string
+  /** metadata 的 parkedAt（ISO 字串）；無紀錄時 undefined → 卡片顯示未知 */
+  parkedAt?: string
+  /** tasks 檔案原文，用於現場計算進度；讀不到時 undefined＝視同無任務 */
+  tasks?: string
+  /** proposal 原文，用於 `## Why` 首句摘錄 */
+  proposal?: string
+}
+
+/**
+ * `GET /api/parked/:name` 的回傳：依 park 當下的快照打包（metadata 缺失時退回現場
+ * 列舉 `*.md`）。artifact 順序即 tabs 順序，由這裡決定——parked change 查不到 CLI。
+ */
+export interface ParkedDetailProbe {
+  changeName: string
+  /** parked change 目錄的絕對路徑，normalize 據此把檔案路徑轉成顯示用相對路徑 */
+  changeRoot: string
+  artifacts: ParkedArtifactProbe[]
+  /** 專案／git 目錄／parked 目錄取不到；有值時 artifacts 為空 */
+  failure?: string
+}
+
+export interface ParkedArtifactProbe {
+  id: string
+  files: ArtifactFileProbe[]
 }

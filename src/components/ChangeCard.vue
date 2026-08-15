@@ -1,32 +1,71 @@
 <script setup lang="ts">
-import type { ChangeSummary } from '../api'
+import type { ChangeSummary, ParkedSummary } from '../api'
 import { computed } from 'vue'
+import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time'
 
-const props = defineProps<{ change: ChangeSummary }>()
+const props = defineProps<{ change: ChangeSummary | ParkedSummary }>()
 
+const changes = useChangesStore()
 const detail = useDetailStore()
+
+/** 兩種卡片共用同一個元件：`parkedAt` 的有無就是判別式（active 卡沒有這個欄位） */
+const parked = computed(() => 'parkedAt' in props.change ? props.change : null)
 
 const hasTasks = computed(() => props.change.totalTasks > 0)
 const isComplete = computed(() => props.change.status === 'complete')
-// 進度只用引擎給的數字，App 不自己讀 tasks 檔（spec openspec-gateway）
+// 進度只用資料層給的數字：active 來自引擎，parked 來自現場解析（design D4）
 const ratio = computed(() => hasTasks.value
   ? Math.min(1, Math.max(0, props.change.completedTasks / props.change.totalTasks))
   : 0)
+
+/** active 卡＝最後修改時間；parked 卡＝停放時點，且可能不明（spec fallback） */
+const timestamp = computed(() => parked.value ? parked.value.parkedAt : (props.change as ChangeSummary).lastModified)
+const timeLabel = computed(() => {
+  if (!parked.value)
+    return formatRelativeTime(timestamp.value as number)
+  return timestamp.value === null ? 'parked · time unknown' : `parked ${formatRelativeTime(timestamp.value)}`
+})
+
+const pending = computed(() => changes.parkPending === props.change.name)
+// park 只有在專案有正常 .git 目錄時才成立；restore 是既有 parked 項目，永遠可做
+const disabled = computed(() => pending.value || (!parked.value && !changes.parkAvailable))
+const actionTitle = computed(() => {
+  if (parked.value)
+    return 'Restore to openspec/changes'
+  if (changes.parkAvailable)
+    return 'Park this change'
+  return changes.parkReason === 'git-worktree'
+    ? 'Parking is not supported in a git worktree'
+    : 'Parking needs a git repository — this project has no .git directory'
+})
+
+function open(): void {
+  detail.show(props.change.name, parked.value !== null)
+}
+
+function runAction(): void {
+  if (disabled.value)
+    return
+  if (parked.value)
+    changes.unpark(props.change.name)
+  else
+    changes.park(props.change.name)
+}
 </script>
 
 <template>
-  <!-- 卡片是詳情的入口；hover 仍只有視覺抬升，不浮現任何動作（spec change-list）。
+  <!-- 卡片是詳情的入口；hover 抬升並浮現單一動作按鈕（Park／Restore，spec change-list）。
        role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法 -->
   <article
-    class="card-lift cursor-pointer border border-line rounded bg-surface px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
+    class="card-lift group cursor-pointer border border-line rounded bg-surface px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
     role="button"
     tabindex="0"
     :aria-label="`Open ${change.name}`"
-    @click="detail.show(change.name)"
-    @keydown.enter.prevent="detail.show(change.name)"
-    @keydown.space.prevent="detail.show(change.name)"
+    @click="open()"
+    @keydown.enter.prevent="open()"
+    @keydown.space.prevent="open()"
   >
     <div class="h-[1.6em] flex items-center gap-3 text-mono-base">
       <h3 class="truncate text-text font-mono" :title="change.name">
@@ -47,13 +86,42 @@ const ratio = computed(() => hasTasks.value
         <span class="text-text-3" aria-hidden="true">·</span>
 
         <time
-          class="text-ui-sm text-text-2"
-          :datetime="new Date(change.lastModified).toISOString()"
-          :title="formatAbsoluteTime(change.lastModified)"
+          class="text-ui-sm"
+          :class="parked ? 'text-parked' : 'text-text-2'"
+          :datetime="typeof timestamp === 'number' ? new Date(timestamp).toISOString() : undefined"
+          :title="typeof timestamp === 'number' ? formatAbsoluteTime(timestamp) : undefined"
         >
-          {{ formatRelativeTime(change.lastModified) }}
+          {{ timeLabel }}
         </time>
       </div>
+
+      <!-- 動作按鈕常駐佔位、只切透明度：hover 時整排數字不會被推著跑。
+           .stop 是 spec 要求——按這顆不能順便把詳情打開 -->
+      <button
+        type="button"
+        class="icon-btn ml-1 transition-opacity duration-150"
+        :class="[
+          // 透明度只由一個分支決定：與 opacity-0 對打的 utility 會依 CSS 順序勝出，
+          // 導致「不能 park 的專案反而每張卡都常駐一顆按鈕」
+          pending ? 'opacity-100' : 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
+          // 禁用走 aria-disabled 而非 disabled 屬性：原生 disabled 收不到 hover，
+          // 「為什麼不能 park」的 tooltip 就永遠沒機會出現
+          disabled ? 'cursor-not-allowed text-text-3 hover:bg-transparent hover:text-text-3' : '',
+        ]"
+        :aria-disabled="disabled"
+        :aria-label="actionTitle"
+        :title="actionTitle"
+        @click.stop="runAction()"
+        @keydown.stop
+      >
+        <span
+          class="h-3.5 w-3.5"
+          :class="pending
+            ? 'i-lucide-loader-circle animate-spin'
+            : (parked ? 'i-lucide-play' : 'i-lucide-pause')"
+          aria-hidden="true"
+        />
+      </button>
     </div>
 
     <div

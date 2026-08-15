@@ -11,6 +11,19 @@ const store = useChangesStore()
 const detail = useDetailStore()
 const projects = useProjectsStore()
 
+/**
+ * 群組內的進出場與重排（ui-motion：偶發操作＝標準動畫，目的是空間連續性——
+ * 卡片從哪裡消失、在哪裡出現要看得見）。離場 150ms＝進場的 75%，離場改 absolute
+ * 讓下面的卡片同時補位；`.sr-motion` 在 reduced motion 下只留淡入淡出。
+ */
+const GROUP_MOTION = {
+  'enter-active-class': 'transition-[opacity,transform] duration-200 ease-[var(--sr-ease-out)] sr-motion',
+  'enter-from-class': 'opacity-0 translate-y-2',
+  'leave-active-class': 'absolute inset-x-0 transition-[opacity,transform] duration-150 ease-[var(--sr-ease-out)] sr-motion',
+  'leave-to-class': 'opacity-0 translate-y-2',
+  'move-class': 'transition-transform duration-250 ease-[var(--sr-ease-in-out)]',
+} as const
+
 // 進詳情時清單整個卸載（換成窄軌），捲動位置得自己存回來——Esc 回來要在原地
 const scroller = ref<HTMLElement>()
 onMounted(() => scroller.value?.scrollTo({ top: detail.listScrollTop }))
@@ -28,6 +41,8 @@ const showSkeleton = computed(() => store.firstLoadPending && !noProject.value)
 const notOpenSpecProject = computed(() => store.blockingError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => store.blockingError?.kind === 'call-failed')
 const isEmpty = computed(() => !store.blockingError && store.changes.length === 0)
+// 沒有 parked change 就整段不存在——空群組標題只是一行沒有內容的噪音（spec 群組與排序）
+const showParked = computed(() => !noProject.value && store.parkedCount > 0)
 </script>
 
 <template>
@@ -124,7 +139,24 @@ const isEmpty = computed(() => !store.blockingError && store.changes.length === 
         />
 
         <!-- 順序即 CLI 回傳順序（lastModified 新→舊），前端不重排 -->
-        <ChangeCard v-for="change in store.changes" :key="change.name" :change="change" />
+        <TransitionGroup v-bind="GROUP_MOTION" tag="div" class="relative space-y-3">
+          <ChangeCard v-for="change in store.changes" :key="change.name" :change="change" />
+        </TransitionGroup>
+      </section>
+
+      <!-- Parked 與 Active 同頁分群（docs/ui-structure-decisions.md）：park／unpark
+           就是卡片在兩個群組之間搬家，兩邊用同一組進出場動畫才讀得出「它去了那裡」 -->
+      <section v-if="showParked" class="mt-8">
+        <header class="flex items-center">
+          <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
+            Parked ({{ store.parkedCount }})
+          </h2>
+        </header>
+
+        <!-- 順序為 park 時間新→舊，資料層已排好（normalize-parked） -->
+        <TransitionGroup v-bind="GROUP_MOTION" tag="div" class="relative mt-4 space-y-3">
+          <ChangeCard v-for="change in store.parked" :key="change.name" :change="change" />
+        </TransitionGroup>
       </section>
     </div>
   </main>

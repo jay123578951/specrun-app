@@ -15,7 +15,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | 桌面外殼 | Tauri v2（GUI + 官方 plugin：shell / fs / dialog；不寫 Rust，殼用模板） |
 | 前端 | Vue 3 + Vite + UnoCSS + Pinia |
 | 引擎 | openspec CLI（`status` / `list` / `instructions` `--json`），不重新實作任何規格語意 |
-| Park 機制 | UI 自己的檔案層操作，repo 外目錄（如 `~/.local/share/specrun-app/parked/<repo>/<name>`）＋小索引；openspec 無感 |
+| Park 機制 | UI 自己的檔案層操作，存放於各 repo 的 `.git/specrun-app/` 內＋輕量 metadata JSON；openspec 與 git 均無感（決策細節見 M2） |
 | 指令合併 | slash command 層解決（如收尾＝verify → sync → archive 串一個指令），不進引擎 |
 | 開發策略 | 先以本地 web 形態開發（Vite dev），前端與後端呼叫抽 interface，最後套 Tauri 殼 |
 
@@ -42,16 +42,27 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C3 | add-live-refresh | file watcher 即時刷新 | ✅ 2026-08-14 archived |
 | C4 | add-task-toggle | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | ✅ 2026-08-15 archived |
 | C5 | add-project-switcher | 多專案清單與切換（路徑管理從這裡才真正做）：側欄清單、加入／移除／切換、設定檔持久化、每專案徽章 | ✅ 2026-08-15 archived |
-| C6 | | parked 唯讀清單（資料來源屆時再決策：Spectra 轉接器 vs 自訂目錄） | |
-| C7 | | UI 視覺精修（畫面到齊後的整體打磨） | |
+| C6 | — | ~~parked 唯讀清單~~ 併入 M2（park 操作存在前唯讀清單恆空，無法 dogfood） | ➡️ 2026-08-15 併入 M2 |
+| C7 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏭️ 下一個（M2 已完成，2026-08-15 解除阻擋） |
 
 > `openspec/changes/check-custom-schema-tabs/` 不是真的 change，是 custom schema（`rfc-lite`）的驗收測試資料，刻意常駐於 dogfooding 資料集中；「一次只開一個進行中的 change」的原則不把它算在內。
 
 **UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C7 收尾精修。
 
-### M2 — Park 機制
+### M2 — Park 機制 ✅ 2026-08-15 完成
 
-Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀態無污染驗證。
+Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 change 做完即有真資料可 dogfood）。
+
+| # | change | 內容 | 狀態 |
+|---|--------|------|------|
+| P1 | add-park-mechanism | park／unpark 操作、Active／Parked 雙群組清單、parked 唯讀詳情（artifact 路徑快照）、非 git repo／worktree 降級禁用、失敗 toast | ✅ 2026-08-15 archived |
+
+已收斂決策（2026-08-15 探索定案，實作後結論不變）：
+
+- **不做 Spectra 轉接器**：實測全機 7 個曾用 Spectra 的 repo，parked 數均為 0——轉接器無既存資料可接，且綁死已停止維護的私有格式。格式自訂。
+- **存放位置：`<repo>/.git/specrun-app/parked/<name>/`**（藏進 .git 內部，借鑑 Spectra 實測發現的做法）：git 天然不追蹤 .git 自身 → 無污染免驗證、parked 隨 repo 搬移改名、repo 刪除自動清掉、免 repo-identity 映射。
+- **索引縮減為輕量 metadata JSON**（每 repo 一個 `.git/specrun-app/parked.json`）：只記檔案搬移會破壞的資訊——`parkedAt`（清單顯示「停了幾天」）與 park 當下的 artifact 路徑快照（parked 詳情的 tabs 依此列出）；原始 lastModified 不保留（parked 卡片時間欄位顯示 parkedAt，unpark 後回到列表頂端）。「哪些被 park」以目錄列舉為準，任務數／摘要現場解析，不做快取；目錄與 metadata 不一致時以目錄為準。
+- **無正常 `.git/` 目錄（非 git repo／worktree）→ park 禁用＋提示**（2026-08-15 decisions 定案）：tooltip 說明原因；worktree 支援（解析 `gitdir:`）記入觀察項。
 
 ### M3 — 操作與指令合併
 
@@ -68,12 +79,14 @@ Park / unpark 操作、parked 清單管理、repo 外存放與索引、git 狀�
 - 專案清單手動加入、不做全機掃描；設定存平台慣例位置（macOS：`~/Library/Application Support/`）
 - 空狀態：無專案引導加入目錄；openspec CLI 缺失時明確提示
 - 多專案側欄徽章＝未 archive 的 change 數，弱一致：啟動與切換時刷新，current 隨變動通知即時；取不到不編數字（C5 定案）
-- 仍開放（刻意留白）：change 列表排序（預設 lastModified 新→舊）
+- Parked 群組依 park 時間新→舊排序；無 parked change 時整段隱藏（P1 定案）
+- 仍開放（刻意留白）：Active 列表排序（預設 lastModified 新→舊）
 
 ### 後續觀察項（不排程）
 
 - in-app 陽春編輯（改錯字／小措辭情境）：先以「用編輯器開啟」按鈕滿足，dogfood 後痛感真實存在才評估開 change（成本在併發衝突與編輯體驗無底洞，非存檔本身）。
 - OpenSpec Stores 模型穩定後，評估 park 是否可映射過去。
+- git worktree 專案的 park 支援（解析 `.git` 檔案的 `gitdir:` 指向）：M2 定案先禁用＋提示，worktree 使用痛感真實再做。
 - srun kit 的 openspec 後端行升級為一級公民（實際 dogfood 驗證覆蓋度）。
 - 把自行設計的 specrun kit 整合進來。
 
