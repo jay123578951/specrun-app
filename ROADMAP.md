@@ -45,8 +45,6 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C6 | — | ~~parked 唯讀清單~~ 併入 M2（park 操作存在前唯讀清單恆空，無法 dogfood） | ➡️ 2026-08-15 併入 M2 |
 | C7 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏭️ 下一個（M2 已完成，2026-08-15 解除阻擋） |
 
-> `openspec/changes/check-custom-schema-tabs/` 不是真的 change，是 custom schema（`rfc-lite`）的驗收測試資料，刻意常駐於 dogfooding 資料集中；「一次只開一個進行中的 change」的原則不把它算在內。
-
 **UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C7 收尾精修。
 
 ### M2 — Park 機制 ✅ 2026-08-15 完成
