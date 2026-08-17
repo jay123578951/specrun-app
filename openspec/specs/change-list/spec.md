@@ -7,7 +7,11 @@ App 的主畫面：以卡片清單呈現目標專案的進行中 change 與任�
 ## Requirements
 
 ### Requirement: change 卡片內容
-主區 SHALL 以卡片列出每個進行中 change，每張卡片 SHALL 含：change 名稱、任務進度條與 n/m 數字、相對時間（active 卡片為最後修改；parked 卡片為 park 時點，如「parked 3w ago」）。UI 文案 SHALL 一律使用英文。
+主區 SHALL 以卡片列出每個進行中 change，每張卡片 SHALL 含：change 名稱、任務進度條與 n/m 數字、相對時間（active 卡片為最後修改；parked 卡片為 park 時點，如「parked 3w ago」）、以及該 change 的 Why 摘錄。UI 文案 SHALL 一律使用英文。
+
+Why 摘錄 SHALL 取自該 change proposal 的 `## Why` 段落首句（取得規則見 `openspec-gateway`），並 SHALL 最多顯示兩行、超出部分以省略號截斷。摘錄 MUST NOT 經 LLM 或任何生成式加工。active 與 parked 卡片 SHALL 以相同方式呈現摘錄。
+
+摘錄為空（無 proposal、無 `## Why` 段落或讀取失敗）時，卡片 MUST NOT 顯示摘錄區塊，也 MUST NOT 為其保留空白佔位——此時卡片高度較有摘錄的卡片為低，清單中卡片高度不一致 SHALL 為可接受行為。摘錄為空 MUST NOT 呈現為錯誤或缺件提示。
 
 #### Scenario: 進行中 change 的卡片
 - **WHEN** 某 change 有 2/4 個任務完成
@@ -24,6 +28,22 @@ App 的主畫面：以卡片清單呈現目標專案的進行中 change 與任�
 #### Scenario: parked 卡片的時間欄位
 - **WHEN** 某 change 於三週前被 park
 - **THEN** 該卡片時間欄位顯示 park 相對時間（如「parked 3w ago」），而非檔案最後修改時間
+
+#### Scenario: 顯示 Why 摘錄
+- **WHEN** 某 active change 的 proposal 含 `## Why` 段落，其首句可抽出
+- **THEN** 該卡片在進度條之外另顯示該首句，最多兩行
+
+#### Scenario: 長摘錄截斷
+- **WHEN** 某 change 的 Why 首句長度超過卡片兩行可容納的字數
+- **THEN** 摘錄顯示至第二行結尾並以省略號截斷，卡片高度不因該摘錄增長
+
+#### Scenario: parked 卡片同樣顯示摘錄
+- **WHEN** 某 parked change 的 proposal 含可抽出的 `## Why` 首句
+- **THEN** 該卡片以與 active 卡片相同的方式顯示摘錄
+
+#### Scenario: 無摘錄可顯示
+- **WHEN** 某 change 沒有 proposal 檔案，或其 proposal 無 `## Why` 段落
+- **THEN** 該卡片不顯示摘錄區塊、不顯示佔位空白、不顯示任何錯誤或缺件提示
 
 ### Requirement: 群組與排序
 清單 SHALL 分為「Active」與「Parked」兩群組同頁呈現，各群組標題含數量；Active 卡片順序 SHALL 為資料來源回傳的順序（lastModified 新→舊），前端不重排；Parked 卡片 SHALL 依 park 時間新→舊排序。無 parked change 時 Parked 群組 SHALL 整段隱藏（不顯示空群組標題）。
@@ -56,11 +76,19 @@ App 的主畫面：以卡片清單呈現目標專案的進行中 change 與任�
 - **THEN** 執行對應操作，面板不開啟也不收合
 
 ### Requirement: 首次載入顯示 skeleton
-清單資料首次載入期間，主區 SHALL 顯示與真實卡片同尺寸的 skeleton 卡片（2–3 張），資料到達後替換為真實卡片且無版面跳動。
+清單資料首次載入期間，主區 SHALL 顯示 skeleton 卡片（2–3 張），其尺寸 SHALL 對應摘錄佔滿兩行的真實卡片高度。資料到達後 SHALL 替換為真實卡片；由於摘錄的有無與行數會使真實卡片高度不一（見「change 卡片內容」），替換時的版面變化 SHALL 全數源自摘錄區塊自身的高度差——卡片內各區塊 MUST NOT 改變自身尺寸，摘錄區塊之下的區塊 MAY 因該高度差整體位移，且位移量 MUST NOT 超過該高度差。
 
 #### Scenario: 載入空窗
 - **WHEN** 清單資料尚未回傳（CLI spawn 進行中）
 - **THEN** 主區顯示 skeleton 卡片而非空白或 spinner
+
+#### Scenario: skeleton 含摘錄行
+- **WHEN** skeleton 卡片顯示中
+- **THEN** 其高度包含兩行摘錄區塊，與摘錄佔滿兩行的真實卡片一致
+
+#### Scenario: 摘錄不足兩行時的替換
+- **WHEN** 某 change 的摘錄只佔一行，skeleton 替換為該真實卡片
+- **THEN** 摘錄區塊之下的區塊整體上移一行的高度，卡片內無任何區塊改變自身尺寸、也無超出該高度差的額外位移
 
 ### Requirement: 手動刷新
 主區 SHALL 提供手動 refresh 控制；刷新期間 SHALL 保留既有清單內容、僅於控制項上顯示進行中狀態，MUST NOT 清空清單或改回 skeleton。除掛載時載入一次、手動刷新與變動通知觸發的自動重載（見「變動時自動重載」）外，系統 MUST NOT 自動重新載入。

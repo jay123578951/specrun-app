@@ -17,9 +17,11 @@ import type {
   ParkedSummary,
 } from './types'
 import { countTasks, toTaskStatus } from './task-progress'
+import { extractWhy } from './why-summary'
 
-// 進度解析與 archived 那一側共用（task-progress）；這裡續出是為了呼叫端不必知道它搬了家
-export { countTasks }
+// 進度解析與 archived 那一側共用（task-progress）、摘錄與 active 清單那一側共用
+// （why-summary）；這裡續出是為了呼叫端不必知道它們搬了家
+export { countTasks, extractWhy }
 
 export function normalizeParkedList(probe: ParkedListProbe): ParkedListResult {
   if (probe.failure) {
@@ -62,55 +64,6 @@ function toParkedSummary(entry: ParkedEntryProbe): ParkedSummary {
     parkedAt: toEpochMs(entry.parkedAt),
     summary: extractWhy(entry.proposal ?? ''),
   }
-}
-
-const WHY_HEADING = /^#{1,6}[ \t]+why[ \t]*$/i
-
-/**
- * proposal `## Why` 的首句（到第一個句號為止），純機械抽取、不做 AI 加工
- * （docs/ui-structure-decisions.md 的卡片規格）。品質天花板就是 proposal 第一句的寫作品質。
- */
-export function extractWhy(source: string): string {
-  const lines = source.split(/\r?\n/)
-  const start = lines.findIndex(line => WHY_HEADING.test(line.trim()))
-  if (start === -1)
-    return ''
-
-  const paragraph: string[] = []
-  for (const line of lines.slice(start + 1)) {
-    const text = line.trim()
-    // 下一個標題＝Why 段落結束；段落已開始時空行也是結束（只要第一段）
-    if (text.startsWith('#'))
-      break
-    if (!text) {
-      if (paragraph.length)
-        break
-      continue
-    }
-    paragraph.push(text)
-  }
-
-  return firstSentence(stripMarkdown(paragraph.join(' ')))
-}
-
-/**
- * 中英文句號都算句末；找不到句號就整段帶回（clamp 交給 CSS）。
- * 全形標點自己就是句末，半形 `.` 得跟著空白或結尾才算——否則 `design.md`、`e.g.`
- * 這類寫法會把句子攔腰切斷。
- */
-function firstSentence(text: string): string {
-  const end = text.search(/[。！？]|[.!?](?:\s|$)/)
-  return end === -1 ? text : text.slice(0, end + 1)
-}
-
-/** 只去掉行內語法記號，不做重排；摘錄要的是可讀的一句話，不是還原後的 Markdown */
-function stripMarkdown(text: string): string {
-  return text
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim()
 }
 
 function toEpochMs(value: string | undefined): number | null {

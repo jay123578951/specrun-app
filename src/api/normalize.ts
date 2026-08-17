@@ -21,6 +21,7 @@ import type {
   SpecListResult,
   SpecSummary,
 } from './types'
+import { extractWhy } from './why-summary'
 
 const CHANGE_STATUSES: ChangeStatus[] = ['no-tasks', 'in-progress', 'complete']
 
@@ -84,7 +85,7 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
 
   const changes: ChangeSummary[] = []
   for (const raw of payload.changes) {
-    const change = toSummary(raw)
+    const change = toSummary(raw, probe.proposals)
     if (!change)
       return fail('call-failed', 'Could not read the change list.', 'The CLI response had an unexpected shape.')
     changes.push(change)
@@ -328,7 +329,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-function toSummary(raw: unknown): ChangeSummary | null {
+function toSummary(raw: unknown, proposals: Record<string, string> | undefined): ChangeSummary | null {
   const item = asRecord(raw)
   if (!item)
     return null
@@ -351,6 +352,8 @@ function toSummary(raw: unknown): ChangeSummary | null {
     totalTasks: totalTasks as number,
     status: status as ChangeStatus,
     lastModified,
+    // 讀不到的 change 不在表中（也可能整個欄位缺席）→ 空摘錄，卡片不顯示該區塊，不是錯誤
+    summary: extractWhy(proposals?.[name] ?? ''),
   }
 }
 

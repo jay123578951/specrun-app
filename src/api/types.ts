@@ -6,7 +6,7 @@ export interface HealthResponse {
 /** CLI `status` 的三值；進度語意由引擎（schema-aware）決定，App 不自行推導 */
 export type ChangeStatus = 'no-tasks' | 'in-progress' | 'complete'
 
-/** 卡片所需的 change 摘要，欄位一對一取自 `openspec list --json` */
+/** 卡片所需的 change 摘要，欄位取自 `openspec list --json`（`summary` 除外） */
 export interface ChangeSummary {
   name: string
   completedTasks: number
@@ -14,6 +14,12 @@ export interface ChangeSummary {
   status: ChangeStatus
   /** 最後修改時間（epoch ms；CLI 給 ISO 字串，normalize 轉換） */
   lastModified: number
+  /**
+   * proposal `## Why` 首句的機械摘錄，與 `ParkedSummary.summary` 同一套抽取規則。
+   * 唯一不來自 CLI 的欄位——CLI 清單不含 proposal 內容，改由 route 直讀檔案補上。
+   * 無 proposal、無 `## Why` 段或讀取失敗一律為空字串，不是錯誤（卡片此時不顯示摘錄區塊）。
+   */
+  summary: string
 }
 
 /** 三類錯誤，對應 spec openspec-gateway「錯誤分類」與 UI 的三層呈現 */
@@ -244,6 +250,12 @@ export interface ChangeListProbe {
   stderr: string
   /** spawn 層失敗：CLI 執行檔不存在、目標路徑不存在、逾時 */
   failure?: ProbeFailure
+  /**
+   * change name → 該 change `proposal.md` 的原文，供 normalize 抽 `## Why` 首句摘錄。
+   * 與 `ParkedEntryProbe.proposal` 同構——route 給原文、normalize 抽句（design D3）。
+   * 只在 CLI 呼叫成功時出現；讀不到的 change 不會出現在表中（缺件不是錯誤，摘錄為空）。
+   */
+  proposals?: Record<string, string>
 }
 
 export interface ProbeFailure {

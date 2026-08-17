@@ -110,24 +110,11 @@ describe('countTasks: 進度現場解析', () => {
   })
 })
 
-describe('extractWhy: proposal 首句摘錄', () => {
-  it('只取 Why 段落的第一段第一句', () => {
-    const proposal = '## Why\n\n第一句。第二句。\n\n第二段不要。\n\n## What Changes\n\n不相關\n'
-    expect(extractWhy(proposal)).toBe('第一句。')
-  })
-
-  it('去掉行內 markdown 語法', () => {
-    expect(extractWhy('## Why\n\n把 `code` 與 **粗體** 和 [連結](http://x) 攤平。'))
-      .toBe('把 code 與 粗體 和 連結 攤平。')
-  })
-
-  it('英文句號同樣算句末', () => {
-    expect(extractWhy('## Why\n\nParked changes add noise. Second sentence.')).toBe('Parked changes add noise.')
-  })
-
-  it('沒有句號就整段帶回；沒有 Why 段落回空字串', () => {
-    expect(extractWhy('## Why\n\n一句沒有句號的話')).toBe('一句沒有句號的話')
-    expect(extractWhy('## Context\n\n沒有 Why')).toBe('')
+// extractWhy 自身的案例在 why-summary.test.ts（抽取邏輯已搬家）；
+// 這裡只確認續出的入口仍可用，parked 側接得上同一份抽取
+describe('extractWhy: 續出入口', () => {
+  it('自 normalize-parked 續出，行為與原處一致', () => {
+    expect(extractWhy('## Why\n\n第一句。第二句。')).toBe('第一句。')
   })
 })
 

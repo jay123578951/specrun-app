@@ -134,6 +134,12 @@ function runAction(): void {
       </button>
     </div>
 
+    <!-- Why 摘錄：抽不到就整塊不渲染、不留佔位——卡片高度因此不一致是規格接受的行為
+         （spec change-list）。active 與 parked 共用這一段，兩側摘錄同源同規則 -->
+    <p v-if="change.summary" class="mt-3 line-clamp-2 text-ui-sm text-text-3">
+      {{ change.summary }}
+    </p>
+
     <div
       class="mt-3 h-1.5 overflow-hidden rounded-full bg-bg"
       :role="hasTasks ? 'progressbar' : undefined"

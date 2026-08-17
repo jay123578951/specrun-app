@@ -41,6 +41,7 @@ describe('normalizeChangeList: 正常清單', () => {
           totalTasks: 4,
           status: 'in-progress',
           lastModified: Date.parse('2026-08-14T07:07:32.915Z'),
+          summary: '',
         },
         {
           name: 'fix-watcher',
@@ -48,6 +49,7 @@ describe('normalizeChangeList: 正常清單', () => {
           totalTasks: 3,
           status: 'in-progress',
           lastModified: Date.parse('2026-08-14T07:07:32.915Z'),
+          summary: '',
         },
       ],
     })
@@ -69,6 +71,45 @@ describe('normalizeChangeList: 正常清單', () => {
     const result = normalizeChangeList(probe({ stdout: listStdout([]) }))
 
     expect(result).toEqual({ ok: true, targetPath: TARGET, changes: [] })
+  })
+})
+
+describe('normalizeChangeList: Why 摘錄', () => {
+  const second = { ...IN_PROGRESS, name: 'fix-watcher' }
+
+  it('有 proposal 的那筆抽出 `## Why` 首句', () => {
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS]),
+      proposals: { 'add-change-list': '## Why\n\n清單只有名稱時看不出用途。第二句不進摘錄。\n' },
+    }))
+
+    expect(result.ok && result.changes[0]?.summary).toBe('清單只有名稱時看不出用途。')
+  })
+
+  it('表中沒有該筆 proposal 時摘錄為空，其餘項目照常', () => {
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS, second]),
+      proposals: { 'fix-watcher': '## Why\n\nWatcher 漏掉刪除事件。\n' },
+    }))
+
+    expect(result.ok && result.changes.map(c => c.summary)).toEqual(['', 'Watcher 漏掉刪除事件。'])
+  })
+
+  it('`proposals` 欄位整體缺席時全筆為空，清單仍成功', () => {
+    const result = normalizeChangeList(probe({ stdout: listStdout([IN_PROGRESS, second]) }))
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.changes.map(c => c.summary)).toEqual(['', ''])
+  })
+
+  it('proposal 存在但無 `## Why` 段落時摘錄為空，不回報錯誤', () => {
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS]),
+      proposals: { 'add-change-list': '## Context\n\n沒有 Why 段落。\n' },
+    }))
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.changes[0]?.summary).toBe('')
   })
 })
 
