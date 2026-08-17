@@ -4,6 +4,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
 import { useChangesStore } from './changes'
 import { useDetailStore } from './detail'
+import { useViewStore } from './view'
 
 /**
  * 側欄專案清單的狀態源。切換是一個伺服端動作（design D1），所以這裡的每個
@@ -84,7 +85,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   /**
    * 收下新的清單快照；目前專案真的換了才動其他 store——
-   * detail 清空、changes 全量重載，最後才在背景補徽章（design D8）。
+   * 回主頁、detail 清空、changes 全量重載，最後才在背景補徽章（design D8）。
    */
   async function adopt(snapshot: ProjectsSnapshot, before: string | null): Promise<void> {
     applySnapshot(snapshot)
@@ -95,6 +96,9 @@ export const useProjectsStore = defineStore('projects', () => {
     const changes = useChangesStore()
     const detail = useDetailStore()
 
+    // 換專案一律落在新專案的 Changes 主頁（spec project-management）——加入與移除
+    // 也可能換掉目前專案，所以攔在這個唯一的匯流點，而不是各個按鈕上
+    useViewStore().show('changes')
     detail.resetForProject()
     changes.invalidate()
     await changes.load()

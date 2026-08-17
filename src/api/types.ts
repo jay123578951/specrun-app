@@ -74,6 +74,21 @@ export type ToggleResult
     | { ok: false, kind: 'conflict' }
     | { ok: false, kind: 'failed', message: string, detail?: string }
 
+/** capability spec 清單的一項，欄位一對一取自 `openspec list --specs --json` */
+export interface SpecSummary {
+  id: string
+  requirementCount: number
+}
+
+export type SpecListResult
+  = { ok: true, targetPath: string, specs: SpecSummary[] }
+    | { ok: false, targetPath: string, error: GatewayError }
+
+/** spec 全文；`content` 是 CLI 原樣吐出的 Markdown，App 不解析（design：薄殼） */
+export type SpecContentResult
+  = { ok: true, id: string, content: string }
+    | { ok: false, error: GatewayError }
+
 /** 側欄專案清單的一項 */
 export interface ProjectEntry {
   /** canonical 化後的絕對路徑，同時是各操作的識別鍵 */
@@ -157,6 +172,11 @@ export interface OpenSpecGateway {
   removeProject: (path: string) => Promise<ProjectActionResult>
   switchProject: (path: string) => Promise<ProjectActionResult>
 
+  /** capability spec 清單（識別名＋requirement 數）；排序沿用引擎輸出，不補欄位 */
+  listSpecs: () => Promise<SpecListResult>
+  /** 單一 spec 的原始 Markdown 全文；原樣轉交，不解析也不改寫 */
+  getSpecContent: (id: string) => Promise<SpecContentResult>
+
   /** parked 清單；`parkAvailable` 隨清單一併回傳，前端據此禁用 park 按鈕（design D5） */
   listParked: () => Promise<ParkedListResult>
   /** 把 active change 搬進 `.git/specrun-app/parked/`；撞名與殘留檢查在實作端 */
@@ -206,6 +226,17 @@ export interface ChangeDetailProbe extends ChangeListProbe {
    * 只在 CLI 呼叫成功時出現；讀檔範圍即 CLI 列出的路徑（design D3 白名單）。
    */
   files?: Record<string, ArtifactFileProbe[]>
+}
+
+/** `GET /api/specs` 的回傳：一次 `list --specs --json` 的原始輸出，形狀與 change 清單同構 */
+export type SpecListProbe = ChangeListProbe
+
+/**
+ * `GET /api/specs/:id` 的回傳：一次 `show --type spec` 的原始輸出。
+ * 這個呼叫沒有 `--json` 模式——stdout 就是 spec.md 原文，route 一樣只轉送不解析。
+ */
+export interface SpecContentProbe extends ChangeListProbe {
+  specId: string
 }
 
 export interface ArtifactFileProbe {

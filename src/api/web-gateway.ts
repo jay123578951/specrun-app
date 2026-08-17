@@ -9,10 +9,14 @@ import type {
   ParkedListProbe,
   ParkedListResult,
   ProjectActionResult,
+  SpecContentProbe,
+  SpecContentResult,
+  SpecListProbe,
+  SpecListResult,
   TaskToggleInput,
   ToggleResult,
 } from './types'
-import { normalizeChangeDetail, normalizeChangeList } from './normalize'
+import { normalizeChangeDetail, normalizeChangeList, normalizeSpecContent, normalizeSpecList } from './normalize'
 import { normalizeParkedDetail, normalizeParkedList } from './normalize-parked'
 
 /** web（Vite dev／Nitro 部署）版 gateway：向本地 route 取 CLI 原始輸出，再交給 shared normalize */
@@ -82,9 +86,19 @@ export const webGateway: OpenSpecGateway = {
 
   subscribeToChanges(onChange: () => void): () => void {
     const source = new EventSource('/api/watch')
+    // 斷線後才需要補償；首次建連（掛載載入已涵蓋）不算，靠這個旗標分辨兩者
+    let reconnecting = false
     source.onmessage = () => onChange()
     source.onerror = () => {
-      // EventSource 自帶重連：斷線期間不通知、恢復後照常，全程不對外拋錯（spec 韌性）
+      // EventSource 自帶重連：斷線期間不通知、全程不對外拋錯（spec 韌性）
+      reconnecting = true
+    }
+    source.onopen = () => {
+      // 斷線期間的變動可能已遺失且不會重播，重連成功視同收到一次通知，補一次重載補齊（spec 韌性）
+      if (reconnecting) {
+        reconnecting = false
+        onChange()
+      }
     }
     return () => source.close()
   },
@@ -115,6 +129,43 @@ export const webGateway: OpenSpecGateway = {
       { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path }) },
       'Could not switch to this project.',
     )
+  },
+
+  async listSpecs(): Promise<SpecListResult> {
+    let probe: SpecListProbe
+    try {
+      probe = await fetchProbe<SpecListProbe>('/api/specs')
+    }
+    catch (error) {
+      return {
+        ok: false,
+        targetPath: '',
+        error: {
+          kind: 'call-failed',
+          message: 'Could not read the spec list.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeSpecList(probe)
+  },
+
+  async getSpecContent(id: string): Promise<SpecContentResult> {
+    let probe: SpecContentProbe
+    try {
+      probe = await fetchProbe<SpecContentProbe>(`/api/specs/${encodeURIComponent(id)}`)
+    }
+    catch (error) {
+      return {
+        ok: false,
+        error: {
+          kind: 'call-failed',
+          message: 'Could not load this spec.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeSpecContent(probe)
   },
 
   async listParked(): Promise<ParkedListResult> {

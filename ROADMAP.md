@@ -43,9 +43,12 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C4 | add-task-toggle | tasks checkbox 勾選（唯一寫入；併發策略見決策清單） | ✅ 2026-08-15 archived |
 | C5 | add-project-switcher | 多專案清單與切換（路徑管理從這裡才真正做）：側欄清單、加入／移除／切換、設定檔持久化、每專案徽章 | ✅ 2026-08-15 archived |
 | C6 | — | ~~parked 唯讀清單~~ 併入 M2（park 操作存在前唯讀清單恆空，無法 dogfood） | ➡️ 2026-08-15 併入 M2 |
-| C7 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏭️ 下一個（M2 已完成，2026-08-15 解除阻擋） |
+| C7 | add-detail-slideover | 詳情改為右側滑出覆蓋面板：清單不變形不移位、露出區可直接切換 change；移除 ChangeRail 窄軌 | ✅ 2026-08-17 archived |
+| C8 | add-specs-view | Specs 頁補齊：capability 清單＋spec 全文 slideover 詳情；App 首次由單頁變多頁（state 切換，不引入 router） | ✅ 2026-08-17 archived |
+| C9 | | Archive 頁補齊（缺頁收尾的最後一頁；Settings 不在此列，併入 M3） | ⏭️ 下一個 |
+| C10 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏳ 待 C9 完成 |
 
-**UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C7 收尾精修。
+**UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C10 收尾精修。
 
 ### M2 — Park 機制 ✅ 2026-08-15 完成
 
@@ -64,7 +67,7 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 
 ### M3 — 操作與指令合併
 
-從 UI 觸發常用操作（archive、validate 等）、合併式指令（一鍵收尾）、錯誤與確認流程。
+從 UI 觸發常用操作（archive、validate 等）、合併式指令（一鍵收尾）、錯誤與確認流程。Settings 頁併入此里程碑（設定項要等操作面到齊才有內容可放）。
 
 ### M4 — Tauri 打包
 
@@ -78,6 +81,8 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 - 空狀態：無專案引導加入目錄；openspec CLI 缺失時明確提示
 - 多專案側欄徽章＝未 archive 的 change 數，弱一致：啟動與切換時刷新，current 隨變動通知即時；取不到不編數字（C5 定案）
 - Parked 群組依 park 時間新→舊排序；無 parked change 時整段隱藏（P1 定案）
+- 詳情採 slideover 覆蓋、不滿版：左側保留露出區可直接點卡片切換；層次靠 surface 色階＋1px 邊框，禁用 box-shadow 與 backdrop（C7 定案）
+- 多頁導覽用簡單 view state、不引入 router；點側欄專案名＝回該專案 Changes 主頁；切頁即關詳情面板、不記憶，進頁重新載入不擴 watcher（C8 定案）
 - 仍開放（刻意留白）：Active 列表排序（預設 lastModified 新→舊）
 
 ### 後續觀察項（不排程）

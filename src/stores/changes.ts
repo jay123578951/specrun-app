@@ -47,13 +47,28 @@ export const useChangesStore = defineStore('changes', () => {
   let toastSeq = 0
 
   /**
+   * 載入序號防護（對照 detail.ts 的 seq）：loadSilently／load 共用同一顆計數器，
+   * 只有最後發出的那次請求能寫回 changes／targetPath／blockingError——兩次通知各自
+   * 觸發一次重載時，若回應順序顛倒，舊的那次到達也不會蓋掉新資料。
+   */
+  let loadSeq = 0
+
+  /**
+   * 旗標序號：只有 load() 自己遞增，loadSilently() 不參一腳。firstLoadPending／refreshing
+   * 是 load() 專屬的「進行中」旗標，只該被更晚一次的 load() 呼叫接手清除；若沿用 loadSeq，
+   * 飛在半路的 load() 會被中途插隊的 loadSilently() 搶走 seq，永遠清不掉 refreshing（卡死轉圈）。
+   */
+  let flagSeq = 0
+
+  /**
    * watcher 通知觸發的重載：資料照換，但失敗完全靜默（design D5 的來源分流）。
    * 進行中狀態也不打旗標——旁邊每存一次檔就轉一圈 refresh 圖示只是噪音。
    */
   async function loadSilently(): Promise<void> {
-    const mine = generation.value
+    const gen = generation.value
+    const mine = ++loadSeq
     const result = await gateway.listChanges()
-    if (!result.ok || mine !== generation.value)
+    if (!result.ok || gen !== generation.value || mine !== loadSeq)
       return
 
     changes.value = result.changes
@@ -94,12 +109,14 @@ export const useChangesStore = defineStore('changes', () => {
 
   async function load(): Promise<void> {
     const mine = generation.value
+    const mySeq = ++loadSeq
+    const myFlag = ++flagSeq
     if (!firstLoadPending.value)
       refreshing.value = true
 
     try {
       const [result] = await Promise.all([gateway.listChanges(), loadParked()])
-      if (mine !== generation.value)
+      if (mine !== generation.value || mySeq !== loadSeq)
         return
 
       if (result.ok) {
@@ -122,8 +139,9 @@ export const useChangesStore = defineStore('changes', () => {
       blockingError.value = result.error
     }
     finally {
-      // 過期的那一輪不准動旗標——新世代可能正在自己的首載中
-      if (mine === generation.value) {
+      // 過期的那一輪不准動旗標——新世代可能正在自己的首載中，或已有更晚一次 load() 接手；
+      // 用 flagSeq 而非 loadSeq 判斷，才不會被中途插隊的 loadSilently() 卡死 refreshing
+      if (mine === generation.value && myFlag === flagSeq) {
         firstLoadPending.value = false
         refreshing.value = false
       }

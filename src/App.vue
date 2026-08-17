@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { gateway } from './api'
 import AppSidebar from './components/AppSidebar.vue'
 import ArtifactPanel from './components/ArtifactPanel.vue'
 import ChangeList from './components/ChangeList.vue'
+import SpecPanel from './components/SpecPanel.vue'
+import SpecsView from './components/SpecsView.vue'
 import ToastStack from './components/ToastStack.vue'
 import { useChangesStore } from './stores/changes'
 import { useDetailStore } from './stores/detail'
 import { useProjectsStore } from './stores/projects'
+import { useSpecsStore } from './stores/specs'
+import { useViewStore } from './stores/view'
 
 const store = useChangesStore()
 const detail = useDetailStore()
 const projects = useProjectsStore()
+const specs = useSpecsStore()
+const view = useViewStore()
 
 /**
  * 面板左側露出的清單寬度：足夠讀出卡片名稱左段（mono 字體、靠左），
@@ -22,12 +28,25 @@ const REVEAL_WIDTH = 320
 /** 極窄視窗的防線：面板窄到這裡就換露出區讓位（桌面 App 形態，不做響應式斷點） */
 const PANEL_MIN_WIDTH = 420
 
+/** 兩頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西 */
+const PANEL_MOTION = {
+  'enter-active-class': 'transition-transform duration-220 ease-[var(--sr-ease-out)] sr-motion',
+  'enter-from-class': 'translate-x-full',
+  'leave-active-class': 'transition-transform duration-150 ease-[var(--sr-ease-out)] sr-motion',
+  'leave-to-class': 'translate-x-full',
+} as const
+
 const main = ref<HTMLElement>()
+
+const onChanges = computed(() => view.currentView === 'changes')
+/** 目前頁的面板是否開著；鍵盤只在這個條件下接管 ↑↓ 與 Esc */
+const panelOpen = computed(() => onChanges.value ? detail.isOpen : specs.isOpen)
 
 let unsubscribe: (() => void) | null = null
 
 onMounted(async () => {
-  // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過
+  // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過。
+  // watcher 只服務 changes 那一側——Specs 頁刻意不擴充監看（design：進頁重載即可）
   unsubscribe = gateway.subscribeToChanges(syncFromWatcher)
 
   window.addEventListener('keydown', onKeydown)
@@ -55,6 +74,11 @@ async function syncFromWatcher(): Promise<void> {
 }
 
 function move(step: number): void {
+  if (!onChanges.value) {
+    specs.move(step)
+    return
+  }
+
   const names = store.changes.map(change => change.name)
   const current = names.indexOf(detail.changeName ?? '')
   // 找不到當前項（剛被 archive）時從頭進入，而不是原地卡住
@@ -65,7 +89,7 @@ function move(step: number): void {
 
 /** ↑↓ 切換與 Esc 收合只在面板開啟期間成立；清單狀態下鍵盤不搶任何行為 */
 function onKeydown(event: KeyboardEvent): void {
-  if (!detail.isOpen || event.metaKey || event.ctrlKey || event.altKey)
+  if (!panelOpen.value || event.metaKey || event.ctrlKey || event.altKey)
     return
   const target = event.target as HTMLElement | null
   if (target?.isContentEditable || /^(?:INPUT|TEXTAREA|SELECT)$/.test(target?.tagName ?? ''))
@@ -73,7 +97,10 @@ function onKeydown(event: KeyboardEvent): void {
 
   if (event.key === 'Escape') {
     event.preventDefault()
-    detail.close()
+    if (onChanges.value)
+      detail.close()
+    else
+      specs.close()
     return
   }
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
@@ -83,8 +110,8 @@ function onKeydown(event: KeyboardEvent): void {
   move(event.key === 'ArrowDown' ? 1 : -1)
 }
 
-// 鍵盤切到捲動範圍外的卡片時把它帶進視野；點擊切換不需要（本來就看得到）
-watch(() => detail.changeName, async () => {
+// 鍵盤切到捲動範圍外的項目時把它帶進視野；點擊切換不需要（本來就看得到）
+watch(() => [detail.changeName, specs.openId], async () => {
   await nextTick()
   main.value?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
 })
@@ -97,17 +124,22 @@ watch(() => detail.changeName, async () => {
     <!-- 清單是常駐層、詳情是覆蓋層：面板以容器內絕對定位蓋上來（不蓋 sidebar），
          清單本身不變形也不移位，所以只有面板需要進出場動畫 -->
     <div ref="main" class="relative min-w-0 overflow-hidden">
-      <ChangeList />
+      <ChangeList v-if="onChanges" />
+      <SpecsView v-else />
 
-      <Transition
-        enter-active-class="transition-transform duration-220 ease-[var(--sr-ease-out)] sr-motion"
-        enter-from-class="translate-x-full"
-        leave-active-class="transition-transform duration-150 ease-[var(--sr-ease-out)] sr-motion"
-        leave-to-class="translate-x-full"
-      >
+      <Transition v-bind="PANEL_MOTION">
         <!-- 寬度三個值綁在一起走 style：面板自己的 min-w-0 會跟 utility 版打架 -->
         <ArtifactPanel
-          v-if="detail.isOpen"
+          v-if="onChanges && detail.isOpen"
+          class="absolute inset-y-0 right-0"
+          :style="{
+            width: `calc(100% - ${REVEAL_WIDTH}px)`,
+            minWidth: `${PANEL_MIN_WIDTH}px`,
+            maxWidth: '100%',
+          }"
+        />
+        <SpecPanel
+          v-else-if="!onChanges && specs.isOpen"
           class="absolute inset-y-0 right-0"
           :style="{
             width: `calc(100% - ${REVEAL_WIDTH}px)`,

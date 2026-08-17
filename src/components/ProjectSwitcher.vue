@@ -4,6 +4,7 @@ import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { gateway } from '../api'
 import { useChangesStore } from '../stores/changes'
 import { useProjectsStore } from '../stores/projects'
+import { useViewStore } from '../stores/view'
 
 /**
  * 側欄的專案清單（design wireframe）：全展開直接點擊切換、hover ✕ 移除、
@@ -15,6 +16,7 @@ const COLLAPSE_THRESHOLD = 6
 
 const projects = useProjectsStore()
 const changes = useChangesStore()
+const view = useViewStore()
 
 const showAll = ref(false)
 /** 正在確認移除的專案路徑；同時只會有一個 */
@@ -93,6 +95,16 @@ function onFormFocusOut(event: FocusEvent): void {
     closeAdd()
 }
 
+/**
+ * 點專案項＝進入該專案的 Changes 主頁（spec project-management）。換頁與換專案是
+ * 兩件獨立的事：點目前專案時 `switchTo` 會早退，但頁還是要回主頁；已在主頁時兩者
+ * 都不作用，所以「已在主頁點目前專案」自然是無反應。
+ */
+function openProject(path: string): void {
+  view.show('changes')
+  void projects.switchTo(path)
+}
+
 async function confirmRemove(path: string): Promise<void> {
   confirming.value = null
   await projects.remove(path)
@@ -135,13 +147,17 @@ async function confirmRemove(path: string): Promise<void> {
           <button
             type="button"
             class="project-item"
-            :class="project.current
-              ? 'bg-accent/15 text-accent-bright cursor-default hover:bg-accent/15'
-              : 'text-text-2 hover:text-text'"
+            :class="[
+              project.current
+                ? 'bg-accent/15 text-accent-bright hover:bg-accent/15'
+                : 'text-text-2 hover:text-text',
+              // 目前專案＋已在主頁＝點了不會有事；在其他頁時它是回主頁的入口，照樣給 pointer
+              project.current && view.currentView === 'changes' ? 'cursor-default' : '',
+            ]"
             :aria-current="project.current ? 'true' : undefined"
             :disabled="projects.busy && !project.current"
             :title="project.path"
-            @click="projects.switchTo(project.path)"
+            @click="openProject(project.path)"
           >
             <span
               class="h-1.5 w-1.5 shrink-0 rounded-full"

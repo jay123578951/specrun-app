@@ -15,6 +15,11 @@ import type {
   ChangeStatus,
   ChangeSummary,
   GatewayErrorKind,
+  SpecContentProbe,
+  SpecContentResult,
+  SpecListProbe,
+  SpecListResult,
+  SpecSummary,
 } from './types'
 
 const CHANGE_STATUSES: ChangeStatus[] = ['no-tasks', 'in-progress', 'complete']
@@ -67,26 +72,11 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
     )
   }
 
-  const root = asRecord(payload.root)
-  const rootPath = typeof root?.path === 'string' ? root.path : null
-  if (!rootPath)
-    return fail('call-failed', 'Could not read the change list.', 'The CLI response carried no root path.')
-
-  // 判準是 root.path 比對（design D3）；`implicit` 只是補強訊號——CLI 在找不到任何
-  // openspec root 時會以 cwd 造一個 implicit root，此時路徑會「相符」但專案並不存在。
-  if (!samePath(rootPath, probe.targetPath)) {
-    return fail(
-      'not-openspec-project',
-      'The target folder is not an OpenSpec project.',
-      `openspec resolved its root to ${rootPath} instead.`,
-    )
-  }
-  if (root?.source === 'implicit') {
-    return fail(
-      'not-openspec-project',
-      'The target folder is not an OpenSpec project.',
-      'No openspec/ directory was found in this folder or its parents.',
-    )
+  const root = checkRoot(payload, probe.targetPath)
+  if (!root.ok) {
+    return root.kind === 'missing'
+      ? fail('call-failed', 'Could not read the change list.', 'The CLI response carried no root path.')
+      : fail('not-openspec-project', 'The target folder is not an OpenSpec project.', root.detail)
   }
 
   if (!Array.isArray(payload.changes))
@@ -167,6 +157,136 @@ export function normalizeChangeDetail(probe: ChangeDetailProbe): ChangeDetailRes
   }
 
   return { ok: true, detail: { name, artifacts } }
+}
+
+/**
+ * specs 清單的判定順序與 change 清單同構——同一個 `list` 家族的 `--json` 輸出，
+ * 差別只在讀 `payload.specs` 而非 `payload.changes`。
+ */
+export function normalizeSpecList(probe: SpecListProbe): SpecListResult {
+  const fail = (kind: GatewayErrorKind, message: string, detail?: string): SpecListResult => ({
+    ok: false,
+    targetPath: probe.targetPath,
+    error: detail ? { kind, message, detail } : { kind, message },
+  })
+  const failLoad = (detail?: string): SpecListResult =>
+    fail('call-failed', 'Could not read the spec list.', detail)
+
+  if (probe.failure) {
+    switch (probe.failure.kind) {
+      case 'cli-unavailable':
+        return fail('cli-unavailable', 'The openspec CLI is not available.', probe.failure.message)
+      case 'target-missing':
+        return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', probe.failure.message)
+      default:
+        return failLoad(probe.failure.message)
+    }
+  }
+
+  const payload = parseJson(probe.stdout)
+  if (!payload)
+    return failLoad(describeUnparsable(probe))
+
+  if (probe.exitCode !== 0) {
+    const diagnostic = firstDiagnostic(payload)
+    if (diagnostic && isRootDiagnostic(diagnostic))
+      return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', joinDetail(diagnostic.message, diagnostic.fix))
+    return failLoad(
+      diagnostic ? joinDetail(diagnostic.message, diagnostic.fix) : `openspec exited with code ${probe.exitCode}.`,
+    )
+  }
+
+  const root = checkRoot(payload, probe.targetPath)
+  if (!root.ok) {
+    return root.kind === 'missing'
+      ? failLoad('The CLI response carried no root path.')
+      : fail('not-openspec-project', 'The target folder is not an OpenSpec project.', root.detail)
+  }
+
+  if (!Array.isArray(payload.specs))
+    return failLoad('The CLI response carried no spec list.')
+
+  const specs: SpecSummary[] = []
+  for (const raw of payload.specs) {
+    const spec = toSpecSummary(raw)
+    if (!spec)
+      return failLoad('The CLI response had an unexpected shape.')
+    specs.push(spec)
+  }
+
+  // 順序即 CLI 順序；前端不重排（spec openspec-gateway）
+  return { ok: true, targetPath: probe.targetPath, specs }
+}
+
+/**
+ * spec 全文：stdout 不是 JSON 而是 Markdown 原文，所以這裡只判「這趟呼叫成不成立」，
+ * 內容一個字都不動（spec openspec-gateway「原樣轉交」）。
+ * 空 stdout 一律當失敗——CLI 找不到 spec 時就是非 0＋空輸出，不能偽裝成一份空 spec。
+ */
+export function normalizeSpecContent(probe: SpecContentProbe): SpecContentResult {
+  const fail = (kind: GatewayErrorKind, detail?: string): SpecContentResult => ({
+    ok: false,
+    error: {
+      kind,
+      message: kind === 'cli-unavailable'
+        ? 'The openspec CLI is not available.'
+        : 'Could not load this spec.',
+      ...(detail ? { detail } : {}),
+    },
+  })
+
+  if (probe.failure) {
+    return probe.failure.kind === 'cli-unavailable'
+      ? fail('cli-unavailable', probe.failure.message)
+      : fail('call-failed', probe.failure.message)
+  }
+
+  if (probe.exitCode !== 0)
+    return fail('call-failed', firstLine(probe.stderr) || `openspec exited with code ${probe.exitCode}.`)
+
+  if (!probe.stdout.trim())
+    return fail('call-failed', `openspec returned no content for ${probe.specId}.`)
+
+  return { ok: true, id: probe.specId, content: probe.stdout }
+}
+
+/**
+ * CLI 回報的 root 是否就是目標專案（design D3）。判準是 `root.path` 比對；`source`
+ * 的 `implicit` 只是補強訊號——CLI 找不到任何 openspec root 時會以 cwd 造一個，
+ * 此時路徑會「相符」但專案並不存在。
+ */
+type RootVerdict
+  = { ok: true }
+    | { ok: false, kind: 'missing' }
+    | { ok: false, kind: 'not-project', detail: string }
+
+function checkRoot(payload: Record<string, unknown>, targetPath: string): RootVerdict {
+  const root = asRecord(payload.root)
+  const rootPath = typeof root?.path === 'string' ? root.path : null
+  if (!rootPath)
+    return { ok: false, kind: 'missing' }
+
+  if (!samePath(rootPath, targetPath))
+    return { ok: false, kind: 'not-project', detail: `openspec resolved its root to ${rootPath} instead.` }
+
+  if (root?.source === 'implicit')
+    return { ok: false, kind: 'not-project', detail: 'No openspec/ directory was found in this folder or its parents.' }
+
+  return { ok: true }
+}
+
+function toSpecSummary(raw: unknown): SpecSummary | null {
+  const item = asRecord(raw)
+  if (!item)
+    return null
+
+  const { id, requirementCount } = item
+  if (typeof id !== 'string' || !id)
+    return null
+  if (!Number.isFinite(requirementCount))
+    return null
+
+  return { id, requirementCount: requirementCount as number }
 }
 
 /** tabs 的內容與順序沿用 CLI；`artifacts` 陣列是權威順序，缺了才退回 artifactPaths 的鍵序 */
@@ -289,5 +409,16 @@ function describeUnparsable(probe: ChangeListProbe): string | undefined {
 }
 
 function firstLine(value: string): string {
-  return value.trim().split('\n', 1)[0]?.slice(0, 200) ?? ''
+  return stripAnsi(value).trim().split('\n', 1)[0]?.slice(0, 200) ?? ''
+}
+
+/**
+ * CLI 的 stderr 即使不接終端也會帶顏色碼（`show` 的錯誤前綴就是一例）；
+ * 這些細節會原樣顯示在 UI 上，所以在唯一的出口先清掉。
+ */
+// eslint-disable-next-line no-control-regex -- ESC 正是這裡要匹配的字元
+const ANSI = /\u001B\[[0-9;]*m/g
+
+function stripAnsi(value: string): string {
+  return value.replace(ANSI, '')
 }
