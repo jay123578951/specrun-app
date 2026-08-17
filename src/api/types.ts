@@ -221,7 +221,7 @@ export interface OpenSpecGateway {
 /**
  * 選資料夾的結果：能力、取消、失敗都收在同一個回傳裡，呼叫端不必另外探測能力。
  * `picked` 送進既有加入流程驗證；`canceled`／`busy` 無事發生；
- * `unsupported`／`failed` 落回貼路徑輸入列。
+ * `unsupported`／`failed` 以 toast 說明，清單不變。
  */
 export type PickFolderOutcome
   = { status: 'picked', path: string }

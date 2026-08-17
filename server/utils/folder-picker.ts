@@ -32,7 +32,7 @@ export function mapOsascriptResult(result: OsascriptResult): PickFolderOutcome {
     return picked ? { status: 'picked', path: picked } : { status: 'failed' }
   }
 
-  // 取消的判定以 exit 非 0＋stderr 關鍵字寬鬆比對；比對不中最壞落入 failed → 展開輸入列
+  // 取消的判定以 exit 非 0＋stderr 關鍵字寬鬆比對；比對不中最壞落入 failed → 一則 toast
   if (/user canceled/i.test(result.stderr))
     return { status: 'canceled' }
 

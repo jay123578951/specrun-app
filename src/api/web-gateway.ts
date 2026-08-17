@@ -256,7 +256,7 @@ export const webGateway: OpenSpecGateway = {
 
   /**
    * dialog 由本機 server 開（macOS 走 osascript）：平台不支援、取消、失敗都由 body 的
-   * status 表達，這裡只在連 route 都到不了時自己造 failed——結果同樣是落回輸入列。
+   * status 表達，這裡只在連 route 都到不了時自己造 failed——結果同樣是一則 toast。
    */
   async pickFolder(): Promise<PickFolderOutcome> {
     try {
