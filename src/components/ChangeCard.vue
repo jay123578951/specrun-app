@@ -77,15 +77,15 @@ function runAction(): void {
     @keydown.enter.prevent="open()"
     @keydown.space.prevent="open()"
   >
-    <div class="h-[1.6em] flex items-center gap-3 text-mono-base">
-      <h3 class="truncate text-text font-mono" :title="change.name">
+    <div class="h-7 flex items-center gap-3">
+      <h3 class="truncate text-ui-title text-text font-mono" :title="change.name">
         {{ change.name }}
       </h3>
 
       <div class="ml-auto flex shrink-0 items-center gap-2">
         <span
           v-if="hasTasks"
-          class="inline-flex items-center gap-1 text-mono-sm font-mono tabular-nums"
+          class="inline-flex items-center gap-1 text-ui-sm font-mono tabular-nums"
           :class="isComplete ? 'text-done' : 'text-text-2'"
         >
           <span v-if="isComplete" class="i-lucide-check h-3 w-3" />

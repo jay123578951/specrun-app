@@ -40,7 +40,7 @@ const specs = useSpecsStore()
     <!-- 標題獨佔一列，與 ArtifactPanel 同字級；沒有 tabs 就不留 tabs 那一段高度 -->
     <template #header>
       <div class="pb-5 pt-4.5">
-        <h2 class="truncate text-mono-lg text-text font-mono font-medium" :title="specs.openId ?? ''">
+        <h2 class="truncate text-ui-lg text-text font-mono font-medium" :title="specs.openId ?? ''">
           {{ specs.openId }}
         </h2>
       </div>

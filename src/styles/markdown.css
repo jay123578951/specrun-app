@@ -2,14 +2,19 @@
  * artifact 內容的排版層。渲染後的 HTML 沒有 class 可掛 utility，
  * 只能在這裡用後代選擇器補回被 preset reset 拿掉的語意樣式——值一律引 tokens。
  *
- * 字級走 read-* 階（15px／1.85／68ch），與 UI 字級刻意分開：這是拿來讀的，不是拿來掃的。
+ * 閱讀字級的定義處就是本檔——UI 階梯在 uno.config.ts，兩者刻意不共用：
+ * 這是拿來讀的，不是拿來掃的。四階全表（層級靠字重與色階，不全靠字級）：
+ *   14px  code／pre／table
+ *   16px  正文（lh 1.8／68ch）、h3（600）、h4（600＋text-2）
+ *   19px  h2
+ *   22px  h1
  */
 
 .md-body {
   max-width: 68ch;
   color: var(--sr-text);
-  font-size: 15px;
-  line-height: 1.85;
+  font-size: 16px;
+  line-height: 1.8;
   overflow-wrap: break-word;
 }
 
@@ -28,10 +33,10 @@
   line-height: 1.35;
 }
 
-.md-body h1 { font-size: 20px; }
-.md-body h2 { font-size: 18px; }
-.md-body h3 { font-size: 15.5px; }
-.md-body h4 { font-size: 15px; color: var(--sr-text-2); }
+.md-body h1 { font-size: 22px; }
+.md-body h2 { font-size: 19px; }
+.md-body h3 { font-size: 16px; }
+.md-body h4 { font-size: 16px; color: var(--sr-text-2); }
 
 .md-body p,
 .md-body ul,
@@ -80,7 +85,7 @@
   background-color: var(--sr-surface-hover);
   color: var(--sr-text);
   font-family: var(--sr-font-mono);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .md-body pre {
@@ -88,7 +93,7 @@
   border: 1px solid var(--sr-line);
   border-radius: 5px;
   overflow-x: auto;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.65;
 }
 

@@ -25,7 +25,7 @@ withDefaults(defineProps<{
     <p class="mx-auto mt-1 max-w-[52ch] text-ui-sm text-text-3 text-pretty">
       {{ body }}
     </p>
-    <p v-if="detail" class="mx-auto mt-3 max-w-full truncate text-mono-sm text-text-3 font-mono" :title="detail">
+    <p v-if="detail" class="mx-auto mt-3 max-w-full truncate text-ui-sm text-text-3 font-mono" :title="detail">
       {{ detail }}
     </p>
     <div v-if="$slots.default" class="mt-5 flex justify-center">

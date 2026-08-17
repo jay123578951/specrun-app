@@ -33,7 +33,7 @@ const store = useChangesStore()
             <p class="text-ui-sm text-text">
               {{ toast.message }}
             </p>
-            <p v-if="toast.detail" class="mt-0.5 truncate text-mono-sm text-text-3 font-mono" :title="toast.detail">
+            <p v-if="toast.detail" class="mt-0.5 truncate text-ui-sm text-text-3 font-mono" :title="toast.detail">
               {{ toast.detail }}
             </p>
           </div>

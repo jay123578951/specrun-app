@@ -90,7 +90,7 @@ function progressTitle(completed: number, total: number): string {
             class="border border-line rounded bg-surface px-4.5 py-3"
             aria-hidden="true"
           >
-            <div class="h-[1.6em] flex items-center gap-3 text-mono-base">
+            <div class="h-7 flex items-center gap-3">
               <div class="h-3.5 w-52 animate-pulse rounded-full bg-surface-hover" />
               <div class="ml-auto h-3 w-20 animate-pulse rounded-full bg-surface-hover" />
             </div>
@@ -137,17 +137,17 @@ function progressTitle(completed: number, total: number): string {
           @click="toggle(item.dir)"
         >
           <span
-            class="h-[1.6em] min-w-0 flex flex-1 items-center truncate text-mono-base text-text font-mono"
+            class="h-7 min-w-0 flex flex-1 items-center truncate text-ui-title text-text font-mono"
             :title="item.name"
           >
             {{ item.name }}
           </span>
 
-          <div class="h-[1.6em] shrink-0 flex items-center gap-2">
+          <div class="h-7 shrink-0 flex items-center gap-2">
             <!-- 全完成淡化、未完成醒目：歸檔時沒做完值得一眼看到，所以那一種才給暖色 chip -->
             <span
               v-if="item.totalTasks > 0"
-              class="inline-flex items-center gap-1 text-mono-sm font-mono tabular-nums"
+              class="inline-flex items-center gap-1 text-ui-sm font-mono tabular-nums"
               :class="item.status === 'complete'
                 ? 'text-text-3'
                 : 'rounded-full bg-parked/12 px-2 py-0.5 text-parked'"

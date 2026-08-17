@@ -149,28 +149,26 @@
 
 - **UI**：Manrope（文案一律英文）——半幾何、字腔開闊，與寬鬆密度、微藍冷色板同一種呼吸感
 - **Mono**：IBM Plex Mono——change 名稱、路徑（slug 本質，devtool 血統點綴，寬鬆語境裡唯一的「硬」元素）
-- **中文**（Markdown 內容主體是繁中）：IBM Plex Sans TC，打包 subset（~1–2MB）；閱讀區 15px／行高 1.85／欄寬 68ch
+- **中文**（Markdown 內容主體是繁中）：IBM Plex Sans TC，打包 subset（~1–2MB）；閱讀區 16px／行高 1.8／欄寬 68ch
 - **Wordmark**：Lora（書法筆意現代襯線），只用於側欄 logo「specrun」一處
 - 落選記錄：Inter（太通用無記憶點）、DM Sans、IBM Plex Sans（原 B 方案，打樣比較後改 Manrope）；wordmark 落選 Playfair Display（太華麗）、Instrument Serif
 
-### 字級（定稿；參考點＝使用者 ghostty 終端 font-size 14 mono＋行高 +12%）
+### 字級（定稿；2026-08-17 由 retune-type-scale 重整為五階，取代原十一階表）
 
-**階數紀律：只有下表這些階，任何元件不得新增字級。** mono 光學補償原則：mono 同字級視覺上比 sans 大半圈——但 change 名刻意與終端字級對齊（使用者選擇一致感），不做補償。
+**階數紀律：只有下表這些階，任何元件不得新增字級**（封閉集合實作於 `uno.config.ts` 的 `configResolved`）。相鄰階比值全部 ≥ 1.13，確保螢幕上肉眼可辨。
 
-| Token | 值 | 字體 | 用途 |
-|---|---|---|---|
-| ui-base | 14px / lh 1.6 | Manrope | UI 內文、按鈕、side item |
-| ui-sm | 12.5px | Manrope | tabs、相對時間、chip、hover 動作 |
-| ui-xs | 11px | Manrope | 群組標籤（大寫＋字距）、徽章 |
-| mono-lg | 20px 中黑(500) | Plex Mono | 詳情面板主標題——標題獨佔一列、旁無按鈕壓比例時才用（不與 read-h1 混用：那階是 sans） |
-| mono-base | 14px | Plex Mono | change 名、路徑（與終端對齊） |
-| mono-sm | 11.5px | Plex Mono | n/m 進度數字、徽章數字 |
-| read-base | 15px / lh 1.85 | Plex Sans TC | Markdown 正文（欄寬 68ch） |
-| read-h2 | 18px 加粗、上方留白大 | Manrope/TC | `##` 級（閱讀主導航） |
-| read-h3 | 15.5px 加粗 | Manrope/TC | `###` 級——靠字重區分，不靠字級 |
-| read-h1 | 20px | Manrope/TC | 文件標題（多作面板標題用） |
-| read-code | 13px | Plex Mono | inline code |
+| Token | 值 | 用途 |
+|---|---|---|
+| ui-xs | 11px | 群組標籤（大寫＋字距）、徽章數字 |
+| ui-sm | 13px | 相對時間、tabs、chip、n/m 進度數字、次要按鈕、路徑、輸入框 |
+| ui-base | 15px / lh 1.6 | UI 內文、按鈕、side item、專案名 |
+| ui-title | 17px | 卡片標題：change 名、spec id、archived 項目名 |
+| ui-lg | 21px | 詳情面板主標題、側欄 wordmark |
 
+- **原「參考點＝ghostty 終端 font-size 14 mono」的約束已由使用者解除。** 該參照系只對 mono 側成立，卻連帶把 sans（Manrope）側一起壓小，使 Changes 主頁最大字僅 14px、整頁扁平。解除後字級才能以 15px 內文為錨自由展開。
+- **mono 不再有專用階**（原 `mono-lg`／`mono-base`／`mono-sm` 已廢除）：sans 與 mono 共用同一組數值，字體差異由 `font-mono` 表達。光學補償在原表就已明文放棄，保留三個平行階只是讓 token 數翻倍。
+- **閱讀階梯已移出本表**，`read-*` 五個 token 一併廢除。理由：閱讀字級的唯一消費者是 `v-html` 產出的 Markdown HTML，它結構上吃不到 utility，實際值一直硬寫在 `src/styles/markdown.css`，token 只是一份會漂移的副本。現以該檔為唯一定義處，四階為 14（code／pre／table）／16（正文 lh 1.8、`h3`、`h4`）／19（`h2`）／22（`h1`）；層級靠字重與色階承擔，不全靠字級。日後若有元件真需要閱讀字級，直接掛 `.md-body`，不重建 token。
+- 卡片標題列高不再用 `1.6em` 推算（標題 17／數字 13 混排後容器已無單一字級），七處統一為固定 `h-7`。
 - 使用者全域字級調整（Cmd+/-）：記觀察項，M4 Tauri 套殼時評估 webview zoom，不進 D1。
 
 ### 動效

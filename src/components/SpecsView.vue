@@ -56,7 +56,7 @@ function toggle(id: string): void {
           </p>
           <p
             v-if="specs.listError?.detail"
-            class="mt-1.5 truncate text-mono-sm text-text-3 font-mono"
+            class="mt-1.5 truncate text-ui-sm text-text-3 font-mono"
             :title="specs.listError.detail"
           >
             {{ specs.listError.detail }}
@@ -106,7 +106,7 @@ function toggle(id: string): void {
             class="border border-line rounded bg-surface px-4.5 py-3"
             aria-hidden="true"
           >
-            <div class="h-[1.6em] flex items-center gap-3 text-mono-base">
+            <div class="h-7 flex items-center gap-3">
               <div class="h-3.5 w-44 animate-pulse rounded-full bg-surface-hover" />
               <div class="ml-auto h-3 w-24 animate-pulse rounded-full bg-surface-hover" />
             </div>
@@ -152,7 +152,7 @@ function toggle(id: string): void {
           :aria-label="specs.openId === spec.id ? `Collapse ${spec.id}` : `Open ${spec.id}`"
           @click="toggle(spec.id)"
         >
-          <span class="h-[1.6em] min-w-0 flex flex-1 items-center truncate text-mono-base text-text font-mono" :title="spec.id">
+          <span class="h-7 min-w-0 flex flex-1 items-center truncate text-ui-title text-text font-mono" :title="spec.id">
             {{ spec.id }}
           </span>
           <span class="shrink-0 text-ui-sm text-text-3 tabular-nums">

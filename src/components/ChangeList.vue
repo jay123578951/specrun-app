@@ -56,7 +56,7 @@ const showParked = computed(() => !noProject.value && store.parkedCount > 0)
           </p>
           <p
             v-if="store.blockingError?.detail"
-            class="mt-1.5 truncate text-mono-sm text-text-3 font-mono"
+            class="mt-1.5 truncate text-ui-sm text-text-3 font-mono"
             :title="store.blockingError.detail"
           >
             {{ store.blockingError.detail }}

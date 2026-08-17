@@ -2,22 +2,19 @@ import type { Theme } from 'unocss/preset-wind4'
 import { defineConfig, presetIcons, presetWind4 } from 'unocss'
 
 /**
- * 字級：封閉集合。十階全表見 docs/ui-structure-decisions.md，
- * 想用第十一階必須先改這裡，蔓延就會在 review 現形。
- * 只有 ui-base 與 read-base 綁行高，其餘階承接父層行高。
+ * UI 字級：封閉集合。五階全表見 docs/ui-structure-decisions.md，
+ * 想用第六階必須先改這裡，蔓延就會在 review 現形。
+ * mono 與 sans 共用同一組數值——字體差異交由 font-mono 表達，不做光學補償。
+ * 閱讀階梯（Markdown 正文）不在本檔：它的唯一消費者是 v-html 產出的 HTML，
+ * 吃不到 utility，定義處為 src/styles/markdown.css，兩者刻意不共用。
+ * 只有 ui-base 綁行高，其餘階承接父層行高。
  */
 const text = {
-  'ui-base': { fontSize: '14px', lineHeight: '1.6' }, // UI 內文、按鈕、side item
-  'ui-sm': { fontSize: '12.5px' }, // tabs、相對時間、chip、hover 動作
   'ui-xs': { fontSize: '11px' }, // 群組標籤、徽章
-  'mono-lg': { fontSize: '20px' }, // 詳情面板主標題（單獨成列，旁邊沒有按鈕壓比例）
-  'mono-base': { fontSize: '14px' }, // change 名、路徑（與終端字級對齊）
-  'mono-sm': { fontSize: '11.5px' }, // n/m 進度數字、徽章數字
-  'read-base': { fontSize: '15px', lineHeight: '1.85' }, // Markdown 正文
-  'read-h1': { fontSize: '20px' },
-  'read-h2': { fontSize: '18px' },
-  'read-h3': { fontSize: '15.5px' },
-  'read-code': { fontSize: '13px' }, // inline code
+  'ui-sm': { fontSize: '13px' }, // 相對時間、tabs、chip、n/m 進度數字、次要按鈕
+  'ui-base': { fontSize: '15px', lineHeight: '1.6' }, // UI 內文、按鈕、side item、專案名、路徑
+  'ui-title': { fontSize: '17px' }, // 卡片標題：change 名、spec id、archived 項目名
+  'ui-lg': { fontSize: '21px' }, // 詳情面板主標題、側欄 wordmark
 }
 
 /** 圓角：同為封閉集合；pill 走 preset 內建的 rounded-full。 */
@@ -62,7 +59,7 @@ export default defineConfig<Theme>({
     'btn-danger': 'inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded border border-error/50 text-ui-sm text-error transition-[background-color,color] duration-150 hover:bg-error/15 active:bg-error/25 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 文字輸入：邊框恆為 1px、focus ring 走預留的 outline 槽，任何狀態都不動 layout
-    'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-mono-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
+    'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-ui-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
 
     // 清單列：卡片的扁平版（specs／archived 都沒有進度條可放，一列就是名稱＋幾個數字）。
     // 抬升與選中底色由呼叫端切換，與 ChangeCard 同一套姿態

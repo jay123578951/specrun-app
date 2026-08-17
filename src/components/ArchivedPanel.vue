@@ -50,7 +50,7 @@ const noFiles = computed(() =>
 
     <template #header>
       <div class="flex items-center gap-3 pb-1.5 pt-4.5">
-        <h2 class="truncate text-mono-lg text-text font-mono font-medium" :title="archived.openDir ?? ''">
+        <h2 class="truncate text-ui-lg text-text font-mono font-medium" :title="archived.openDir ?? ''">
           {{ archived.openName }}
         </h2>
 

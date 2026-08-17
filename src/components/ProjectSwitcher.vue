@@ -110,7 +110,7 @@ async function confirmRemove(path: string): Promise<void> {
               :class="project.current ? 'bg-accent-bright' : 'bg-line'"
               aria-hidden="true"
             />
-            <span class="min-w-0 flex-1 truncate text-mono-base font-mono">{{ project.name }}</span>
+            <span class="min-w-0 flex-1 truncate text-ui-base font-mono">{{ project.name }}</span>
 
             <!-- 暫時項（env／cwd 決定、未寫入設定）要看得出來，否則使用者會以為它已被記住 -->
             <span
@@ -121,7 +121,7 @@ async function confirmRemove(path: string): Promise<void> {
 
             <span
               v-if="project.badge !== null"
-              class="shrink-0 rounded-full px-1.5 text-mono-sm font-mono tabular-nums"
+              class="shrink-0 rounded-full px-1.5 text-ui-xs font-mono tabular-nums"
               :class="project.current ? 'bg-accent/25' : 'bg-line/60 text-text-3'"
             >{{ project.badge }}</span>
           </button>

@@ -63,7 +63,7 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
            padding 抵掉那一段，標題到按鈕與標題到 tabs 的「看起來」才等距 -->
       <div class="flex items-center gap-3 pb-1.5 pt-4.5">
         <!-- font-medium 是 Plex Mono 目前載入的最重字重（400／500 兩檔，見 main.ts） -->
-        <h2 class="truncate text-mono-lg text-text font-mono font-medium" :title="detail.changeName ?? ''">
+        <h2 class="truncate text-ui-lg text-text font-mono font-medium" :title="detail.changeName ?? ''">
           {{ detail.changeName }}
         </h2>
 
@@ -156,7 +156,7 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
       >
         <h3
           v-if="detail.currentArtifact.files.length > 1"
-          class="mb-4 truncate text-mono-sm text-text-3 font-mono"
+          class="mb-4 truncate text-ui-sm text-text-3 font-mono"
           :title="file.path"
         >
           {{ file.path }}
