@@ -10,14 +10,16 @@ import type {
   ArtifactFile,
   ArtifactView,
   ChangeDetailResult,
-  ChangeStatus,
   ParkedDetailProbe,
   ParkedEntryProbe,
   ParkedListProbe,
   ParkedListResult,
   ParkedSummary,
 } from './types'
-import { isCheckedLine, isTaskLine, splitLines } from '../utils/task-line'
+import { countTasks, toTaskStatus } from './task-progress'
+
+// 進度解析與 archived 那一側共用（task-progress）；這裡續出是為了呼叫端不必知道它搬了家
+export { countTasks }
 
 export function normalizeParkedList(probe: ParkedListProbe): ParkedListResult {
   if (probe.failure) {
@@ -56,36 +58,10 @@ function toParkedSummary(entry: ParkedEntryProbe): ParkedSummary {
     name: entry.name,
     completedTasks,
     totalTasks,
-    status: toStatus(completedTasks, totalTasks),
+    status: toTaskStatus(completedTasks, totalTasks),
     parkedAt: toEpochMs(entry.parkedAt),
     summary: extractWhy(entry.proposal ?? ''),
   }
-}
-
-/**
- * 進度現場解析：認 task 行的規則與勾選寫入共用同一份（src/utils/task-line），
- * 兩邊對「什麼算一個 task」的認知才不會分岔。
- */
-export function countTasks(source: string): { completedTasks: number, totalTasks: number } {
-  let completedTasks = 0
-  let totalTasks = 0
-
-  for (const raw of splitLines(source)) {
-    const text = raw.replace(/\r?\n$/, '')
-    if (!isTaskLine(text))
-      continue
-    totalTasks++
-    if (isCheckedLine(text))
-      completedTasks++
-  }
-  return { completedTasks, totalTasks }
-}
-
-/** 與 CLI 的三值語意對齊：沒有 task 就是 no-tasks，全勾完才是 complete */
-function toStatus(completedTasks: number, totalTasks: number): ChangeStatus {
-  if (totalTasks === 0)
-    return 'no-tasks'
-  return completedTasks >= totalTasks ? 'complete' : 'in-progress'
 }
 
 const WHY_HEADING = /^#{1,6}[ \t]+why[ \t]*$/i

@@ -2,11 +2,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { gateway } from './api'
 import AppSidebar from './components/AppSidebar.vue'
+import ArchivedPanel from './components/ArchivedPanel.vue'
+import ArchivedView from './components/ArchivedView.vue'
 import ArtifactPanel from './components/ArtifactPanel.vue'
 import ChangeList from './components/ChangeList.vue'
 import SpecPanel from './components/SpecPanel.vue'
 import SpecsView from './components/SpecsView.vue'
 import ToastStack from './components/ToastStack.vue'
+import { useArchivedStore } from './stores/archived'
 import { useChangesStore } from './stores/changes'
 import { useDetailStore } from './stores/detail'
 import { useProjectsStore } from './stores/projects'
@@ -17,6 +20,7 @@ const store = useChangesStore()
 const detail = useDetailStore()
 const projects = useProjectsStore()
 const specs = useSpecsStore()
+const archived = useArchivedStore()
 const view = useViewStore()
 
 /**
@@ -28,7 +32,7 @@ const REVEAL_WIDTH = 320
 /** 極窄視窗的防線：面板窄到這裡就換露出區讓位（桌面 App 形態，不做響應式斷點） */
 const PANEL_MIN_WIDTH = 420
 
-/** 兩頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西 */
+/** 三頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西 */
 const PANEL_MOTION = {
   'enter-active-class': 'transition-transform duration-220 ease-[var(--sr-ease-out)] sr-motion',
   'enter-from-class': 'translate-x-full',
@@ -39,8 +43,15 @@ const PANEL_MOTION = {
 const main = ref<HTMLElement>()
 
 const onChanges = computed(() => view.currentView === 'changes')
+const onSpecs = computed(() => view.currentView === 'specs')
+const onArchived = computed(() => view.currentView === 'archived')
+
 /** 目前頁的面板是否開著；鍵盤只在這個條件下接管 ↑↓ 與 Esc */
-const panelOpen = computed(() => onChanges.value ? detail.isOpen : specs.isOpen)
+const panelOpen = computed(() => {
+  if (onChanges.value)
+    return detail.isOpen
+  return onSpecs.value ? specs.isOpen : archived.isOpen
+})
 
 let unsubscribe: (() => void) | null = null
 
@@ -74,8 +85,12 @@ async function syncFromWatcher(): Promise<void> {
 }
 
 function move(step: number): void {
-  if (!onChanges.value) {
+  if (onSpecs.value) {
     specs.move(step)
+    return
+  }
+  if (onArchived.value) {
+    archived.move(step)
     return
   }
 
@@ -99,8 +114,10 @@ function onKeydown(event: KeyboardEvent): void {
     event.preventDefault()
     if (onChanges.value)
       detail.close()
-    else
+    else if (onSpecs.value)
       specs.close()
+    else
+      archived.close()
     return
   }
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
@@ -111,7 +128,7 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 // 鍵盤切到捲動範圍外的項目時把它帶進視野；點擊切換不需要（本來就看得到）
-watch(() => [detail.changeName, specs.openId], async () => {
+watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
   await nextTick()
   main.value?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
 })
@@ -125,7 +142,8 @@ watch(() => [detail.changeName, specs.openId], async () => {
          清單本身不變形也不移位，所以只有面板需要進出場動畫 -->
     <div ref="main" class="relative min-w-0 overflow-hidden">
       <ChangeList v-if="onChanges" />
-      <SpecsView v-else />
+      <SpecsView v-else-if="onSpecs" />
+      <ArchivedView v-else />
 
       <Transition v-bind="PANEL_MOTION">
         <!-- 寬度三個值綁在一起走 style：面板自己的 min-w-0 會跟 utility 版打架 -->
@@ -139,7 +157,16 @@ watch(() => [detail.changeName, specs.openId], async () => {
           }"
         />
         <SpecPanel
-          v-else-if="!onChanges && specs.isOpen"
+          v-else-if="onSpecs && specs.isOpen"
+          class="absolute inset-y-0 right-0"
+          :style="{
+            width: `calc(100% - ${REVEAL_WIDTH}px)`,
+            minWidth: `${PANEL_MIN_WIDTH}px`,
+            maxWidth: '100%',
+          }"
+        />
+        <ArchivedPanel
+          v-else-if="onArchived && archived.isOpen"
           class="absolute inset-y-0 right-0"
           :style="{
             width: `calc(100% - ${REVEAL_WIDTH}px)`,

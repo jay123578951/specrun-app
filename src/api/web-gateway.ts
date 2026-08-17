@@ -1,4 +1,7 @@
 import type {
+  ArchivedDetailProbe,
+  ArchivedListProbe,
+  ArchivedListResult,
   ChangeDetailProbe,
   ChangeDetailResult,
   ChangeListProbe,
@@ -17,6 +20,7 @@ import type {
   ToggleResult,
 } from './types'
 import { normalizeChangeDetail, normalizeChangeList, normalizeSpecContent, normalizeSpecList } from './normalize'
+import { normalizeArchivedDetail, normalizeArchivedList } from './normalize-archived'
 import { normalizeParkedDetail, normalizeParkedList } from './normalize-parked'
 
 /** web（Vite dev／Nitro 部署）版 gateway：向本地 route 取 CLI 原始輸出，再交給 shared normalize */
@@ -210,6 +214,43 @@ export const webGateway: OpenSpecGateway = {
       }
     }
     return normalizeParkedDetail(probe)
+  },
+
+  async listArchived(): Promise<ArchivedListResult> {
+    let probe: ArchivedListProbe
+    try {
+      probe = await fetchProbe<ArchivedListProbe>('/api/archived')
+    }
+    catch (error) {
+      return {
+        ok: false,
+        targetPath: '',
+        error: {
+          kind: 'call-failed',
+          message: 'Could not read the archived list.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeArchivedList(probe)
+  },
+
+  async getArchivedDetail(dir: string): Promise<ChangeDetailResult> {
+    let probe: ArchivedDetailProbe
+    try {
+      probe = await fetchProbe<ArchivedDetailProbe>(`/api/archived/${encodeURIComponent(dir)}`)
+    }
+    catch (error) {
+      return {
+        ok: false,
+        error: {
+          kind: 'call-failed',
+          message: 'Could not load this archived change.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeArchivedDetail(probe)
   },
 
   // web 沒有原生選資料夾——呼叫端看到 false 就改用貼路徑輸入列（design D5 的縫）

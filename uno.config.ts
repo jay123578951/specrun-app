@@ -64,9 +64,9 @@ export default defineConfig<Theme>({
     // 文字輸入：邊框恆為 1px、focus ring 走預留的 outline 槽，任何狀態都不動 layout
     'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-mono-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
 
-    // spec 清單列：卡片的扁平版（specs 沒有進度／時間可放，一列就是名稱＋數量）。
+    // 清單列：卡片的扁平版（specs／archived 都沒有進度條可放，一列就是名稱＋幾個數字）。
     // 抬升與選中底色由呼叫端切換，與 ChangeCard 同一套姿態
-    'spec-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
+    'list-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
 
     // artifact tab：選中態的底線與文字色由呼叫端切換。40px 高是密集工具介面的點擊面積下限
     'tab-item': 'h-10 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',

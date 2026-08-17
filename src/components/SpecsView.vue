@@ -146,7 +146,7 @@ function toggle(id: string): void {
           v-for="spec in specs.specs"
           :key="spec.id"
           type="button"
-          class="spec-row"
+          class="list-row"
           :class="specs.openId === spec.id ? 'bg-accent/25 hover:bg-accent/35' : 'card-lift bg-surface'"
           :aria-current="specs.openId === spec.id ? 'true' : undefined"
           :aria-label="specs.openId === spec.id ? `Collapse ${spec.id}` : `Open ${spec.id}`"

@@ -45,8 +45,8 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C6 | — | ~~parked 唯讀清單~~ 併入 M2（park 操作存在前唯讀清單恆空，無法 dogfood） | ➡️ 2026-08-15 併入 M2 |
 | C7 | add-detail-slideover | 詳情改為右側滑出覆蓋面板：清單不變形不移位、露出區可直接切換 change；移除 ChangeRail 窄軌 | ✅ 2026-08-17 archived |
 | C8 | add-specs-view | Specs 頁補齊：capability 清單＋spec 全文 slideover 詳情；App 首次由單頁變多頁（state 切換，不引入 router） | ✅ 2026-08-17 archived |
-| C9 | | Archive 頁補齊（缺頁收尾的最後一頁；Settings 不在此列，併入 M3） | ⏭️ 下一個 |
-| C10 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏳ 待 C9 完成 |
+| C9 | add-archived-view | Archived 頁補齊（缺頁收尾的最後一頁；Settings 不在此列，併入 M3）：檔案層直讀 archive 目錄、唯讀詳情含 delta spec、slideover 外殼抽 `PanelShell` 共用 | ✅ 2026-08-17 archived |
+| C10 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏭️ 下一個 |
 
 **UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C10 收尾精修。
 
@@ -83,7 +83,10 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 - Parked 群組依 park 時間新→舊排序；無 parked change 時整段隱藏（P1 定案）
 - 詳情採 slideover 覆蓋、不滿版：左側保留露出區可直接點卡片切換；層次靠 surface 色階＋1px 邊框，禁用 box-shadow 與 backdrop（C7 定案）
 - 多頁導覽用簡單 view state、不引入 router；點側欄專案名＝回該專案 Changes 主頁；切頁即關詳情面板、不記憶，進頁重新載入不擴 watcher（C8 定案）
-- 仍開放（刻意留白）：Active 列表排序（預設 lastModified 新→舊）
+- archived change 走檔案層直讀、CLI 零參與（openspec CLI 不認識 archive 下的目錄，`status`／`show` 直接 error）；目錄列舉為準、現場解析 tasks 進度、不做快取，比照 park 先例（C9 定案）
+- archived 詳情 tabs 現場列舉且含 delta spec：主 specs 只有合併後最終態，「當時動了哪些規格」只存在 delta 裡；唯讀走雙防線（UI 不開 interactive＋store 無寫入面）（C9 定案）
+- slideover 外殼抽 `PanelShell` 共用（Artifact／Spec／Archived 三處到齊，rule of three）；進出場動畫值仍集中在 App.vue 的 `PANEL_MOTION`（C9 定案）
+- 仍開放（刻意留白）：Active 列表排序（預設 lastModified 新→舊）、archived 清單的分頁與搜尋（量痛了再開 change）
 
 ### 後續觀察項（不排程）
 

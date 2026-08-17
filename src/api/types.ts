@@ -145,6 +145,26 @@ export type ParkActionResult
     | { ok: false, message: string, detail?: string }
 
 /**
+ * archived 卡片所需的摘要。archived change 對 openspec CLI 同樣不可見（design D1），
+ * 日期來自目錄名前綴、進度來自現場解析 tasks.md。
+ */
+export interface ArchivedSummary {
+  /** archive 底下的目錄名（含日期前綴），同時是詳情的識別鍵 */
+  dir: string
+  /** 顯示名＝目錄名去 `YYYY-MM-DD-` 前綴；前綴解析不到就是完整目錄名 */
+  name: string
+  /** 歸檔日期（`YYYY-MM-DD`）；解析不到為 null，卡片不顯示日期欄（spec 清單） */
+  archivedAt: string | null
+  completedTasks: number
+  totalTasks: number
+  status: ChangeStatus
+}
+
+export type ArchivedListResult
+  = { ok: true, targetPath: string, items: ArchivedSummary[] }
+    | { ok: false, targetPath: string, error: GatewayError }
+
+/**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
  */
@@ -185,6 +205,11 @@ export interface OpenSpecGateway {
   unparkChange: (name: string) => Promise<ParkActionResult>
   /** parked change 的詳情打包；tabs 依 park 當下的快照，不打 openspec status */
   getParkedDetail: (name: string) => Promise<ChangeDetailResult>
+
+  /** archived 清單；檔案層直讀 `openspec/changes/archive/`，CLI 零參與（design D1） */
+  listArchived: () => Promise<ArchivedListResult>
+  /** archived change 的唯讀詳情；tabs 為現場列舉（design D4），識別鍵是含日期前綴的目錄名 */
+  getArchivedDetail: (dir: string) => Promise<ChangeDetailResult>
 
   /**
    * 原生選資料夾的縫（design D5）：M4 Tauri 版走 dialog plugin，回傳使用者選的路徑。
@@ -285,4 +310,49 @@ export interface ParkedDetailProbe {
 export interface ParkedArtifactProbe {
   id: string
   files: ArtifactFileProbe[]
+}
+
+/**
+ * `GET /api/archived` 的回傳：目錄列舉結果＋各 archived change 的 tasks 原文。
+ * route 一樣只做 IO，日期前綴拆解、進度計算與排序都在 shared normalize（design D2）。
+ */
+export interface ArchivedListProbe {
+  targetPath: string
+  entries: ArchivedEntryProbe[]
+  /** 目標專案或 archive 目錄取不到；有值時 entries 為空 */
+  failure?: ArchivedProbeFailure
+}
+
+/** 兩類失敗要分開呈現：非 openspec 專案是設定問題，讀取失敗才值得重試（spec 空與錯誤狀態） */
+export interface ArchivedProbeFailure {
+  kind: 'not-openspec-project' | 'read-failed'
+  message: string
+}
+
+export interface ArchivedEntryProbe {
+  /** archive 底下的目錄名，原樣帶回（含日期前綴） */
+  dir: string
+  /** tasks 檔案原文；缺檔或讀取失敗時 undefined＝該卡不顯示進度（單筆降級，不拖垮清單） */
+  tasks?: string
+}
+
+/**
+ * `GET /api/archived/:name` 的回傳：現場列舉的 tabs 與逐檔內容（design D4）。
+ * archived change 查不到 CLI、也沒有 park 那樣的快照，tabs 的集合與順序由 route 決定。
+ */
+export interface ArchivedDetailProbe {
+  changeName: string
+  tabs: ArchivedTabProbe[]
+  /** 目標專案或 change 目錄取不到；有值時 tabs 為空 */
+  failure?: string
+}
+
+export interface ArchivedTabProbe {
+  /** tab 名：頂層檔案去 `.md`，delta spec 為 `specs/<capability-path>` */
+  id: string
+  /** change 目錄內的相對路徑——沒有 CLI 絕對路徑要轉，列舉出來就是顯示用的樣子 */
+  path: string
+  content?: string
+  /** 讀檔失敗的系統訊息；有值時 content 必為 undefined */
+  error?: string
 }
