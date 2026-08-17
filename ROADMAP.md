@@ -80,7 +80,7 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 - 專案清單手動加入、不做全機掃描；設定存平台慣例位置（macOS：`~/Library/Application Support/`）
 - 空狀態：無專案引導加入目錄；openspec CLI 缺失時明確提示
 - 多專案側欄徽章＝未 archive 的 change 數，弱一致：啟動與切換時刷新，current 隨變動通知即時；取不到不編數字（C5 定案）
-- Parked 群組依 park 時間新→舊排序；無 parked change 時整段隱藏（P1 定案）
+- Parked 群組依 park 時間新→舊排序；只要存在任何卡片，兩群組皆呈現（含數量 0 的空群組——拖曳切換狀態需要恆常存在的落點），兩群組皆空時 Parked 整段不顯示（P1 原定「無 parked 即隱藏」，由 `drag-to-switch-change-state` 推翻並收斂為此例外）
 - 詳情採 slideover 覆蓋、不滿版：左側保留露出區可直接點卡片切換；層次靠 surface 色階＋1px 邊框，禁用 box-shadow 與 backdrop（C7 定案）
 - 多頁導覽用簡單 view state、不引入 router；點側欄專案名＝回該專案 Changes 主頁；切頁即關詳情面板、不記憶，進頁重新載入不擴 watcher（C8 定案）
 - archived change 走檔案層直讀、CLI 零參與（openspec CLI 不認識 archive 下的目錄，`status`／`show` 直接 error）；目錄列舉為準、現場解析 tasks 進度、不做快取，比照 park 先例（C9 定案）
@@ -93,6 +93,8 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 - in-app 陽春編輯（改錯字／小措辭情境）：先以「用編輯器開啟」按鈕滿足，dogfood 後痛感真實存在才評估開 change（成本在併發衝突與編輯體驗無底洞，非存檔本身）。
 - OpenSpec Stores 模型穩定後，評估 park 是否可映射過去。
 - git worktree 專案的 park 支援（解析 `.git` 檔案的 `gitdir:` 指向）：M2 定案先禁用＋提示，worktree 使用痛感真實再做。
+- 拖到清單邊緣自動捲動（`drag-to-switch-change-state` 列為非目標）：change 總量少、兩群組多半同屏可見，捲動需求真實出現再做。
+- 觸控裝置的拖曳優化：目前統一走 Pointer Events、不另做手勢處理（桌面 App）；真有觸控使用情境再評估。
 - srun kit 的 openspec 後端行升級為一級公民（實際 dogfood 驗證覆蓋度）。
 - 把自行設計的 specrun kit 整合進來。
 - 卡片「開發中」持續指示（2026-08-17 C10 探索定案）：「正在開發」無檔案系統真值，活動推定（衰減窗口）只是猜、已否決；正解是 pipeline 開工／收工寫 marker 檔的真訊號，綁 kit 整合時一併評估（代價：只覆蓋走流程的開發、中斷殘骸的過期判定、App 與 kit 格式耦合）。另：原結構文件的「watcher 卡片短暫高亮」經對照實際資料流不做——進度條補間＋重排動畫＋時間戳已覆蓋同一問題。

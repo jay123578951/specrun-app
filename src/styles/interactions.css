@@ -18,6 +18,24 @@
   background-color: var(--sr-surface-hover);
 }
 
+/* 拖曳中的卡片＝浮層：它脫離文件流、飄在其他內容之上，比 toast 更符合浮層的定義，
+   因此適用 --sr-shadow-overlay（tokens.css 既有例外的適用，不是新增例外，design D6）。
+   只靠 1.02 的縮放讀不出「被拿起來」，卡片會像貼在紙面上滑動。
+   位移走 translate/scale 個別屬性而非 transform：reduced motion 才能只拿掉縮放、留下跟隨。
+   transition: none 讓跟隨逐幀對映指標，沒有補間可言 */
+.card-dragging {
+  scale: 1.02;
+  box-shadow: var(--sr-shadow-overlay);
+  cursor: grabbing;
+  transition: none;
+}
+
+/* 沒去成的返回：250ms 比進場動畫長，讓「回來了」看得見（design D10）。
+   排在 .card-dragging 之後——返回期間兩個 class 同時在，後寫的 transition 才生效 */
+.card-returning {
+  transition: translate 250ms var(--sr-ease-in-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 降級不是關閉：留下顏色與透明度變化，移除位移與循環動畫 */
   *,
@@ -34,5 +52,15 @@
   .sr-motion {
     transform: none !important;
     transition-property: opacity !important;
+  }
+
+  /* 拖曳是直接操作，降級不是關閉：卡片照樣跟著指標，只拿掉放大與返回原位的補間。
+     凹槽、目的地標示、落點底色與文案切換全數保留——那些是純顏色與透明度的變化 */
+  .card-dragging {
+    scale: 1;
+  }
+
+  .card-returning {
+    transition: none;
   }
 }
