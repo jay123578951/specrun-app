@@ -32,12 +32,21 @@ const REVEAL_WIDTH = 320
 /** 極窄視窗的防線：面板窄到這裡就換露出區讓位（桌面 App 形態，不做響應式斷點） */
 const PANEL_MIN_WIDTH = 420
 
-/** 三頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西 */
+/**
+ * 三頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西。
+ *
+ * 全幅純位移的 drawer 式滑入滑出：fade 曾以「短位移＋淡入淡出」兩種配方（同拍、解耦）
+ * 進過場，兩輪驗收都是 fade 的存在感蓋過移動，整組移除（design D3）。也不回舊版
+ * 220ms／--sr-ease-out——那是高速掃過的元兇；時長放慢到 300／220ms、曲線換
+ * --sr-ease-drawer 壓低初速（design D4／D5）。opacity-0 是幽靈值：正常模式 1ms 內
+ * 結束、不可感知，只為 reduced motion 的淡入淡出降級存在（design D6）。
+ * 時值與曲線住在 interactions.css 的 .panel-reveal-*（per-property 時值 utility 組不出）。
+ */
 const PANEL_MOTION = {
-  'enter-active-class': 'transition-transform duration-220 ease-[var(--sr-ease-out)] sr-motion',
-  'enter-from-class': 'translate-x-full',
-  'leave-active-class': 'transition-transform duration-150 ease-[var(--sr-ease-out)] sr-motion',
-  'leave-to-class': 'translate-x-full',
+  'enter-active-class': 'panel-reveal-enter sr-motion',
+  'enter-from-class': 'translate-x-full opacity-0',
+  'leave-active-class': 'panel-reveal-leave sr-motion',
+  'leave-to-class': 'translate-x-full opacity-0',
 } as const
 
 const main = ref<HTMLElement>()

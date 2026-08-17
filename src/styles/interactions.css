@@ -36,6 +36,24 @@
   transition: translate 250ms var(--sr-ease-in-out);
 }
 
+/* slideover 進出場（App.vue 的 PANEL_MOTION 指向這裡）：全幅純位移的 drawer 式滑入滑出，
+   per-property 時值 utility 組不出所以落在這裡。fade 經兩輪驗收整組移除（design D3 v3）；
+   drawer 曲線初速約為 --sr-ease-out 的一半，全幅距離才不會回到舊版的高速掃過。
+   opacity 是幽靈值：正常模式 1ms 不可感知（進場貼起點、退場貼終點），只為 reduced motion
+   存在——.sr-motion 把 transition-property 蓋成 opacity 後，opacity 承接第一組時值
+   （translate 排第一 → 300／220ms、無 delay），降級成純淡入淡出 */
+.panel-reveal-enter {
+  transition:
+    translate 300ms var(--sr-ease-drawer),
+    opacity 1ms linear;
+}
+
+.panel-reveal-leave {
+  transition:
+    translate 220ms var(--sr-ease-drawer),
+    opacity 1ms linear 219ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 降級不是關閉：留下顏色與透明度變化，移除位移與循環動畫 */
   *,
@@ -48,7 +66,10 @@
     transform: none;
   }
 
-  /* 帶位移進出場的浮層（toast）改為純淡入淡出 */
+  /* 帶位移進出場的浮層（面板與 toast）改為純淡入淡出。
+     注意機制：transform: none 對 Wind4 的 translate-* utility 是空砲——它產出的是
+     translate: 屬性、不是 transform:（留著這行是給手寫 transform 的 CSS 降級用）；
+     真正把位移擋掉的是 transition-property: opacity——位移瞬間歸位、淡入淡出照播 */
   .sr-motion {
     transform: none !important;
     transition-property: opacity !important;

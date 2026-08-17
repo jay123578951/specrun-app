@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 /**
  * slideover 三處（Artifact／Spec／Archived）共用的外殼（design D5：rule of three 到齊）。
@@ -20,9 +20,53 @@ defineEmits<{ collapse: [] }>()
 
 const scroller = ref<HTMLElement>()
 
-watch(() => props.scrollKey, () => {
+/**
+ * 快速連按閘門：距上次切換小於這個間隔就只換內容、不播淡入。
+ * 擋的是鍵盤 ↑↓ 連按（重複間隔 ~30–50ms）——不設閘，內容區會一直被壓回
+ * opacity 0，讀起來是閃爍；單次點擊或單次按鍵照樣有淡入（design D7）。
+ * 值只需大於鍵盤重複間隔、小於刻意的兩次操作，不必精確。
+ */
+const FADE_SUPPRESS_MS = 200
+
+/** true = 淡入起點：內容區壓在 opacity 0 且無過場；false 才掛回 transition（兩分支互斥） */
+const fadeStart = ref(false)
+
+let lastSwitchAt = 0
+let rafId = 0
+let disposed = false
+
+watch(() => props.scrollKey, async () => {
   if (scroller.value)
     scroller.value.scrollTop = 0
+
+  const now = performance.now()
+  const suppressed = now - lastSwitchAt < FADE_SUPPRESS_MS
+  lastSwitchAt = now
+  if (suppressed) {
+    // 連按中把上一輪排程一併取消，免得它在壓 0 之後才把 opacity 放回、播出半截淡入
+    cancelAnimationFrame(rafId)
+    fadeStart.value = false
+    return
+  }
+
+  // watcher 是 pre-flush，壓 0 先於新內容 patch；等 patch 完再過雙 rAF，
+  // 讓 opacity: 0 先被瀏覽器算過一次，放回 1 的過場才會真的播
+  fadeStart.value = true
+  await nextTick()
+  if (disposed)
+    return
+  cancelAnimationFrame(rafId)
+  rafId = requestAnimationFrame(() => {
+    rafId = requestAnimationFrame(() => {
+      fadeStart.value = false
+    })
+  })
+})
+
+// 面板收合瞬間若剛好在切換，別讓在飛的回呼落在已卸載的元件上
+onBeforeUnmount(() => {
+  disposed = true
+  cancelAnimationFrame(rafId)
 })
 </script>
 
@@ -54,7 +98,13 @@ watch(() => props.scrollKey, () => {
       <slot name="header" />
     </header>
 
-    <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-8 py-7">
+    <!-- 換內容時只淡這塊：header 與卡片高亮是身分回饋、必須即時（design D8）。
+         兩個 class 分支互斥，避免 transition-none 與 transition-opacity 同時在場互打 -->
+    <div
+      ref="scroller"
+      class="min-h-0 flex-1 overflow-y-auto px-8 py-7"
+      :class="fadeStart ? 'opacity-0 transition-none' : 'transition-opacity duration-120 ease-[var(--sr-ease-out)]'"
+    >
       <slot />
     </div>
   </section>

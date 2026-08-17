@@ -40,6 +40,7 @@
   /* 曲線：ui-motion skill 的固定值，內建 easing 對 UI 太軟；元件寫 ease-[var(--sr-ease-out)] */
   --sr-ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* 進出場、預設 */
   --sr-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* 畫面內移動、變形 */
+  --sr-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); /* 全幅抽屜滑動（slideover 進出場）：初速低、收尾長 */
 }
 
 html,
