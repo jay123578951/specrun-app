@@ -40,8 +40,16 @@ export default defineConfig<Theme>({
     // 名稱刻意避開 focus-ring——那會先被解析成 focus: 變體＋ring utility。
     'kbd-focus': 'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-accent-bright focus-visible:outline-offset-2',
 
-    // 次要按鈕：default／hover／focus／active／disabled 齊備；loading 由呼叫端接 aria-busy＋轉圈圖示
-    'btn-quiet': 'inline-flex items-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    /**
+     * 按鈕體系：尺寸兩階（btn 主階／btn-sm 窄脈絡）＋ icon-btn 自成一路（正方形、尺寸由圖示決定），
+     * 色調正交覆蓋在尺寸階上（btn-danger）。專案只有一種按鈕色調，所以低調外觀直接內建在尺寸階裡，
+     * 不拆成「盒子 class ＋ 色調 class」併寫——真的出現實心主按鈕再開名稱空間。
+     * 點擊面積外擴（::before）刻意用釘死的 px 而非 rem 級距：根字級 14px 下 -inset-2 只有 7px，
+     * 無障礙下限不該隨排版基準漂移（見 design.md - D4）。
+     */
+
+    // 主階按鈕：default／hover／focus／active／disabled 齊備；loading 由呼叫端接 aria-busy＋轉圈圖示
+    'btn': 'inline-flex items-center gap-2 h-11 px-4 rounded border border-line text-ui-base text-text-2 transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 側欄項目：D8 死項不灰化——保留 hover 態，但不給 pointer cursor（點了不會有事）
     'side-item': 'flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
@@ -52,11 +60,14 @@ export default defineConfig<Theme>({
     // 專案清單項：current 的 accent 底由呼叫端加，這裡只備齊 hover／focus／press／disabled
     'project-item': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
-    // 側欄用的緊湊按鈕；h-8 與 input-quiet 同高，成排時不會高低不齊
-    'btn-quiet-sm': 'inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color] duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    // 窄脈絡專用：服務側欄 224px 的就地確認列，主階兩顆並排會把那列撐得比專案列還高
+    'btn-sm': 'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color] duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
-    // 破壞性動作（移除確認）：error 色只在邊框與文字，底色留給 hover——靜態就整片紅太吵
-    'btn-danger': 'inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded border border-error/50 text-ui-sm text-error transition-[background-color,color] duration-150 hover:bg-error/15 active:bg-error/25 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    // 破壞性動作（移除確認）的色調變體，用法 class="btn-sm btn-danger"：
+    // error 色只在邊框與文字，底色留給 hover——靜態就整片紅太吵。
+    // important 不可省：要壓過的 border-line／text-text-2 與這裡來自同一條規則，
+    // 勝負只由 CSS 產生順序決定（不是 class 屬性的書寫順序），漏了會靜默變灰。
+    'btn-danger': '!border-error/50 !text-error hover:!bg-error/15 active:!bg-error/25',
 
     // 文字輸入：邊框恆為 1px、focus ring 走預留的 outline 槽，任何狀態都不動 layout
     'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-ui-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
@@ -65,11 +76,12 @@ export default defineConfig<Theme>({
     // 抬升與選中底色由呼叫端切換，與 ChangeCard 同一套姿態
     'list-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
 
-    // artifact tab：選中態的底線與文字色由呼叫端切換。40px 高是密集工具介面的點擊面積下限
-    'tab-item': 'h-10 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',
+    // artifact tab：選中態的底線與文字色由呼叫端切換。
+    // h-12 在根字級 14px 下 ＝ 42px，是能守住密集工具介面點擊面積下限的最小級距
+    'tab-item': 'h-12 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',
 
-    // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（::before 撐開，不動版面）
-    'icon-btn': 'relative h-7 w-7 flex shrink-0 items-center justify-center border border-line rounded text-text-2 transition-[background-color,color] duration-150 before:absolute before:-inset-2 before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（28 ＋ 8×2；::before 撐開，不動版面）
+    'icon-btn': 'relative h-8 w-8 flex shrink-0 items-center justify-center border border-line rounded text-text-2 transition-[background-color,color] duration-150 before:absolute before:-inset-[8px] before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 具名層級，template 不出現裸 z 值
     'z-toast': 'z-100',

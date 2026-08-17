@@ -55,13 +55,13 @@ function progressTitle(completed: number, total: number): string {
 
         <button
           type="button"
-          class="btn-quiet relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
+          class="btn relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
           :disabled="archived.busy"
           :aria-busy="archived.busy"
           @click="archived.load()"
         >
           <span
-            class="i-lucide-refresh-cw h-3.5 w-3.5"
+            class="i-lucide-refresh-cw h-4 w-4"
             :class="{ 'animate-spin': archived.busy }"
             aria-hidden="true"
           />
@@ -76,8 +76,8 @@ function progressTitle(completed: number, total: number): string {
           title="No project yet"
           body="Add a folder that contains an openspec/ directory and its archived changes show up here."
         >
-          <button type="button" class="btn-quiet" @click="projects.startAdd()">
-            <span class="i-lucide-plus h-3.5 w-3.5" aria-hidden="true" />
+          <button type="button" class="btn" @click="projects.startAdd()">
+            <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
             Add project
           </button>
         </StateNotice>
@@ -113,7 +113,7 @@ function progressTitle(completed: number, total: number): string {
           body="Reading openspec/changes/archive/ did not complete, so this list may be missing. This is usually temporary."
           :detail="archived.listError?.detail"
         >
-          <button type="button" class="btn-quiet" :disabled="archived.busy" @click="archived.load()">
+          <button type="button" class="btn" :disabled="archived.busy" @click="archived.load()">
             Try again
           </button>
         </StateNotice>

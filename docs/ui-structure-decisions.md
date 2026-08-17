@@ -171,6 +171,24 @@
 - 卡片標題列高不再用 `1.6em` 推算（標題 17／數字 13 混排後容器已無單一字級），七處統一為固定 `h-7`。
 - 使用者全域字級調整（Cmd+/-）：記觀察項，M4 Tauri 套殼時評估 webview zoom，不進 D1。
 
+### 按鈕尺寸（定稿；2026-08-17 由 enlarge-button-scale 收斂）
+
+**尺寸兩階 ＋ 圖示鈕自成一路，色調正交覆蓋。** 下表一律寫根字級 14px 下的實際渲染值（rem utility 的標稱值 ×0.875），不寫標稱值——「以 16px 推算」正是上一輪四處註解與實際不符的來源。
+
+| Shortcut | 高度 | 內距／字級 | 用途 |
+|---|---|---|---|
+| `btn` | 38.5px（`h-11`） | `px-4` 14px／`ui-base` 15px／圖示 14px | 主階：Refresh、Add project、Try again |
+| `btn-sm` | 31.5px（`h-9`） | `px-3` 10.5px／`ui-sm` 13px | 窄脈絡專用：側欄 224px 的就地確認列 |
+| `icon-btn` | 視覺 28px（`h-8 w-8`）・點擊 44px | 圖示 14px | 面板收合、面板 Refresh、卡片 park |
+| `tab-item` | 42px（`h-12`） | `px-3`／`ui-sm` 13px | artifact／archived tabs |
+| `btn-danger` | 無盒子 | — | 色調變體，用法 `class="btn-sm btn-danger"` |
+
+- **低調外觀內建在尺寸階裡**，不拆成「盒子 class ＋ 色調 class」併寫。專案目前只有一種按鈕色調，讓每個呼叫端預先付兩個 class 的稅不划算；真要加實心主按鈕時再開名稱空間，遷移成本與現在相同。
+- **`btn-danger` 的覆蓋必須帶 `!`**：它要壓過的 `border-line`／`text-text-2` 與自己來自同一條 UnoCSS 規則，勝負由 CSS 產生順序決定、不是 class 屬性的書寫順序，漏了會靜默變灰而不報錯。
+- **點擊面積外擴用釘死的 px，不用 rem 級距**（`before:-inset-[8px]`、`before:-inset-[10px]`）。WCAG 2.5.5 的 44px 與 2.5.8 的 24px 是無障礙硬指標，不該隨排版基準漂移——`before:-inset-2` 在 14px 根字級下只有 7px，宣告 44px 實得 38.5px。視覺尺寸仍走 rem 級距（那本來就是排版的一部分），只有點擊面積這條下限脫鉤。
+- **`tab-item` 一改高度，兩個面板頭部的 `pb` 就得跟著重算**：頭部上下留白刻意不對稱，`pb` 是用來抵消 tabs 自帶的垂直置中空白（= (tab 高 − 行盒 20.8) ÷ 2），讓「標題→按鈕」與「標題→tabs」看起來等距。`ArtifactPanel` 與 `ArchivedPanel` 必須同值。
+- **刻意的例外**：專案列的移除入口（`ProjectSwitcher.vue` 絕對定位的小按鈕）維持小尺寸、不外擴點擊面積。它疊在專案切換鈕上，放大等於從「切換專案」這個主要目標身上收回空間；它低於 WCAG 24px 是已知取捨，要處理得連該列的資訊層級一起重排。Markdown 的 task checkbox（13px，`markdown.css`）同樣不在本表——它的點擊面積受限於 `markdown-it-task-lists` 的 HTML 產出與事件委派，屬行為變更。
+
 ### 動效
 
 - 原則：**任何操作都有動畫反饋**，豐富但短促（150–300ms 級）。

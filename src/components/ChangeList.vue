@@ -71,13 +71,13 @@ const showParked = computed(() => !noProject.value && store.parkedCount > 0)
 
         <button
           type="button"
-          class="btn-quiet relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
+          class="btn relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
           :disabled="store.busy"
           :aria-busy="store.busy"
           @click="store.load()"
         >
           <span
-            class="i-lucide-refresh-cw h-3.5 w-3.5"
+            class="i-lucide-refresh-cw h-4 w-4"
             :class="{ 'animate-spin': store.busy }"
             aria-hidden="true"
           />
@@ -92,8 +92,8 @@ const showParked = computed(() => !noProject.value && store.parkedCount > 0)
           title="No project yet"
           body="Add a folder that contains an openspec/ directory and its changes show up here."
         >
-          <button type="button" class="btn-quiet" @click="projects.startAdd()">
-            <span class="i-lucide-plus h-3.5 w-3.5" aria-hidden="true" />
+          <button type="button" class="btn" @click="projects.startAdd()">
+            <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
             Add project
           </button>
         </StateNotice>
@@ -118,7 +118,7 @@ const showParked = computed(() => !noProject.value && store.parkedCount > 0)
           body="The request did not complete, so this list may be missing. This is usually temporary."
           :detail="store.blockingError?.detail"
         >
-          <button type="button" class="btn-quiet" :disabled="store.busy" @click="store.load()">
+          <button type="button" class="btn" :disabled="store.busy" @click="store.load()">
             Try again
           </button>
         </StateNotice>

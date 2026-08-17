@@ -80,10 +80,10 @@ async function confirmRemove(path: string): Promise<void> {
             Remove <span class="text-text font-mono">{{ project.name }}</span> from this list? Nothing on disk is deleted.
           </p>
           <div class="mt-2 flex gap-1.5">
-            <button type="button" class="btn-danger flex-1" @click="confirmRemove(project.path)">
+            <button type="button" class="btn-sm btn-danger flex-1" @click="confirmRemove(project.path)">
               Remove
             </button>
-            <button type="button" class="btn-quiet-sm flex-1" @click="confirming = null">
+            <button type="button" class="btn-sm flex-1" @click="confirming = null">
               Cancel
             </button>
           </div>

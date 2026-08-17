@@ -37,13 +37,16 @@ const store = useChangesStore()
               {{ toast.detail }}
             </p>
           </div>
+          <!-- 視覺刻意比 icon-btn 小一階且無邊框——浮層上的次要動作不該與面板工具列同份量；
+               點擊面積則靠 ::before 補到 44px 與 icon-btn 同級。toast 卡片本體不可點，外擴不會偷走任何點擊。
+               -2px 是光學補償：items-start 下 24.5px 的方框中心會落在 13px 標題行的中心下方 1.85px -->
           <button
             type="button"
-            class="kbd-focus ml-auto shrink-0 rounded p-1 text-text-3 transition-colors duration-150 hover:text-text"
+            class="kbd-focus relative ml-auto mt-[-2px] h-7 w-7 flex shrink-0 items-center justify-center rounded text-text-3 transition-colors duration-150 before:absolute before:-inset-[10px] before:content-[''] hover:text-text"
             aria-label="Dismiss"
             @click="store.dismissToast(toast.id)"
           >
-            <span class="i-lucide-x h-3.5 w-3.5" aria-hidden="true" />
+            <span class="i-lucide-x h-4 w-4" aria-hidden="true" />
           </button>
         </div>
       </TransitionGroup>

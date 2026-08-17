@@ -51,7 +51,7 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
         @click="refresh()"
       >
         <span
-          class="i-lucide-refresh-cw h-3.5 w-3.5"
+          class="i-lucide-refresh-cw h-4 w-4"
           :class="{ 'animate-spin': busy }"
           aria-hidden="true"
         />
@@ -59,9 +59,10 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
     </template>
 
     <template #header>
-      <!-- 上下留白刻意不對稱：tabs 自帶 h-10 的垂直置中（文字上方還有 ~7.5px），
-           padding 抵掉那一段，標題到按鈕與標題到 tabs 的「看起來」才等距 -->
-      <div class="flex items-center gap-3 pb-1.5 pt-4.5">
+      <!-- 上下留白刻意不對稱：tabs 自帶 h-12（42px）的垂直置中（文字上方還有 ~10.6px），
+           padding 抵掉那一段，標題到按鈕與標題到 tabs 的「看起來」才等距。
+           tab 高一改，這裡的 pb 就得跟著重算（ArchivedPanel 的頭部同構、必須同值） -->
+      <div class="flex items-center gap-3 pb-[2px] pt-4.5">
         <!-- font-medium 是 Plex Mono 目前載入的最重字重（400／500 兩檔，見 main.ts） -->
         <h2 class="truncate text-ui-lg text-text font-mono font-medium" :title="detail.changeName ?? ''">
           {{ detail.changeName }}
@@ -108,7 +109,7 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
         </button>
       </div>
       <!-- 沒有 tabs（載入中／失敗）時撐住同高度，頭部不會先塌一截再彈回來 -->
-      <div v-else class="h-10" aria-hidden="true" />
+      <div v-else class="h-12" aria-hidden="true" />
     </template>
 
     <!-- 主動刷新是「我要等新資料」的明示：清空面板、大膽用 skeleton 回饋 -->
@@ -127,7 +128,7 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
       body="Reading this change did not complete. It may have been archived or removed while open."
       :detail="detail.error.detail"
     >
-      <button type="button" class="btn-quiet" @click="detail.load()">
+      <button type="button" class="btn" @click="detail.load()">
         Try again
       </button>
     </StateNotice>

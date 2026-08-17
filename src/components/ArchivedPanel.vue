@@ -41,7 +41,7 @@ const noFiles = computed(() =>
         @click="archived.refreshContent()"
       >
         <span
-          class="i-lucide-refresh-cw h-3.5 w-3.5"
+          class="i-lucide-refresh-cw h-4 w-4"
           :class="{ 'animate-spin': archived.contentRefreshing }"
           aria-hidden="true"
         />
@@ -49,7 +49,8 @@ const noFiles = computed(() =>
     </template>
 
     <template #header>
-      <div class="flex items-center gap-3 pb-1.5 pt-4.5">
+      <!-- 上下留白與 ArtifactPanel 的頭部同構，pb 必須同值（抵消 h-12 tabs 自帶的 ~10.6px 上方空白） -->
+      <div class="flex items-center gap-3 pb-[2px] pt-4.5">
         <h2 class="truncate text-ui-lg text-text font-mono font-medium" :title="archived.openDir ?? ''">
           {{ archived.openName }}
         </h2>
@@ -84,7 +85,7 @@ const noFiles = computed(() =>
         </button>
       </div>
       <!-- 沒有 tabs（載入中／失敗）時撐住同高度，頭部不會先塌一截再彈回來 -->
-      <div v-else class="h-10" aria-hidden="true" />
+      <div v-else class="h-12" aria-hidden="true" />
     </template>
 
     <!-- 主動刷新是「我要等新資料」的明示：清空面板、大膽用 skeleton 回饋 -->
@@ -103,7 +104,7 @@ const noFiles = computed(() =>
       body="Reading this archived change did not complete. It may have been renamed or removed while open."
       :detail="archived.contentError.detail"
     >
-      <button type="button" class="btn-quiet" @click="archived.loadContent()">
+      <button type="button" class="btn" @click="archived.loadContent()">
         Try again
       </button>
     </StateNotice>

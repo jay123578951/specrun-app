@@ -31,7 +31,7 @@ watch(() => props.scrollKey, () => {
        露出區的清單不變暗也不被攔截（spec artifact-view 無遮罩） -->
   <section class="min-w-0 flex flex-col overflow-hidden border-l border-line bg-surface">
     <header class="shrink-0 border-b border-line px-8 pt-4">
-      <!-- 控制列自成一條：標題放大後與 24.5px 的 icon-btn 並排會比例打架，
+      <!-- 控制列自成一條：標題放大後與 28px 的 icon-btn 並排會比例打架，
            所以按鈕收在上方兩端，標題獨佔下一列 -->
       <div class="flex items-center">
         <!-- 收合不是關閉：面板是滑回右邊，圖示用箭頭而非 ✕ -->
@@ -42,7 +42,7 @@ watch(() => props.scrollKey, () => {
           title="Collapse (Esc)"
           @click="$emit('collapse')"
         >
-          <span class="i-lucide-chevrons-right h-3.5 w-3.5" aria-hidden="true" />
+          <span class="i-lucide-chevrons-right h-4 w-4" aria-hidden="true" />
         </button>
 
         <!-- ml-auto 之後是動作槽：refresh 等按鈕由各面板自己填 -->

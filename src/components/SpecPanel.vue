@@ -30,7 +30,7 @@ const specs = useSpecsStore()
         @click="specs.refreshContent()"
       >
         <span
-          class="i-lucide-refresh-cw h-3.5 w-3.5"
+          class="i-lucide-refresh-cw h-4 w-4"
           :class="{ 'animate-spin': specs.contentRefreshing }"
           aria-hidden="true"
         />
@@ -62,7 +62,7 @@ const specs = useSpecsStore()
       body="Reading this spec did not complete. It may have been renamed or removed while open."
       :detail="specs.contentError.detail"
     >
-      <button type="button" class="btn-quiet" @click="specs.loadContent()">
+      <button type="button" class="btn" @click="specs.loadContent()">
         Try again
       </button>
     </StateNotice>

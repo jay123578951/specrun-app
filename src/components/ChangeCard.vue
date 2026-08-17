@@ -125,7 +125,7 @@ function runAction(): void {
         @keydown.stop
       >
         <span
-          class="h-3.5 w-3.5"
+          class="h-4 w-4"
           :class="pending
             ? 'i-lucide-loader-circle animate-spin'
             : (parked ? 'i-lucide-play' : 'i-lucide-pause')"
