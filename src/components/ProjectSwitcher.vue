@@ -69,7 +69,7 @@ async function confirmRemove(path: string): Promise<void> {
       No projects yet.
     </p>
 
-    <ul class="mt-2 space-y-0.5">
+    <ul class="mt-2 space-y-1">
       <li v-for="project in visible" :key="project.path" class="group relative">
         <!-- 移除確認就地取代該列：側欄 224px 放不下對話框，而且確認的對象就在這一行 -->
         <div
@@ -105,32 +105,42 @@ async function confirmRemove(path: string): Promise<void> {
             :title="project.path"
             @click="openProject(project.path)"
           >
+            <!-- 與 Specs／Archived 同尺寸的 icon，整排側欄文字才對得齊；current 換成
+                 開著的資料夾，位置指示不必再靠一個獨立的小圓點 -->
             <span
-              class="h-1.5 w-1.5 shrink-0 rounded-full"
-              :class="project.current ? 'bg-accent-bright' : 'bg-line'"
+              class="h-4 w-4 shrink-0"
+              :class="project.current ? 'i-lucide-folder-open' : 'i-lucide-folder'"
               aria-hidden="true"
             />
             <span class="min-w-0 flex-1 truncate text-ui-base font-mono">{{ project.name }}</span>
 
-            <!-- 暫時項（env／cwd 決定、未寫入設定）要看得出來，否則使用者會以為它已被記住 -->
+            <!-- 暫時項（env／cwd 決定、未寫入設定）要看得出來，否則使用者會以為它已被記住。
+                 與 badge 一起在 hover 時淡出，把右側讓給 ✕ -->
             <span
               v-if="project.temporary"
-              class="shrink-0 text-ui-xs text-text-3"
+              class="shrink-0 text-ui-xs text-text-3 transition-opacity duration-150 group-hover:opacity-0"
               title="Not saved to your project list"
             >temp</span>
 
             <span
               v-if="project.badge !== null"
-              class="shrink-0 rounded-full px-1.5 text-ui-xs font-mono tabular-nums"
+              class="shrink-0 rounded-full px-1.5 text-ui-xs font-mono tabular-nums transition-opacity duration-150 group-hover:opacity-0"
               :class="project.current ? 'bg-accent/25' : 'bg-line/60 text-text-3'"
             >{{ project.badge }}</span>
+
+            <!-- 右側空無一物的專案照樣要預留 ✕ 的位置，否則只有它的名稱會被 ✕ 蓋掉尾巴——
+                 遮擋只該發生在本來就被 badge 佔走的那一格 -->
+            <span v-if="project.badge === null && !project.temporary" class="h-5 w-5 shrink-0" aria-hidden="true" />
           </button>
 
-          <!-- ✕ 疊在列上、不外擴點擊面積：外擴會從切換這個大目標身上偷走點擊 -->
+          <!-- 移除入口：hover 時就地取代右側的 temp／badge。不外擴點擊面積、也不撐寬，整顆
+               落在 badge 原本佔的那一格內，長專案名不會因此被多遮一個字。right-2.5 是對齊
+               project-item 的水平 padding——badge 走 flex 流、✕ 走絕對定位，右緣要自己對上。
+               底色不透明是為了鍵盤 focus 這條路——那時列沒有 hover、下層 badge 還在，半透明
+               會疊字。中性起手、滑上去才轉 error，銜接確認態的 btn-danger -->
           <button
             type="button"
-            class="absolute top-1/2 h-5 w-5 flex items-center justify-center rounded text-text-3 opacity-0 transition-[opacity,color,background-color] duration-150 -translate-y-1/2 hover:bg-line/60 hover:text-text active:bg-line group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
-            :class="project.badge !== null || project.temporary ? 'right-9' : 'right-1.5'"
+            class="absolute right-2.5 top-1/2 h-5 w-5 flex items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
             :disabled="projects.busy"
             :aria-label="`Remove ${project.name} from the list`"
             :title="`Remove ${project.name} from the list`"
@@ -142,16 +152,16 @@ async function confirmRemove(path: string): Promise<void> {
       </li>
     </ul>
 
-    <button v-if="collapsible" type="button" class="side-action mt-0.5 text-ui-sm" @click="showAll = !showAll">
+    <button v-if="collapsible" type="button" class="side-action mt-1 text-ui-sm" @click="showAll = !showAll">
       <span
-        class="i-lucide-chevron-down h-3.5 w-3.5 transition-transform duration-150"
+        class="i-lucide-chevron-down h-4 w-4 transition-transform duration-150"
         :class="showAll ? 'rotate-180' : ''"
         aria-hidden="true"
       />
       {{ showAll ? 'Show less' : `Show all (${projects.projects.length})` }}
     </button>
 
-    <button type="button" class="side-action mt-0.5" :disabled="projects.busy" @click="startAdd()">
+    <button type="button" class="side-action mt-1" :disabled="projects.busy" @click="startAdd()">
       <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
       Add project
     </button>
