@@ -26,7 +26,7 @@ const body = computed(() => {
 
 <template>
   <div
-    class="border rounded border-dashed px-6 py-7 text-center text-ui-sm transition-[background-color,border-color,color] duration-150"
+    class="border rounded border-dashed px-6 py-7 text-center text-ui-sm transition-[background-color,border-color,color] duration-150 ease-[var(--sr-ease-out)]"
     :class="unavailable
       ? 'border-line/30 text-text-3/60'
       : (active ? 'border-line bg-accent/6 text-text-2' : 'border-line/40 text-text-3')"

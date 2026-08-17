@@ -155,7 +155,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
 
       <section
         ref="activeZone"
-        class="mt-4 space-y-3 transition-[background-color] duration-150"
+        class="mt-4 space-y-3 transition-[background-color] duration-150 ease-[var(--sr-ease-out)]"
         :class="markActiveGroup ? GROUP_MARK : ''"
       >
         <StateNotice
@@ -227,7 +227,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
 
         <div
           ref="parkedZone"
-          class="mt-4 transition-[background-color] duration-150"
+          class="mt-4 transition-[background-color] duration-150 ease-[var(--sr-ease-out)]"
           :class="markParkedGroup ? GROUP_MARK : ''"
         >
           <!-- 順序為 park 時間新→舊，資料層已排好（normalize-parked） -->

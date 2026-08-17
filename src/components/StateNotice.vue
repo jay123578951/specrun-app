@@ -17,7 +17,7 @@ withDefaults(defineProps<{
 <template>
   <!-- 空狀態與區塊級錯誤共用：圖示＋一句原因＋一句怎麼辦，四種文案互不重複 -->
   <div
-    class="border rounded-lg px-6 py-10 text-center transition-[background-color,border-color] duration-150"
+    class="border rounded-lg px-6 py-10 text-center transition-[background-color,border-color] duration-150 ease-[var(--sr-ease-out)]"
     :class="tone === 'error'
       ? 'border-error/40 bg-error/5'
       : (target ? 'border-line border-dashed bg-accent/6' : 'border-line bg-surface')"

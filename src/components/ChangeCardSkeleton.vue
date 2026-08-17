@@ -17,6 +17,6 @@
       </div>
     </div>
 
-    <div class="mt-3 h-1.5 rounded-full bg-bg" />
+    <div class="mt-3 h-1.5 rounded-full bg-line" />
   </div>
 </template>

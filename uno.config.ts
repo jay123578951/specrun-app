@@ -49,19 +49,21 @@ export default defineConfig<Theme>({
      */
 
     // 主階按鈕：default／hover／focus／active／disabled 齊備；loading 由呼叫端接 aria-busy＋轉圈圖示
-    'btn': 'inline-flex items-center gap-2 h-11 px-4 rounded border border-line text-ui-base text-text-2 transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'btn': 'inline-flex items-center gap-2 h-11 px-4 rounded border border-line text-ui-base text-text-2 cursor-pointer transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
-    // 側欄項目：D8 死項不灰化——保留 hover 態，但不給 pointer cursor（點了不會有事）
-    'side-item': 'flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
+    // 側欄項目：唯一消費者是尚未實作的 Settings（C1 design D8「死項不灰化」）。
+    // 原本連 cursor 也一併扣住，現已撤回：指標形狀在全站統一表示「這是可點的東西」，
+    // 不再兼差當「這顆點了有沒有用」的訊號——那由灰化與 disabled 表達。
+    'side-item': 'flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text',
 
     // 側欄的可點項目（＋ Add project／Show all）：side-item 的活版本，備齊 focus 與 press
-    'side-action': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 transition-colors duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'side-action': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 專案清單項：current 的 accent 底由呼叫端加，這裡只備齊 hover／focus／press／disabled
-    'project-item': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'project-item': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-left cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 窄脈絡專用：服務側欄 224px 的就地確認列，主階兩顆並排會把那列撐得比專案列還高
-    'btn-sm': 'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color] duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'btn-sm': 'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 破壞性動作（移除確認）的色調變體，用法 class="btn-sm btn-danger"：
     // error 色只在邊框與文字，底色留給 hover——靜態就整片紅太吵。
@@ -70,18 +72,18 @@ export default defineConfig<Theme>({
     'btn-danger': '!border-error/50 !text-error hover:!bg-error/15 active:!bg-error/25',
 
     // 文字輸入：邊框恆為 1px、focus ring 走預留的 outline 槽，任何狀態都不動 layout
-    'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-ui-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
+    'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-ui-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 ease-[var(--sr-ease-out)] placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
 
     // 清單列：卡片的扁平版（specs／archived 都沒有進度條可放，一列就是名稱＋幾個數字）。
     // 抬升與選中底色由呼叫端切換，與 ChangeCard 同一套姿態
-    'list-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
+    'list-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left cursor-pointer transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
 
     // artifact tab：選中態的底線與文字色由呼叫端切換。
     // h-12 在根字級 14px 下 ＝ 42px，是能守住密集工具介面點擊面積下限的最小級距
-    'tab-item': 'h-12 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',
+    'tab-item': 'h-12 px-3 border-b-2 border-transparent text-ui-sm cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:text-text active:bg-surface-hover active:text-text kbd-focus',
 
     // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（28 ＋ 8×2；::before 撐開，不動版面）
-    'icon-btn': 'relative h-8 w-8 flex shrink-0 items-center justify-center border border-line rounded text-text-2 transition-[background-color,color] duration-150 before:absolute before:-inset-[8px] before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'icon-btn': 'relative h-8 w-8 flex shrink-0 items-center justify-center border border-line rounded text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] before:absolute before:-inset-[8px] before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 具名層級，template 不出現裸 z 值
     'z-toast': 'z-100',

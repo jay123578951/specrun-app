@@ -203,10 +203,12 @@ function runAction(): void {
     <!-- 卡片是詳情的入口；hover 抬升並浮現單一動作按鈕（Park／Restore，spec change-list）。
          role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法。
          開啟中的那張改掛 accent 底、拿掉 card-lift——它已經是當前項，不再是入口。
-         拖曳中同樣拿掉 card-lift：它的 :active { transform: none } 會把拿起來的卡片壓回去（design D7） -->
+         拖曳中同樣拿掉 card-lift：它的 :active { transform: none } 會把拿起來的卡片壓回去（design D7）。
+         cursor 走 grab 而非 pointer：卡片同時是入口與可拖曳物件，而拖曳是這裡唯一「指標形狀才講得出來」
+         的能力——點擊入口另有整片 hover 抬升在說。拿起後由 .card-dragging 接手 grabbing -->
     <article
       ref="root"
-      class="group cursor-pointer border border-line rounded px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
+      class="group cursor-grab border border-line rounded px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
       :class="[
         current ? 'bg-accent/25 hover:bg-accent/35' : 'bg-surface',
         floating ? 'absolute inset-x-0 top-0 select-none card-dragging' : (current ? '' : 'card-lift'),
@@ -230,21 +232,33 @@ function runAction(): void {
           {{ change.name }}
         </h3>
 
-        <!-- 與 park 鈕同一套 hover 浮現節奏：靜置的卡片只留標題與數字 -->
+        <!-- 與 park 鈕同一套 hover 浮現節奏：靜置的卡片只留標題與數字。
+             transition 與 hover:bg-line/70、active:bg-line 都要合併寫在同一個 class 字串裡：icon-btn
+             shortcut 產在 shortcuts layer、這裡的 utility 產在 default layer（後產生），同 property 才會
+             是這條蓋過 icon-btn 而非互相打斷——分開寫容易漏帶其中一顆。
+             hover:bg-line/70 蓋掉 icon-btn 的 hover:bg-surface-hover：卡片 hover 時底色已經是
+             surface-hover，這兩顆鈕只在那之後才浮現，同色會讓底色回饋整個消失（design 缺漏 2）。
+             active:bg-line 另補：icon-btn 的 active:bg-line/50 也在 shortcuts layer，若這裡只補
+             hover 不補 active，default layer 的 hover 規則會在按下時繼續生效、蓋掉 icon-btn 的
+             press 態——hover／press 要用同一層的兩條規則才能維持正確的遞亮階梯 -->
         <CopyNameButton
           :name="change.name"
-          class="ml-0.5 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
+          class="ml-0.5 opacity-0 transition-[opacity,background-color,color] duration-150 ease-[var(--sr-ease-out)] hover:bg-line/70 active:bg-line focus-visible:opacity-100 group-hover:opacity-100"
           @keydown.stop
         />
 
-        <div class="ml-auto flex shrink-0 items-center gap-2.5">
+        <!-- 統計圖示釘死 13px 而非走 h-3／h-3.5 級距（同 ::before 外擴的理由，design D4）：
+             根字級 14px 下那兩階是 10.5／12.25px，dpr 2 落在半個 device px 上，stroke 圖示會糊。
+             13px 讓 list-checks 的墨水（占視框 66.7%）約 8.7px，貼近 13px 數字 9.9px 的 cap height；
+             clock 墨水占 91.7%、同框下自然大一階，那是兩顆圖示的固有差異，不逐顆校準 -->
+        <div class="ml-auto flex shrink-0 items-center gap-4">
           <span
             v-if="hasTasks"
-            class="inline-flex items-center gap-1 text-ui-sm font-mono tabular-nums"
+            class="inline-flex items-center gap-1.5 text-ui-sm font-mono tabular-nums"
             :class="isComplete ? 'text-done' : 'text-text-2'"
           >
             <span
-              class="h-3 w-3"
+              class="h-[13px] w-[13px]"
               :class="isComplete ? 'i-lucide-check' : 'i-lucide-list-checks'"
               aria-hidden="true"
             />
@@ -253,10 +267,10 @@ function runAction(): void {
           <span v-else class="text-ui-sm text-text-3">No tasks</span>
 
           <span
-            class="inline-flex items-center gap-1 text-ui-sm"
+            class="inline-flex items-center gap-1.5 text-ui-sm"
             :class="parked ? 'text-parked' : 'text-text-2'"
           >
-            <span class="i-lucide-clock h-3 w-3" aria-hidden="true" />
+            <span class="i-lucide-clock h-[13px] w-[13px]" aria-hidden="true" />
             <time
               :datetime="typeof timestamp === 'number' ? new Date(timestamp).toISOString() : undefined"
               :title="typeof timestamp === 'number' ? formatAbsoluteTime(timestamp) : undefined"
@@ -267,17 +281,22 @@ function runAction(): void {
         </div>
 
         <!-- 動作按鈕常駐佔位、只切透明度：hover 時整排數字不會被推著跑。
-             .stop 是 spec 要求——按這顆不能順便把詳情打開 -->
+             .stop 是 spec 要求——按這顆不能順便把詳情打開。
+             transition 合併寫 opacity/background-color/color：分開寫 transition-opacity 會產在
+             default layer、蓋掉 icon-btn shortcut（shortcuts layer）的 transition-[background-color,color]，
+             background-color／color 的補間整個消失，只剩 opacity 在補間（design 缺漏 1） -->
         <button
           type="button"
-          class="icon-btn ml-1 transition-opacity duration-150"
+          class="icon-btn ml-1 transition-[opacity,background-color,color] duration-150 ease-[var(--sr-ease-out)]"
           :class="[
             // 透明度只由一個分支決定：與 opacity-0 對打的 utility 會依 CSS 順序勝出，
             // 導致「不能 park 的專案反而每張卡都常駐一顆按鈕」
             pending ? 'opacity-100' : 'opacity-0 focus-visible:opacity-100 group-hover:opacity-100',
             // 禁用走 aria-disabled 而非 disabled 屬性：原生 disabled 收不到 hover，
-            // 「為什麼不能 park」的 tooltip 就永遠沒機會出現
-            disabled ? 'cursor-not-allowed text-text-3 hover:bg-transparent hover:text-text-3' : '',
+            // 「為什麼不能 park」的 tooltip 就永遠沒機會出現。
+            // hover／press 底色同理只由一個分支決定（層順序理由同上方 CopyNameButton 註解）：
+            // 同時存在會讓「禁用時不換色」與「可用時遞亮」互搶同一個 property
+            disabled ? 'cursor-not-allowed text-text-3 hover:bg-transparent hover:text-text-3' : 'hover:bg-line/70 active:bg-line',
           ]"
           :aria-disabled="disabled"
           :aria-label="actionTitle"
@@ -301,8 +320,10 @@ function runAction(): void {
         {{ change.summary }}
       </p>
 
+      <!-- 軌道用 line 而非 bg：bg-bg 在本檔已是「凹槽」的語意（見上方拖曳版位），
+           比卡片暗的細條在禁用 box-shadow 的前提下會讀成卡片破洞 -->
       <div
-        class="mt-3 h-1.5 overflow-hidden rounded-full bg-bg"
+        class="mt-3 h-1.5 overflow-hidden rounded-full bg-line"
         :role="hasTasks ? 'progressbar' : undefined"
         :aria-valuemin="hasTasks ? 0 : undefined"
         :aria-valuemax="hasTasks ? change.totalTasks : undefined"

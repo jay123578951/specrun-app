@@ -42,7 +42,7 @@ const store = useChangesStore()
                -2px 是光學補償：items-start 下 24.5px 的方框中心會落在 13px 標題行的中心下方 1.85px -->
           <button
             type="button"
-            class="kbd-focus relative ml-auto mt-[-2px] h-7 w-7 flex shrink-0 items-center justify-center rounded text-text-3 transition-colors duration-150 before:absolute before:-inset-[10px] before:content-[''] hover:text-text"
+            class="kbd-focus relative ml-auto mt-[-2px] h-7 w-7 flex shrink-0 cursor-pointer items-center justify-center rounded text-text-3 transition-colors duration-150 ease-[var(--sr-ease-out)] before:absolute before:-inset-[10px] before:content-[''] hover:text-text"
             aria-label="Dismiss"
             @click="store.dismissToast(toast.id)"
           >

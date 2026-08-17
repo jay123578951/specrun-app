@@ -93,13 +93,9 @@ async function confirmRemove(path: string): Promise<void> {
           <button
             type="button"
             class="project-item"
-            :class="[
-              project.current
-                ? 'bg-accent/15 text-accent-bright hover:bg-accent/15'
-                : 'text-text-2 hover:text-text',
-              // 目前專案＋已在主頁＝點了不會有事；在其他頁時它是回主頁的入口，照樣給 pointer
-              project.current && view.currentView === 'changes' ? 'cursor-default' : '',
-            ]"
+            :class="project.current
+              ? 'bg-accent/15 text-accent-bright hover:bg-accent/15'
+              : 'text-text-2 hover:text-text'"
             :aria-current="project.current ? 'true' : undefined"
             :disabled="projects.busy && !project.current"
             :title="project.path"
@@ -118,13 +114,13 @@ async function confirmRemove(path: string): Promise<void> {
                  與 badge 一起在 hover 時淡出，把右側讓給 ✕ -->
             <span
               v-if="project.temporary"
-              class="shrink-0 text-ui-xs text-text-3 transition-opacity duration-150 group-hover:opacity-0"
+              class="shrink-0 text-ui-xs text-text-3 transition-opacity duration-150 ease-[var(--sr-ease-out)] group-hover:opacity-0"
               title="Not saved to your project list"
             >temp</span>
 
             <span
               v-if="project.badge !== null"
-              class="shrink-0 rounded-full px-1.5 text-ui-xs font-mono tabular-nums transition-opacity duration-150 group-hover:opacity-0"
+              class="shrink-0 rounded-full px-1.5 text-ui-xs font-mono tabular-nums transition-opacity duration-150 ease-[var(--sr-ease-out)] group-hover:opacity-0"
               :class="project.current ? 'bg-accent/25' : 'bg-line/60 text-text-3'"
             >{{ project.badge }}</span>
 
@@ -140,7 +136,7 @@ async function confirmRemove(path: string): Promise<void> {
                會疊字。中性起手、滑上去才轉 error，銜接確認態的 btn-danger -->
           <button
             type="button"
-            class="absolute right-2.5 top-1/2 h-5 w-5 flex items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
+            class="absolute right-2.5 top-1/2 h-5 w-5 flex cursor-pointer items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 ease-[var(--sr-ease-out)] -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
             :disabled="projects.busy"
             :aria-label="`Remove ${project.name} from the list`"
             :title="`Remove ${project.name} from the list`"
