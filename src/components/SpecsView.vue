@@ -92,7 +92,7 @@ function toggle(id: string): void {
           title="No project yet"
           body="Add a folder that contains an openspec/ directory and its specs show up here."
         >
-          <button type="button" class="btn-quiet" @click="projects.addFormOpen = true">
+          <button type="button" class="btn-quiet" @click="projects.startAdd()">
             <span class="i-lucide-plus h-3.5 w-3.5" aria-hidden="true" />
             Add project
           </button>

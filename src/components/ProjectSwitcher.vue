@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import type { ProjectEntry } from '../api'
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
-import { gateway } from '../api'
-import { useChangesStore } from '../stores/changes'
+import { computed, ref } from 'vue'
 import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 
@@ -15,15 +13,11 @@ import { useViewStore } from '../stores/view'
 const COLLAPSE_THRESHOLD = 6
 
 const projects = useProjectsStore()
-const changes = useChangesStore()
 const view = useViewStore()
 
 const showAll = ref(false)
 /** 正在確認移除的專案路徑；同時只會有一個 */
 const confirming = ref<string | null>(null)
-const draft = ref('')
-const addError = ref('')
-const pathInput = useTemplateRef<HTMLInputElement>('pathInput')
 
 const visible = computed<ProjectEntry[]>(() => {
   const all = projects.projects
@@ -41,58 +35,10 @@ const visible = computed<ProjectEntry[]>(() => {
 
 const collapsible = computed(() => projects.projects.length > COLLAPSE_THRESHOLD)
 
-watch(() => projects.addFormOpen, async (open) => {
-  if (!open) {
-    draft.value = ''
-    addError.value = ''
-    return
-  }
-  await nextTick()
-  pathInput.value?.focus()
-})
-
-/** 有原生選資料夾能力（Tauri）就直接開 dialog，沒有才展開貼路徑輸入列（design D5） */
-async function startAdd(): Promise<void> {
+/** 開 dialog 前先收掉開著的移除確認；分流與提示全在 store（design D5） */
+function startAdd(): void {
   confirming.value = null
-  if (!gateway.canPickFolder) {
-    projects.addFormOpen = true
-    return
-  }
-
-  const picked = await gateway.pickFolder()
-  if (picked)
-    await submitPath(picked)
-}
-
-async function submitAdd(): Promise<void> {
-  await submitPath(draft.value)
-}
-
-async function submitPath(input: string): Promise<void> {
-  addError.value = ''
-  const result = await projects.add(input)
-  if (!result.ok) {
-    addError.value = result.message
-    pathInput.value?.focus()
-    return
-  }
-
-  if (result.alreadyExisted)
-    changes.notify('That project is already in the list. Switched to it.')
-  projects.addFormOpen = false
-}
-
-/** Esc／焦點離開就收起；已經打了字才留著，免得手滑點外面就白打一遍 */
-function closeAdd(): void {
-  projects.addFormOpen = false
-}
-
-function onFormFocusOut(event: FocusEvent): void {
-  if (draft.value.trim() || addError.value)
-    return
-  const next = event.relatedTarget as Node | null
-  if (!next || !(event.currentTarget as HTMLElement).contains(next))
-    closeAdd()
+  void projects.startAdd()
 }
 
 /**
@@ -209,61 +155,5 @@ async function confirmRemove(path: string): Promise<void> {
       <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
       Add project
     </button>
-
-    <Transition
-      enter-active-class="transition-[opacity,transform] duration-200 ease-[var(--sr-ease-out)] sr-motion"
-      enter-from-class="opacity-0 -translate-y-1"
-      leave-active-class="transition-opacity duration-150 ease-[var(--sr-ease-out)]"
-      leave-to-class="opacity-0"
-    >
-      <form
-        v-if="projects.addFormOpen"
-        class="mt-1.5 px-1"
-        @submit.prevent="submitAdd()"
-        @focusout="onFormFocusOut"
-        @keydown.esc="closeAdd()"
-      >
-        <div class="flex items-center gap-1.5">
-          <label class="sr-only" for="project-path">Project folder path</label>
-          <input
-            id="project-path"
-            ref="pathInput"
-            v-model="draft"
-            class="input-quiet"
-            :class="addError ? 'border-error' : ''"
-            type="text"
-            placeholder="/path/to/repo"
-            spellcheck="false"
-            autocomplete="off"
-            :aria-invalid="addError ? 'true' : undefined"
-            aria-describedby="project-path-hint"
-            :disabled="projects.busy"
-            @input="addError = ''"
-          >
-          <button
-            type="submit"
-            class="btn-quiet-sm shrink-0"
-            :disabled="!draft.trim() || projects.busy"
-            :aria-busy="projects.busy"
-          >
-            <span
-              v-if="projects.busy"
-              class="i-lucide-loader-circle h-3.5 w-3.5 animate-spin"
-              aria-hidden="true"
-            />
-            Add
-          </button>
-        </div>
-
-        <!-- 提示與錯誤共用同一個槽、高度固定：錯誤冒出來不推動下方的 Specs／Archive -->
-        <p
-          id="project-path-hint"
-          class="mt-1 min-h-4 px-0.5 text-ui-sm text-pretty"
-          :class="addError ? 'text-error' : 'text-text-3'"
-        >
-          {{ addError || 'Paste a folder that contains openspec/.' }}
-        </p>
-      </form>
-    </Transition>
   </nav>
 </template>

@@ -7,6 +7,8 @@ export interface Toast {
   id: number
   message: string
   detail?: string
+  /** 'info' 是純告知（做成了、已經有了），不掛錯誤圖示與色；預設是失敗 */
+  tone: 'error' | 'info'
 }
 
 const TOAST_TTL_MS = 6000
@@ -178,11 +180,20 @@ export const useChangesStore = defineStore('changes', () => {
     }
   }
 
-  /** 全 App 共用的非阻斷提示；detail store 的寫入失敗也走這裡 */
+  /** 全 App 共用的非阻斷失敗提示；detail store 的寫入失敗也走這裡 */
   function notify(message: string, detail?: string): void {
-    const toast: Toast = { id: ++toastSeq, message, ...(detail ? { detail } : {}) }
-    toasts.value = [...toasts.value, toast]
-    setTimeout(dismissToast, TOAST_TTL_MS, toast.id)
+    push({ message, tone: 'error', ...(detail ? { detail } : {}) })
+  }
+
+  /** 沒出錯、只是要讓使用者知道發生了什麼（如專案已在清單中）——同一個 stack，不同語氣 */
+  function notifyInfo(message: string): void {
+    push({ message, tone: 'info' })
+  }
+
+  function push(toast: Omit<Toast, 'id'>): void {
+    const entry: Toast = { id: ++toastSeq, ...toast }
+    toasts.value = [...toasts.value, entry]
+    setTimeout(dismissToast, TOAST_TTL_MS, entry.id)
   }
 
   function pushToast(error: GatewayError): void {
@@ -215,6 +226,7 @@ export const useChangesStore = defineStore('changes', () => {
     park,
     unpark,
     notify,
+    notifyInfo,
     dismissToast,
   }
 })

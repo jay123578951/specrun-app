@@ -15,10 +15,8 @@ export const useProjectsStore = defineStore('projects', () => {
   const currentPath = ref<string | null>(null)
   /** 清單至少取過一次；在此之前不能把「沒有專案」當成事實（否則首幀會閃空狀態） */
   const loaded = ref(false)
-  /** 切換／加入／移除進行中：清單項與輸入列據此進入 pending */
+  /** 切換／加入／移除進行中：清單項據此進入 pending */
   const busy = ref(false)
-  /** 「＋ Add project」輸入列的展開狀態；主區的空狀態按鈕也從這裡打開 */
-  const addFormOpen = ref(false)
   /** 每次切換 +1，讓背景的徽章刷新認得出自己已過期 */
   const generation = ref(0)
 
@@ -36,9 +34,31 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   /**
-   * 加入即切換（spec 加入專案）。回傳給呼叫端的是「這次為什麼沒成」——
-   * 驗證訊息貼在輸入列旁，比 toast 更接近使用者正在看的地方。
+   * 加入專案的唯一入口（spec：原生 dialog）：側欄與各頁空狀態共用同一段分流，
+   * 免得四個按鈕各養一份。沒有可貼訊息的輸入列，所有失敗一律走 toast（design D4、D5）。
    */
+  async function startAdd(): Promise<void> {
+    const outcome = await gateway.pickFolder()
+    // 取消與「已有 dialog 開著」都不留痕跡：那一刻使用者的注意力在 dialog 上，補提示是雜訊
+    if (outcome.status === 'canceled' || outcome.status === 'busy')
+      return
+    if (outcome.status !== 'picked') {
+      useChangesStore().notify(
+        outcome.status === 'unsupported'
+          ? 'Choosing a folder is not available on this platform.'
+          : 'Could not open the folder picker.',
+      )
+      return
+    }
+
+    const result = await add(outcome.path)
+    if (!result.ok)
+      useChangesStore().notify(result.message)
+    else if (result.alreadyExisted)
+      useChangesStore().notifyInfo('That project is already in the list. Switched to it.')
+  }
+
+  /** 加入即切換（spec 加入專案）；失敗原因交給 startAdd 決定怎麼呈現 */
   async function add(input: string): Promise<{ ok: true, alreadyExisted: boolean } | { ok: false, message: string }> {
     return mutate(
       () => gateway.addProject(input),
@@ -130,11 +150,10 @@ export const useProjectsStore = defineStore('projects', () => {
     currentPath,
     loaded,
     busy,
-    addFormOpen,
     hasProject,
     currentProject,
     load,
-    add,
+    startAdd,
     remove,
     switchTo,
   }

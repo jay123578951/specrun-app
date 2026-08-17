@@ -212,12 +212,24 @@ export interface OpenSpecGateway {
   getArchivedDetail: (dir: string) => Promise<ChangeDetailResult>
 
   /**
-   * 原生選資料夾的縫（design D5）：M4 Tauri 版走 dialog plugin，回傳使用者選的路徑。
-   * web 版沒有這個能力（`canPickFolder` 為 false），呼叫端改走貼路徑輸入列。
+   * 原生選資料夾：能力判定不在前端，一律呼叫後依 status 分流（design D1）。
+   * web 版問本機 server（macOS 走 osascript），M4 Tauri 版走 dialog plugin。
    */
-  canPickFolder: boolean
-  pickFolder: () => Promise<string | null>
+  pickFolder: () => Promise<PickFolderOutcome>
 }
+
+/**
+ * 選資料夾的結果：能力、取消、失敗都收在同一個回傳裡，呼叫端不必另外探測能力。
+ * `picked` 送進既有加入流程驗證；`canceled`／`busy` 無事發生；
+ * `unsupported`／`failed` 落回貼路徑輸入列。
+ */
+export type PickFolderOutcome
+  = { status: 'picked', path: string }
+    | { status: 'canceled' }
+    | { status: 'unsupported' }
+    | { status: 'failed' }
+    /** 已有一個 dialog 開著，不疊開第二個 */
+    | { status: 'busy' }
 
 /**
  * `GET /api/changes` 的回傳：一次 CLI 呼叫的原始結果。

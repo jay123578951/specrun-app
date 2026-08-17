@@ -11,6 +11,7 @@ import type {
   ParkedDetailProbe,
   ParkedListProbe,
   ParkedListResult,
+  PickFolderOutcome,
   ProjectActionResult,
   SpecContentProbe,
   SpecContentResult,
@@ -253,10 +254,21 @@ export const webGateway: OpenSpecGateway = {
     return normalizeArchivedDetail(probe)
   },
 
-  // web 沒有原生選資料夾——呼叫端看到 false 就改用貼路徑輸入列（design D5 的縫）
-  canPickFolder: false,
-  async pickFolder(): Promise<string | null> {
-    return null
+  /**
+   * dialog 由本機 server 開（macOS 走 osascript）：平台不支援、取消、失敗都由 body 的
+   * status 表達，這裡只在連 route 都到不了時自己造 failed——結果同樣是落回輸入列。
+   */
+  async pickFolder(): Promise<PickFolderOutcome> {
+    try {
+      const res = await fetch('/api/pick-folder', { method: 'POST' })
+      const result = await res.json() as PickFolderOutcome
+      if (typeof result?.status !== 'string')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch {
+      return { status: 'failed' }
+    }
   },
 }
 

@@ -21,7 +21,14 @@ const store = useChangesStore()
           class="sr-motion pointer-events-auto flex items-start gap-2.5 border border-line rounded bg-surface px-3.5 py-3 shadow-[var(--sr-shadow-overlay)]"
           role="status"
         >
-          <span class="i-lucide-triangle-alert mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+          <!-- 告知型不掛警示圖示：驚嘆號用在沒出錯的事情上，久了整個 stack 都不再被當真 -->
+          <span
+            class="mt-0.5 h-4 w-4 shrink-0"
+            :class="toast.tone === 'info'
+              ? 'i-lucide-info text-accent-bright'
+              : 'i-lucide-triangle-alert text-error'"
+            aria-hidden="true"
+          />
           <div class="min-w-0">
             <p class="text-ui-sm text-text">
               {{ toast.message }}
