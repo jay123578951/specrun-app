@@ -44,13 +44,13 @@ export default defineConfig<Theme>({
     'btn-quiet': 'inline-flex items-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color,transform] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 側欄項目：D8 死項不灰化——保留 hover 態，但不給 pointer cursor（點了不會有事）
-    'side-item': 'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
+    'side-item': 'flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 cursor-default transition-colors duration-150 hover:bg-surface-hover hover:text-text',
 
     // 側欄的可點項目（＋ Add project／Show all）：side-item 的活版本，備齊 focus 與 press
-    'side-action': 'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-ui-base text-text-2 transition-colors duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'side-action': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-ui-base text-text-2 transition-colors duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 專案清單項：current 的 accent 底由呼叫端加，這裡只備齊 hover／focus／press／disabled
-    'project-item': 'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+    'project-item': 'w-full flex items-center gap-2.5 px-2.5 py-2 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
     // 側欄用的緊湊按鈕；h-8 與 input-quiet 同高，成排時不會高低不齊
     'btn-quiet-sm': 'inline-flex items-center justify-center gap-1.5 h-8 px-2.5 rounded border border-line text-ui-sm text-text-2 transition-[background-color,color] duration-150 hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',

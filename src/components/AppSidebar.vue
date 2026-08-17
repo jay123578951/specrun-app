@@ -16,8 +16,8 @@ const view = useViewStore()
 
     <ProjectSwitcher />
 
-    <nav class="border-t border-line px-3 py-4 space-y-0.5">
-      <!-- Changes 頁不在 nav 段（spec change-list）：位置指示由專案清單的 ● 標記兼任，
+    <nav class="border-t border-line px-3 py-4 space-y-1">
+      <!-- Changes 頁不在 nav 段（spec change-list）：位置指示由專案清單的資料夾 icon 兼任，
            所以高亮只可能落在 Specs／Archived，而且僅在主區真的停在該頁時才亮 -->
       <button
         type="button"
