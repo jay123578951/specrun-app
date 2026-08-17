@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useChangesStore } from '../stores/changes'
-import { useDetailStore } from '../stores/detail'
 import { useProjectsStore } from '../stores/projects'
 import ChangeCard from './ChangeCard.vue'
 import ChangeCardSkeleton from './ChangeCardSkeleton.vue'
 import StateNotice from './StateNotice.vue'
 
 const store = useChangesStore()
-const detail = useDetailStore()
 const projects = useProjectsStore()
 
 /**
@@ -23,13 +21,6 @@ const GROUP_MOTION = {
   'leave-to-class': 'opacity-0 translate-y-2',
   'move-class': 'transition-transform duration-250 ease-[var(--sr-ease-in-out)]',
 } as const
-
-// 進詳情時清單整個卸載（換成窄軌），捲動位置得自己存回來——Esc 回來要在原地
-const scroller = ref<HTMLElement>()
-onMounted(() => scroller.value?.scrollTo({ top: detail.listScrollTop }))
-onBeforeUnmount(() => {
-  detail.listScrollTop = scroller.value?.scrollTop ?? 0
-})
 
 /**
  * 無目標專案是「還沒開始」不是錯誤——排在所有錯誤分支之前，
@@ -46,7 +37,8 @@ const showParked = computed(() => !noProject.value && store.parkedCount > 0)
 </script>
 
 <template>
-  <main ref="scroller" class="overflow-y-auto px-8 py-7">
+  <!-- 詳情開啟時清單留在原地不卸載，捲動位置自然保留（收合回來就在原處） -->
+  <main class="h-full overflow-y-auto px-8 py-7">
     <!-- 內容欄封頂 1024px：進度條是「一排掃過去」的總覽視圖，拉到 1200px+ 就讀不出比例了 -->
     <div class="mx-auto max-w-5xl">
       <!-- CLI 不可用是環境問題，不是這次載入的問題：常駐 banner，直到下次成功刷新 -->

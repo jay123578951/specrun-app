@@ -10,6 +10,7 @@ const text = {
   'ui-base': { fontSize: '14px', lineHeight: '1.6' }, // UI 內文、按鈕、side item
   'ui-sm': { fontSize: '12.5px' }, // tabs、相對時間、chip、hover 動作
   'ui-xs': { fontSize: '11px' }, // 群組標籤、徽章
+  'mono-lg': { fontSize: '20px' }, // 詳情面板主標題（單獨成列，旁邊沒有按鈕壓比例）
   'mono-base': { fontSize: '14px' }, // change 名、路徑（與終端字級對齊）
   'mono-sm': { fontSize: '11.5px' }, // n/m 進度數字、徽章數字
   'read-base': { fontSize: '15px', lineHeight: '1.85' }, // Markdown 正文
@@ -62,9 +63,6 @@ export default defineConfig<Theme>({
 
     // 文字輸入：邊框恆為 1px、focus ring 走預留的 outline 槽，任何狀態都不動 layout
     'input-quiet': 'h-8 w-full min-w-0 px-2 rounded border border-line bg-bg text-mono-sm text-text font-mono outline-solid outline-2 outline-transparent outline-offset-1 transition-[background-color,border-color] duration-150 placeholder:text-text-3 hover:bg-surface-hover focus-visible:outline-accent-bright disabled:cursor-not-allowed disabled:opacity-55',
-
-    // 窄軌項目：選中態由呼叫端加 accent 底，這裡只備齊 hover／focus／active
-    'rail-item': 'w-full flex flex-col items-start gap-1.5 px-2.5 py-2 rounded text-left transition-colors duration-150 hover:bg-surface-hover active:bg-line/50 kbd-focus',
 
     // artifact tab：選中態的底線與文字色由呼叫端切換。40px 高是密集工具介面的點擊面積下限
     'tab-item': 'h-10 px-3 border-b-2 border-transparent text-ui-sm transition-colors duration-150 hover:text-text active:bg-surface-hover active:text-text kbd-focus',

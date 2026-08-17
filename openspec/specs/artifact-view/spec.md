@@ -2,31 +2,39 @@
 
 ## Purpose
 
-change 詳情檢視：點開卡片後的收合變形佈局（窄軌＋內容面板）、artifact tabs 與 Markdown 唯讀渲染，讓使用者在 App 內直接閱讀 proposal／design／specs／tasks 內容。
+change 詳情檢視：點開卡片後自右側滑入、覆蓋於清單之上的面板、artifact tabs 與 Markdown 唯讀渲染，讓使用者在 App 內直接閱讀 proposal／design／specs／tasks 內容。
 
 ## Requirements
 
-### Requirement: 詳情開啟與收合變形
-點擊 change 卡片後，主區 SHALL 在同一畫面內變形為詳情檢視：清單縮為窄軌、內容面板取得其餘寬度；MUST NOT 以換頁或彈窗呈現。按 Esc（或關閉控制）SHALL 回到全寬清單，且清單捲動位置 SHALL 保留。
+### Requirement: 詳情滑出面板
+點擊 change 卡片後，內容面板 SHALL 自主區右側滑入、覆蓋於卡片清單上方；清單 MUST NOT 變形、移位或重排，MUST NOT 以換頁或彈窗呈現。面板 MUST NOT 滿版：左側 SHALL 保留固定寬度的露出區，清單於露出區內維持可見與可互動。面板 SHALL 以抬升一階的底色與左緣分隔線呈現層次，MUST NOT 使用陰影，MUST NOT 使用 backdrop 或任何攔截清單互動的遮罩。面板 header SHALL 提供收合控制（收合語意的圖示，MUST NOT 使用關閉「✕」意象）與手動 refresh 控制。按 Esc、點擊收合控制、或再次點擊當前開啟的卡片，面板 SHALL 滑出收合；收合後清單捲動位置 SHALL 與開啟前一致。
 
-#### Scenario: 點卡片進入詳情
+#### Scenario: 點卡片滑出面板
 - **WHEN** 使用者點擊某張 change 卡片
-- **THEN** 清單縮為窄軌、內容面板顯示該 change 的 artifact 內容，側欄不變
+- **THEN** 內容面板自右側滑入覆蓋清單，卡片維持原位，左側露出區仍可見清單
 
-#### Scenario: Esc 返回保留捲動
-- **WHEN** 使用者於詳情檢視按 Esc
-- **THEN** 畫面回到全寬清單，捲動位置與進入前一致
+#### Scenario: 收合控制
+- **WHEN** 使用者點擊面板 header 的收合控制
+- **THEN** 面板滑出收合，畫面回到完整清單，捲動位置與開啟前一致
 
-### Requirement: 窄軌互動
-窄軌 SHALL 僅顯示各 change 的名稱與進度，當前 change SHALL 高亮；點擊其他項或 ↑↓ 鍵 SHALL 切換至該 change，內容面板原地更新，MUST NOT 退出詳情檢視。
+#### Scenario: Esc 收合
+- **WHEN** 使用者於面板開啟時按 Esc
+- **THEN** 面板收合，行為與收合控制一致
 
-#### Scenario: 點擊窄軌切換
-- **WHEN** 詳情檢視中使用者點擊窄軌上另一個 change
-- **THEN** 內容面板更新為該 change 的內容，該項高亮
+#### Scenario: 無遮罩
+- **WHEN** 面板開啟中
+- **THEN** 左側露出區的清單無任何變暗或遮罩，卡片可直接點擊
+
+### Requirement: 覆蓋檢視下的清單切換
+面板開啟期間，當前開啟的 change 卡片 SHALL 以可辨識的選中狀態高亮；點擊露出區內其他卡片或按 ↑↓ 鍵 SHALL 切換至該 change，面板原地更新內容，MUST NOT 收合再重開。↑↓ 鍵切換 SHALL 依清單順序移動，切換到的卡片若在捲動範圍外 SHALL 被帶進視野。
+
+#### Scenario: 點擊露出卡片切換
+- **WHEN** 面板開啟於 change A，使用者點擊露出區內 change B 的卡片
+- **THEN** 面板內容原地更新為 B，B 卡片高亮，面板不收合
 
 #### Scenario: 鍵盤切換
-- **WHEN** 詳情檢視中使用者按 ↓ 鍵
-- **THEN** 切換至窄軌的下一個 change，行為與點擊一致
+- **WHEN** 面板開啟時使用者按 ↓ 鍵
+- **THEN** 切換至清單順序的下一個 change，行為與點擊一致
 
 ### Requirement: artifact tabs 動態列出
 內容面板 SHALL 依 gateway 回傳的 artifact 清單動態列出 tabs，MUST NOT 寫死 artifact 名稱（custom schema 必須可用）；首次進入詳情 SHALL 預設選 proposal tab；切換 change SHALL 保持當前 tab，目標 change 無同名 artifact 時 SHALL fallback 至 proposal（無 proposal 時取清單第一個）。

@@ -41,8 +41,15 @@ const actionTitle = computed(() => {
     : 'Parking needs a git repository — this project has no .git directory'
 })
 
+/** 面板開啟中的那張卡：露出區裡要一眼看出「現在讀的是這個」 */
+const current = computed(() => detail.changeName === props.change.name)
+
+// 點當前卡片＝收合，點其他卡片＝面板原地換內容（不收合再重開）
 function open(): void {
-  detail.show(props.change.name, parked.value !== null)
+  if (current.value)
+    detail.close()
+  else
+    detail.show(props.change.name, parked.value !== null)
 }
 
 function runAction(): void {
@@ -57,12 +64,15 @@ function runAction(): void {
 
 <template>
   <!-- 卡片是詳情的入口；hover 抬升並浮現單一動作按鈕（Park／Restore，spec change-list）。
-       role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法 -->
+       role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法。
+       開啟中的那張改掛 accent 底、拿掉 card-lift——它已經是當前項，不再是入口 -->
   <article
-    class="card-lift group cursor-pointer border border-line rounded bg-surface px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
+    class="group cursor-pointer border border-line rounded px-4.5 py-4 transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus"
+    :class="current ? 'bg-accent/25 hover:bg-accent/35' : 'card-lift bg-surface'"
     role="button"
     tabindex="0"
-    :aria-label="`Open ${change.name}`"
+    :aria-current="current ? 'true' : undefined"
+    :aria-label="current ? `Collapse ${change.name}` : `Open ${change.name}`"
     @click="open()"
     @keydown.enter.prevent="open()"
     @keydown.space.prevent="open()"

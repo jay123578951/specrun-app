@@ -1,15 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
 import MarkdownView from './MarkdownView.vue'
 import StateNotice from './StateNotice.vue'
 
-/** 詳情內容面板：頭部＋artifact tabs＋Markdown 唯讀渲染 */
+/** 詳情內容面板：自右側滑入覆蓋清單，頭部＋artifact tabs＋Markdown 唯讀渲染 */
 
+const changes = useChangesStore()
 const detail = useDetailStore()
 
 const scroller = ref<HTMLElement>()
+
+// 面板覆蓋著清單自己的 Refresh，所以這顆把兩邊一起重取（沿用窄軌時代的語意）
+function refresh(): void {
+  changes.load()
+  detail.refresh()
+}
+
+const busy = computed(() => changes.busy || detail.refreshing)
 
 /**
  * 勾選只在單檔 tasks tab 開放（design D6）：其他 artifact、多檔 tasks（非預設 schema）
@@ -28,10 +38,49 @@ watch(() => [detail.changeName, detail.currentTab], () => {
 </script>
 
 <template>
-  <section class="min-w-0 flex flex-col overflow-hidden">
-    <header class="shrink-0 border-b border-line px-8">
-      <div class="h-14 flex items-center gap-3">
-        <h2 class="truncate text-mono-base text-text font-mono" :title="detail.changeName ?? ''">
+  <!-- 底色抬一階＋左緣一條線就是全部的層次：無陰影、無 backdrop，
+       露出區的清單不變暗也不被攔截（spec artifact-view 無遮罩） -->
+  <section class="min-w-0 flex flex-col overflow-hidden border-l border-line bg-surface">
+    <header class="shrink-0 border-b border-line px-8 pt-4">
+      <!-- 控制列自成一條：標題放大後與 24.5px 的 icon-btn 並排會比例打架，
+           所以按鈕收在上方兩端，標題獨佔下一列 -->
+      <div class="flex items-center">
+        <!-- 收合不是關閉：面板是滑回右邊，圖示用箭頭而非 ✕ -->
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label="Collapse detail (Esc)"
+          title="Collapse (Esc)"
+          @click="detail.close()"
+        >
+          <span class="i-lucide-chevrons-right h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+
+        <!-- ml-auto 之後是動作區：Open in editor 等按鈕 M3 才填，先只有 refresh -->
+        <div class="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            class="icon-btn"
+            :disabled="busy"
+            :aria-busy="busy"
+            aria-label="Refresh changes"
+            title="Refresh changes"
+            @click="refresh()"
+          >
+            <span
+              class="i-lucide-refresh-cw h-3.5 w-3.5"
+              :class="{ 'animate-spin': busy }"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
+      </div>
+
+      <!-- 上下留白刻意不對稱：tabs 自帶 h-10 的垂直置中（文字上方還有 ~7.5px），
+           padding 抵掉那一段，標題到按鈕與標題到 tabs 的「看起來」才等距 -->
+      <div class="flex items-center gap-3 pb-1.5 pt-4.5">
+        <!-- font-medium 是 Plex Mono 目前載入的最重字重（400／500 兩檔，見 main.ts） -->
+        <h2 class="truncate text-mono-lg text-text font-mono font-medium" :title="detail.changeName ?? ''">
           {{ detail.changeName }}
         </h2>
 
@@ -53,22 +102,10 @@ watch(() => [detail.changeName, detail.currentTab], () => {
           <span class="i-lucide-cloud-off h-3 w-3" aria-hidden="true" />
           Not refreshed
         </span>
-
-        <!-- ml-auto 之後是動作區：Open in editor 等按鈕 M3 才填，先只有關閉控制 -->
-        <div class="ml-auto flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            class="icon-btn"
-            aria-label="Close detail (Esc)"
-            title="Close (Esc)"
-            @click="detail.close()"
-          >
-            <span class="i-lucide-x h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </div>
       </div>
 
-      <!-- tabs 完全依 CLI 回傳的 artifact 清單，名稱不寫死（custom schema 必須可用） -->
+      <!-- tabs 完全依 CLI 回傳的 artifact 清單，名稱不寫死（custom schema 必須可用）。
+           首個 tab 去掉左內距：文字與底線都對齊標題的左緣，不讓 px-3 把整排推歪 -->
       <div v-if="detail.artifacts.length" role="tablist" class="-mb-px flex gap-1">
         <button
           v-for="artifact in detail.artifacts"
@@ -76,7 +113,7 @@ watch(() => [detail.changeName, detail.currentTab], () => {
           :key="artifact.id"
           type="button"
           role="tab"
-          class="tab-item"
+          class="tab-item first:pl-0"
           :class="artifact.id === detail.currentTab
             ? 'border-accent-bright text-text'
             : 'text-text-3'"

@@ -162,6 +162,7 @@
 | ui-base | 14px / lh 1.6 | Manrope | UI 內文、按鈕、side item |
 | ui-sm | 12.5px | Manrope | tabs、相對時間、chip、hover 動作 |
 | ui-xs | 11px | Manrope | 群組標籤（大寫＋字距）、徽章 |
+| mono-lg | 20px 中黑(500) | Plex Mono | 詳情面板主標題——標題獨佔一列、旁無按鈕壓比例時才用（不與 read-h1 混用：那階是 sans） |
 | mono-base | 14px | Plex Mono | change 名、路徑（與終端對齊） |
 | mono-sm | 11.5px | Plex Mono | n/m 進度數字、徽章數字 |
 | read-base | 15px / lh 1.85 | Plex Sans TC | Markdown 正文（欄寬 68ch） |

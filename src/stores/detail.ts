@@ -31,9 +31,6 @@ export const useDetailStore = defineStore('detail', () => {
   const error = ref<GatewayError | null>(null)
   /** 背景重取失敗但畫面已有快取內容：不打斷閱讀，只留一個小提示 */
   const staleWarning = ref(false)
-  /** 進入詳情前的清單捲動位置，Esc 回去時原位還原 */
-  const listScrollTop = ref(0)
-
   const isOpen = computed(() => changeName.value !== null)
   const artifacts = computed(() => detail.value?.artifacts ?? [])
   const currentArtifact = computed(
@@ -328,7 +325,6 @@ export const useDetailStore = defineStore('detail', () => {
     refreshing,
     error,
     staleWarning,
-    listScrollTop,
     isOpen,
     artifacts,
     currentArtifact,
