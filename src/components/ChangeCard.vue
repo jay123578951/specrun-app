@@ -5,6 +5,7 @@ import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
 import { parkUnavailableCopy } from '../utils/park-copy'
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time'
+import CopyNameButton from './CopyNameButton.vue'
 
 const props = defineProps<{ change: ChangeSummary | ParkedSummary }>()
 
@@ -229,27 +230,40 @@ function runAction(): void {
           {{ change.name }}
         </h3>
 
-        <div class="ml-auto flex shrink-0 items-center gap-2">
+        <!-- 與 park 鈕同一套 hover 浮現節奏：靜置的卡片只留標題與數字 -->
+        <CopyNameButton
+          :name="change.name"
+          class="ml-0.5 opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover:opacity-100"
+          @keydown.stop
+        />
+
+        <div class="ml-auto flex shrink-0 items-center gap-2.5">
           <span
             v-if="hasTasks"
             class="inline-flex items-center gap-1 text-ui-sm font-mono tabular-nums"
             :class="isComplete ? 'text-done' : 'text-text-2'"
           >
-            <span v-if="isComplete" class="i-lucide-check h-3 w-3" />
+            <span
+              class="h-3 w-3"
+              :class="isComplete ? 'i-lucide-check' : 'i-lucide-list-checks'"
+              aria-hidden="true"
+            />
             {{ change.completedTasks }}/{{ change.totalTasks }}
           </span>
           <span v-else class="text-ui-sm text-text-3">No tasks</span>
 
-          <span class="text-text-3" aria-hidden="true">·</span>
-
-          <time
-            class="text-ui-sm"
+          <span
+            class="inline-flex items-center gap-1 text-ui-sm"
             :class="parked ? 'text-parked' : 'text-text-2'"
-            :datetime="typeof timestamp === 'number' ? new Date(timestamp).toISOString() : undefined"
-            :title="typeof timestamp === 'number' ? formatAbsoluteTime(timestamp) : undefined"
           >
-            {{ timeLabel }}
-          </time>
+            <span class="i-lucide-clock h-3 w-3" aria-hidden="true" />
+            <time
+              :datetime="typeof timestamp === 'number' ? new Date(timestamp).toISOString() : undefined"
+              :title="typeof timestamp === 'number' ? formatAbsoluteTime(timestamp) : undefined"
+            >
+              {{ timeLabel }}
+            </time>
+          </span>
         </div>
 
         <!-- 動作按鈕常駐佔位、只切透明度：hover 時整排數字不會被推著跑。

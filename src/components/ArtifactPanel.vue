@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
+import CopyNameButton from './CopyNameButton.vue'
 import MarkdownView from './MarkdownView.vue'
 import PanelShell from './PanelShell.vue'
 import StateNotice from './StateNotice.vue'
@@ -39,8 +40,9 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
     :scroll-key="scrollKey"
     @collapse="detail.close()"
   >
-    <!-- 動作區：Open in editor 等按鈕 M3 才填，先只有 refresh -->
+    <!-- 動作區：Open in editor 等按鈕 M3 才填，先有複製名稱與 refresh -->
     <template #actions>
+      <CopyNameButton v-if="detail.changeName" :name="detail.changeName" />
       <button
         type="button"
         class="icon-btn"
