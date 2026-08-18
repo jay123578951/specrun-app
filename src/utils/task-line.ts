@@ -39,38 +39,57 @@ export function splitLines(content: string): string[] {
   return content.split(/(?<=\n)/)
 }
 
+/** 各行去行尾符後的原文，索引即 0-based 行號（批次掃描目標行用） */
+export function lineTexts(content: string): string[] {
+  return splitLines(content).map(stripEnding)
+}
+
 /** 第 `line` 行（0-based）去行尾符後的原文；行不存在回 null */
 export function lineTextAt(content: string, line: number): string | null {
   const raw = splitLines(content)[line]
   return raw === undefined ? null : stripEnding(raw)
 }
 
+/** 單次寫入的一個目標行（design D2）：行號與呼叫端所見的該行原文 */
+export interface TaskLineEdit {
+  /** 0-based 來源行號 */
+  line: number
+  /** 該行不含行尾符的原文 */
+  expectedText: string
+}
+
 /**
- * 比對第 `line` 行是否仍為 `expectedText`，是則只置換該行的勾選字元後回傳整檔內容。
- * 行文比對在語法判定之前——行已被外部改寫一律回衝突，不進翻行邏輯（design D3）。
+ * 比對每個目標行是否仍為它的 `expectedText`，全部成立才置換這些行的勾選字元、
+ * 回傳整檔內容。批次為全有全無：任一行不符即整批放棄且不產出內容（design D2／D6）——
+ * 單顆 checkbox 的點擊就是 `edits` 長度為 1 的情形，與批次共用這一條路徑。
+ * 行文比對在語法判定之前——行已被外部改寫一律回衝突，不進翻行邏輯。
  */
-export function toggleTaskLine(
+export function toggleTaskLines(
   content: string,
-  line: number,
-  expectedText: string,
+  edits: readonly TaskLineEdit[],
   checked: boolean,
 ): LineToggle {
+  // 切一次行、就地翻；失敗直接 return，這份副本沒 join 就不會有任何內容產出
   const lines = splitLines(content)
-  const raw = lines[line]
-  if (raw === undefined)
-    return { ok: false, reason: 'conflict' }
 
-  const text = stripEnding(raw)
-  if (text !== expectedText)
-    return { ok: false, reason: 'conflict' }
+  for (const { line, expectedText } of edits) {
+    const raw = lines[line]
+    if (raw === undefined)
+      return { ok: false, reason: 'conflict' }
 
-  const match = TASK_LINE.exec(text)
-  if (!match)
-    return { ok: false, reason: 'not-a-task-line' }
+    const text = stripEnding(raw)
+    if (text !== expectedText)
+      return { ok: false, reason: 'conflict' }
 
-  const at = match[1]!.length
-  const ending = raw.slice(text.length)
-  lines[line] = `${text.slice(0, at)}${checked ? 'x' : ' '}${text.slice(at + 1)}${ending}`
+    const match = TASK_LINE.exec(text)
+    if (!match)
+      return { ok: false, reason: 'not-a-task-line' }
+
+    const at = match[1]!.length
+    const ending = raw.slice(text.length)
+    lines[line] = `${text.slice(0, at)}${checked ? 'x' : ' '}${text.slice(at + 1)}${ending}`
+  }
+
   return { ok: true, content: lines.join('') }
 }
 

@@ -30,6 +30,23 @@ const busy = computed(() => changes.busy || detail.refreshing)
 const interactiveTasks = computed(() =>
   !detail.isParked && detail.currentArtifact?.id === 'tasks' && detail.currentArtifact.files.length === 1,
 )
+
+/**
+ * 批次入口的可用性（design D4）：無未勾行就沒有可寫的目標；有任何寫入在飛時也停用——
+ * 那時快取已是樂觀翻轉後的內容，批次算出的 expectedText 與磁碟必然不符、整批會被判衝突。
+ * 停用不隱藏（spec tasks 全部勾選）：勾完最後一項時該列不會突然少一塊。
+ */
+const tasksWriting = computed(() => detail.pendingTaskLines.length > 0)
+const checkAllDisabled = computed(() => !detail.hasUncheckedTasks || tasksWriting.value)
+
+/** 停用時說明「為什麼點不動」——灰掉的按鈕不自己解釋，就只剩猜 */
+const checkAllTitle = computed(() => {
+  if (tasksWriting.value)
+    return 'Waiting for the current task update'
+  return detail.hasUncheckedTasks
+    ? 'Mark every remaining task as done'
+    : 'Every task is already checked'
+})
 </script>
 
 <template>
@@ -98,7 +115,29 @@ const interactiveTasks = computed(() =>
         :identity="detail.changeName"
         id-prefix=""
         @select="detail.selectTab($event)"
-      />
+      >
+        <!-- 批次勾選：出現條件與 checkbox 可互動同源（interactiveTasks），
+             因此 parked／非 tasks tab／多檔 tasks 一律長不出來。帶文字而非純圖示——
+             一次改寫數十行的操作，光靠圖示猜不出後果（design D5） -->
+        <!-- 寫入中不放 spinner：樂觀更新已讓結果即刻可見，這裡只需 aria-busy＋停用；
+             失敗才有動靜（整片彈回＋toast），成功一律靜默 -->
+        <!-- btn-inline 而非 btn-sm：這一列容不下有邊框的盒子（理由見 uno.config.ts）。
+             -mr-2 抵掉自身右內距，讓文字右緣落在面板右緣——與 tabs 用 -ml-3 對齊左緣
+             同一手法，兩端因此都對得上上方那列 icon-btn 的邊界 -->
+        <template v-if="interactiveTasks" #trailing>
+          <button
+            type="button"
+            class="btn-inline -mr-2"
+            :disabled="checkAllDisabled"
+            :aria-busy="tasksWriting"
+            :title="checkAllTitle"
+            @click="detail.checkAllTasks()"
+          >
+            <span class="i-lucide-list-checks h-4 w-4" aria-hidden="true" />
+            Check all
+          </button>
+        </template>
+      </ArtifactTabs>
       <!-- 沒有 tabs（載入中／失敗）時撐住同高度，頭部不會先塌一截再彈回來 -->
       <div v-else class="h-12" aria-hidden="true" />
     </template>

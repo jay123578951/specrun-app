@@ -1,8 +1,9 @@
 import type { ArtifactFile, ChangeDetail, ChangeDetailResult, GatewayError } from '../api'
+import type { TaskLineEdit } from '../utils/task-line'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
-import { isCheckedLine, isTaskLine, lineTextAt, toggleTaskLine } from '../utils/task-line'
+import { isCheckedLine, isTaskLine, lineTextAt, lineTexts, toggleTaskLines } from '../utils/task-line'
 import { useChangesStore } from './changes'
 
 /**
@@ -253,15 +254,26 @@ export const useDetailStore = defineStore('detail', () => {
   const pendingTaskLines = ref<number[]>([])
 
   /**
+   * 當前 tasks 是否還有未勾行——批次入口的可用性來源（design D4）。
+   * 非 tasks tab、parked、多檔或無 tasks 檔案時一律 false：入口的出現／停用
+   * 與 checkbox 可互動的判定同源，前端不另立一套規則。
+   */
+  const hasUncheckedTasks = computed(() => {
+    if (isParked.value || currentTab.value !== 'tasks')
+      return false
+
+    const file = tasksFile(detail.value)
+    return file !== null && uncheckedEdits(file.content).length > 0
+  })
+
+  /**
    * tasks checkbox 的翻轉（design D5）：對快取的來源字串就地翻行 → 重渲染 → 才發請求。
    * 樂觀更新後的字串與寫入成功後檔案的真實內容逐 byte 相同，watcher 重取回來與快取全等，
    * 既有的「無差異不重繪」自然吸收，畫面零閃爍。
    */
   async function toggleTask(line: number): Promise<void> {
-    const name = changeName.value
     const file = tasksFile(detail.value)
-    // parked 是唯讀（spec parked tasks 不可勾）：UI 已把 checkbox 停用，這裡是第二道
-    if (!name || !file || isParked.value || pendingTaskLines.value.includes(line))
+    if (!file || pendingTaskLines.value.includes(line))
       return
 
     const expectedText = lineTextAt(file.content, line)
@@ -269,30 +281,57 @@ export const useDetailStore = defineStore('detail', () => {
       return
 
     // 目標狀態取自來源字串而非 DOM——單一資料源，被忽略的點擊不會讓兩邊分岔
-    const checked = !isCheckedLine(expectedText)
-    const optimistic = toggleTaskLine(file.content, line, expectedText, checked)
+    await writeToggle([{ line, expectedText }], !isCheckedLine(expectedText))
+  }
+
+  /**
+   * 批次勾選：把當前 tasks 檔案所有未勾行一次標記為完成（spec 批次勾選的樂觀更新與失敗彈回）。
+   * 目標集合自來源字串算出（design D3），與單顆點擊共用同一條寫入通道；
+   * 有任何寫入在飛時不發批次——那時快取已是樂觀翻轉後的內容，算出的 expectedText
+   * 必然與磁碟不符，整批會被判衝突（design D4）。
+   */
+  async function checkAllTasks(): Promise<void> {
+    const file = tasksFile(detail.value)
+    if (!file || pendingTaskLines.value.length)
+      return
+
+    await writeToggle(uncheckedEdits(file.content), true)
+  }
+
+  /**
+   * 單顆與批次共用的寫入路徑：樂觀更新 → 鎖住涉及的行 → 送出 → 失敗整片彈回。
+   * 彈回不依賴變動通知（衝突時檔案可能根本沒變）；但只在畫面仍是我們寫上去的那份時才彈，
+   * 期間若已被通知換成更新的內容就不覆蓋。
+   */
+  async function writeToggle(edits: TaskLineEdit[], checked: boolean): Promise<void> {
+    const name = changeName.value
+    const file = tasksFile(detail.value)
+    // parked 是唯讀（spec parked tasks 不可勾）：UI 已把 checkbox 停用，這裡是第二道
+    if (!name || !file || isParked.value || !edits.length)
+      return
+
+    const optimistic = toggleTaskLines(file.content, edits, checked)
     if (!optimistic.ok)
       return
 
     const before = file.content
+    const lines = edits.map(edit => edit.line)
     setTasksContent(name, optimistic.content)
-    pendingTaskLines.value = [...pendingTaskLines.value, line]
+    pendingTaskLines.value = [...pendingTaskLines.value, ...lines]
 
     try {
-      const result = await gateway.toggleTask(name, { line, expectedText, checked })
+      const result = await gateway.toggleTask(name, { edits, checked })
       if (result.ok)
         return // 成功路徑靜默：畫面已是目標狀態，後續刷新交給變動通知
 
-      // 彈回不依賴變動通知（衝突時檔案可能根本沒變）；但只在畫面仍是我們寫上去的那份時才彈，
-      // 期間若已被通知換成更新的內容就不覆蓋
       setTasksContent(name, before, optimistic.content)
       const toast = result.kind === 'conflict'
-        ? { message: 'This task changed elsewhere. Reloading the latest version.' }
+        ? { message: conflictMessage(edits.length) }
         : { message: result.message, detail: result.detail }
       useChangesStore().notify(toast.message, toast.detail)
     }
     finally {
-      pendingTaskLines.value = pendingTaskLines.value.filter(pending => pending !== line)
+      pendingTaskLines.value = pendingTaskLines.value.filter(pending => !lines.includes(pending))
     }
   }
 
@@ -329,7 +368,9 @@ export const useDetailStore = defineStore('detail', () => {
     artifacts,
     currentArtifact,
     pendingTaskLines,
+    hasUncheckedTasks,
     toggleTask,
+    checkAllTasks,
     show,
     load,
     syncWithChanges,
@@ -401,6 +442,26 @@ function resolveTab(detail: ChangeDetail, preferred: string | null): string | nu
 function tasksFile(detail: ChangeDetail | null): ArtifactFile | null {
   const artifact = detail?.artifacts.find(each => each.id === 'tasks')
   return artifact?.files.length === 1 ? artifact.files[0]! : null
+}
+
+/**
+ * 所有未勾選的 task 行（design D3）：判定沿用 task-line 既有的兩個函式——
+ * 與 checkbox 可勾選與否的判準同一份，前端不會多出一套自己的規則，也不必查 DOM。
+ */
+function uncheckedEdits(content: string): TaskLineEdit[] {
+  const edits: TaskLineEdit[] = []
+  lineTexts(content).forEach((expectedText, line) => {
+    if (isTaskLine(expectedText) && !isCheckedLine(expectedText))
+      edits.push({ line, expectedText })
+  })
+  return edits
+}
+
+/** 衝突文案：批次的落點是「整批沒動」，與單顆的「這一項變了」不是同一件事 */
+function conflictMessage(count: number): string {
+  return count > 1
+    ? 'Some of these tasks changed elsewhere. Nothing was updated.'
+    : 'This task changed elsewhere. Reloading the latest version.'
 }
 
 /** artifact 只有數 KB，序列化比對足夠且不會漏欄位 */

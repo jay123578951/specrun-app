@@ -65,6 +65,13 @@ export default defineConfig<Theme>({
     // 窄脈絡專用：服務側欄 224px 的就地確認列，主階兩顆並排會把那列撐得比專案列還高
     'btn-sm': 'inline-flex items-center justify-center gap-1.5 h-9 px-3 rounded border border-line text-ui-sm text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
+    // 列內動作：貼在既有一列（tabs 列的 trailing）右端的第三階，不是更小的 btn-sm。
+    // 差別在盒子——btn／btn-sm 的邊框在自己那塊留白裡才成立，塞進 h-12 的 tabs 列
+    // 上下只剩 5.25px，一個有邊框的盒子逼近底下的 border-b 就會顯得擠。
+    // 這一階索性不畫盒子：靜態是一行帶圖示的文字，與同列的 tab 文字同一條視覺基線，
+    // hover 才浮出底色。高度仍給 h-8（＝ icon-btn 的視覺尺寸）撐住點擊面積。
+    'btn-inline': 'inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded text-ui-sm text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
+
     // 破壞性動作（移除確認）的色調變體，用法 class="btn-sm btn-danger"：
     // error 色只在邊框與文字，底色留給 hover——靜態就整片紅太吵。
     // important 不可省：要壓過的 border-line／text-text-2 與這裡來自同一條規則，

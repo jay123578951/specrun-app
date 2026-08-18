@@ -155,6 +155,13 @@ onBeforeUnmount(() => {
       <span>{{ item.id }}</span>
     </button>
 
+    <!-- 該列右端的動作槽：只有可寫入的詳情面板填（ArchivedPanel 不填，唯讀面板
+         因此不需任何條件判斷就長不出寫入入口，design D5）。tabs 靠左、它靠右，
+         兩邊互不推擠，indicator 依 span 的 offsetLeft／offsetWidth 量測也不受影響 -->
+    <div v-if="$slots.trailing" class="ml-auto flex shrink-0 items-center self-center">
+      <slot name="trailing" />
+    </div>
+
     <!-- 選中底線：坐在 tablist 底緣，寬度是文字寬左右各加 BLEED。
          tablist 帶 -mb-px 壓進 header 的 border-b，而後代內容本就繪製在祖先邊框之上，
          再加上這個絕對定位元素排在 buttons 之後——層疊已經正確，不需具名 z 層。

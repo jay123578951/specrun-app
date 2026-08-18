@@ -66,6 +66,7 @@ export const webGateway: OpenSpecGateway = {
 
   async toggleTask(name: string, input: TaskToggleInput): Promise<ToggleResult> {
     try {
+      // body 即 TaskToggleInput：一或多行的 edits 原樣送出，由 route 端一次寫回
       const res = await fetch(`/api/changes/${encodeURIComponent(name)}/tasks/toggle`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

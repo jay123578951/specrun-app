@@ -61,14 +61,23 @@ export type ChangeDetailResult
   = { ok: true, detail: ChangeDetail }
     | { ok: false, error: GatewayError }
 
-/** 勾選寫入的請求：不帶路徑，只帶行號與該行原文（design D1） */
+/**
+ * 勾選寫入的請求：不帶路徑，只帶目標行號與該行原文（design D1）。
+ * 一次可指定一或多行，全部落在同一份 tasks 檔案、以單次寫入完成；
+ * 單顆 checkbox 的點擊即 `edits` 長度為 1 的情形。
+ */
 export interface TaskToggleInput {
+  /** 目標行，至少一筆；任一行不符即整批放棄（全有全無） */
+  edits: TaskToggleEdit[]
+  /** 整批共用的目標勾選狀態——同一次請求不混合勾與取消（design D1） */
+  checked: boolean
+}
+
+export interface TaskToggleEdit {
   /** 0-based 來源行號 */
   line: number
   /** 呼叫端所見的該行原文，不含行尾符；伺服端據此比對併發 */
   expectedText: string
-  /** 目標勾選狀態 */
-  checked: boolean
 }
 
 /**
@@ -178,9 +187,11 @@ export interface OpenSpecGateway {
   listChanges: () => Promise<ChangeListResult>
   getChangeDetail: (name: string) => Promise<ChangeDetailResult>
   /**
-   * 翻轉某 change tasks 檔案中單一 task 行的勾選狀態——App 的唯一寫入通道。
+   * 翻轉某 change tasks 檔案中一或多個 task 行的勾選狀態——App 的唯一寫入通道。
+   * 多行以單次讀取、單次寫回完成，且為全有全無：任一行的當前內容與呼叫端所見
+   * 不符即整批放棄並回報衝突（spec openspec-gateway）。
    * 寫入是檔案層操作、不經 CLI 改寫內容；進度數字仍由引擎於後續讀取時重算。
-   * 目標檔案由實作端自 `artifactPaths` 解析，呼叫端無從指定路徑（spec openspec-gateway）。
+   * 目標檔案由實作端自 `artifactPaths` 解析，呼叫端無從指定路徑。
    */
   toggleTask: (name: string, input: TaskToggleInput) => Promise<ToggleResult>
   /**

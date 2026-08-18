@@ -1,14 +1,15 @@
-import type { TaskToggleInput, ToggleResult } from '../../../../../src/api/types'
+import type { TaskToggleEdit, TaskToggleInput, ToggleResult } from '../../../../../src/api/types'
 import type { ResolveOutcome } from '../../../../utils/tasks-path-cache'
 import { readFile, writeFile } from 'node:fs/promises'
-import { toggleTaskLine } from '../../../../../src/utils/task-line'
+import { toggleTaskLines } from '../../../../../src/utils/task-line'
 import { resolveTargetDir, runCli, toProbeFailure } from '../../../../utils/openspec-cli'
 import { createTasksPathCache } from '../../../../utils/tasks-path-cache'
 
 /**
  * `POST /api/changes/:name/tasks/toggle`：App 的唯一寫入端點（design D1）。
  *
- * body 只帶 `{ line, expectedText, checked }`——目標檔案一律由伺服端解析
+ * body 只帶 `{ edits: [{ line, expectedText }], checked }`——一或多行以單次讀取、
+ * 單次寫回完成，且為全有全無（design D1／D6）。目標檔案一律由伺服端解析
  * `openspec status --change <name> --json` 後自 tasks artifact 的 `existingOutputPaths`
  * 取得，呼叫端無從指定任意路徑（白名單策略與 C2 的詳情讀檔同構）。
  *
@@ -55,11 +56,12 @@ async function applyToggle(changeName: string, input: TaskToggleInput): Promise<
     return fail('Could not read the tasks file.', describe(readError))
   }
 
-  const toggled = toggleTaskLine(source, input.line, input.expectedText, input.checked)
+  // 讀一次、全比對、寫一次：任一行不符即整批放棄，不留半勾殘局（design D6）
+  const toggled = toggleTaskLines(source, input.edits, input.checked)
   if (!toggled.ok) {
     return toggled.reason === 'conflict'
       ? { ok: false, kind: 'conflict' }
-      : fail('That line is not a task item.')
+      : fail('A target line is not a task item.')
   }
 
   try {
@@ -107,13 +109,24 @@ function readTasksPaths(stdout: string): string[] {
 
 function readToggleInput(body: unknown): TaskToggleInput | null {
   const input = body as Partial<TaskToggleInput> | null
-  if (!input || typeof input !== 'object')
+  if (!input || typeof input !== 'object' || typeof input.checked !== 'boolean')
     return null
-  if (typeof input.line !== 'number' || !Number.isInteger(input.line) || input.line < 0)
+  // 空的 edits 沒有可寫的目標——當 malformed 擋下，不放進佇列白跑一次讀檔
+  if (!Array.isArray(input.edits) || input.edits.length === 0)
     return null
-  if (typeof input.expectedText !== 'string' || typeof input.checked !== 'boolean')
-    return null
-  return { line: input.line, expectedText: input.expectedText, checked: input.checked }
+
+  const edits: TaskToggleEdit[] = []
+  for (const edit of input.edits as Partial<TaskToggleEdit>[]) {
+    if (!edit || typeof edit !== 'object')
+      return null
+    if (typeof edit.line !== 'number' || !Number.isInteger(edit.line) || edit.line < 0)
+      return null
+    if (typeof edit.expectedText !== 'string')
+      return null
+    edits.push({ line: edit.line, expectedText: edit.expectedText })
+  }
+
+  return { edits, checked: input.checked }
 }
 
 function fail(message: string, detail?: string): ToggleResult {
