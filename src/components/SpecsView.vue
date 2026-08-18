@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '../stores/projects'
+import { useSettingsStore } from '../stores/settings'
 import { useSpecsStore } from '../stores/specs'
 import StateNotice from './StateNotice.vue'
 
@@ -12,6 +13,7 @@ import StateNotice from './StateNotice.vue'
 
 const specs = useSpecsStore()
 const projects = useProjectsStore()
+const settings = useSettingsStore()
 
 onMounted(() => {
   void specs.enter()
@@ -51,8 +53,11 @@ function toggle(id: string): void {
           <p class="text-ui-base text-text">
             openspec CLI not available
           </p>
+          <!-- 路徑已可設定，原文案的「reachable on PATH, then refresh」自本 change 起是
+               錯誤指引（design D7）：改說真正的出口，並在這裡就給入口 -->
           <p class="mt-0.5 text-ui-sm text-text-2 text-pretty">
-            specrun could not run the openspec command. Make sure it is installed and reachable on PATH, then refresh.
+            specrun could not run the openspec command. Point it at the executable in settings, or install
+            openspec if it is missing.
           </p>
           <p
             v-if="specs.listError?.detail"
@@ -61,6 +66,10 @@ function toggle(id: string): void {
           >
             {{ specs.listError.detail }}
           </p>
+          <button type="button" class="btn-sm mt-3" @click="settings.open()">
+            <span class="i-lucide-settings h-4 w-4" aria-hidden="true" />
+            Open settings
+          </button>
         </div>
       </div>
 

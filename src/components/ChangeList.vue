@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useProjectsStore } from '../stores/projects'
+import { useSettingsStore } from '../stores/settings'
 import ChangeCard from './ChangeCard.vue'
 import ChangeCardSkeleton from './ChangeCardSkeleton.vue'
 import ParkedDropZone from './ParkedDropZone.vue'
@@ -9,6 +10,7 @@ import StateNotice from './StateNotice.vue'
 
 const store = useChangesStore()
 const projects = useProjectsStore()
+const settings = useSettingsStore()
 
 /**
  * 群組內的進出場與重排（ui-motion：偶發操作＝標準動畫，目的是空間連續性——
@@ -119,8 +121,11 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
           <p class="text-ui-base text-text">
             openspec CLI not available
           </p>
+          <!-- 路徑已可設定，原文案的「reachable on PATH, then refresh」自本 change 起是
+               錯誤指引（design D7）：改說真正的出口，並在這裡就給入口 -->
           <p class="mt-0.5 text-ui-sm text-text-2 text-pretty">
-            specrun could not run the openspec command. Make sure it is installed and reachable on PATH, then refresh.
+            specrun could not run the openspec command. Point it at the executable in settings, or install
+            openspec if it is missing.
           </p>
           <p
             v-if="store.blockingError?.detail"
@@ -129,6 +134,10 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
           >
             {{ store.blockingError.detail }}
           </p>
+          <button type="button" class="btn-sm mt-3" @click="settings.open()">
+            <span class="i-lucide-settings h-4 w-4" aria-hidden="true" />
+            Open settings
+          </button>
         </div>
       </div>
 

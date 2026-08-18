@@ -94,7 +94,9 @@ export default defineConfig<Theme>({
     // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（28 ＋ 8×2；::before 撐開，不動版面）
     'icon-btn': 'relative h-8 w-8 flex shrink-0 items-center justify-center border border-line rounded text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] before:absolute before:-inset-[8px] before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
-    // 具名層級，template 不出現裸 z 值
+    // 具名層級，template 不出現裸 z 值。toast 疊在 modal 之上——
+    // Settings 內觸發的失敗提示必須看得見
+    'z-modal': 'z-50',
     'z-toast': 'z-100',
   },
 
@@ -113,6 +115,7 @@ export default defineConfig<Theme>({
       'parked': 'var(--sr-parked)',
       'done': 'var(--sr-done)',
       'error': 'var(--sr-error)',
+      'overlay': 'var(--sr-overlay)',
     },
     font: {
       ui: 'var(--sr-font-ui)',

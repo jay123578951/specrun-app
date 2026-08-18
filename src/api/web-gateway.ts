@@ -6,6 +6,9 @@ import type {
   ChangeDetailResult,
   ChangeListProbe,
   ChangeListResult,
+  CliApplyResult,
+  CliSettings,
+  EnvironmentDiagnostics,
   OpenSpecGateway,
   ParkActionResult,
   ParkedDetailProbe,
@@ -13,6 +16,7 @@ import type {
   ParkedListResult,
   PickFolderOutcome,
   ProjectActionResult,
+  RevealOutcome,
   SpecContentProbe,
   SpecContentResult,
   SpecListProbe,
@@ -271,6 +275,76 @@ export const webGateway: OpenSpecGateway = {
       return { status: 'failed' }
     }
   },
+
+  getCliSettings(): Promise<CliSettings> {
+    return cliRequest('/api/cli', {}, 'Could not read the CLI setting.')
+  },
+
+  redetectCli(): Promise<CliSettings> {
+    return cliRequest('/api/cli/detect', { method: 'POST' }, 'Could not run detection.')
+  },
+
+  /** 驗證失敗的 body 同樣是 CliApplyResult（一律 200）；只有連 route 都到不了才自己造訊息 */
+  async applyCliPath(path: string): Promise<CliApplyResult> {
+    try {
+      const res = await fetch('/api/cli', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const result = await res.json() as CliApplyResult
+      if (typeof result?.ok !== 'boolean')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch (error) {
+      return { ok: false, message: `Could not apply this path. ${describe(error)}` }
+    }
+  },
+
+  /** 取不到就是 null：診斷區以佔位呈現，不編一份看起來像真的假資料 */
+  async getDiagnostics(): Promise<EnvironmentDiagnostics | null> {
+    try {
+      return await fetchProbe<EnvironmentDiagnostics>('/api/diagnostics')
+    }
+    catch {
+      return null
+    }
+  },
+
+  async revealPath(path: string): Promise<RevealOutcome> {
+    try {
+      const res = await fetch('/api/reveal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const result = await res.json() as RevealOutcome
+      if (typeof result?.status !== 'string')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch {
+      return { status: 'failed' }
+    }
+  },
+}
+
+/**
+ * 兩個回 CliSettings 的端點共同形狀：連不到 route 時自己造一個失敗態的解析結果
+ * ——狀態列因此永遠有話可說，呼叫端不必為傳輸層失敗另開分支。
+ */
+async function cliRequest(url: string, init: RequestInit, failureMessage: string): Promise<CliSettings> {
+  try {
+    const res = await fetch(url, init)
+    const result = await res.json() as CliSettings
+    if (typeof result?.mode !== 'string')
+      throw new TypeError(`Unexpected response: ${res.status}`)
+    return result
+  }
+  catch (error) {
+    return { mode: 'auto', bin: null, version: null, message: `${failureMessage} ${describe(error)}` }
+  }
 }
 
 /**

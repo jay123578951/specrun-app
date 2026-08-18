@@ -21,7 +21,7 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 
 ### 已知的坑（動工前記住）
 
-- macOS GUI App 不繼承 shell PATH：openspec CLI 路徑要可設定或啟動時偵測（目前本機在 `~/Library/pnpm/openspec`）。
+- macOS GUI App 不繼承 shell PATH：openspec CLI 路徑要可設定或啟動時偵測（目前本機在 `~/Library/pnpm/openspec`）——由 M4 前置的 `add-settings-modal` 處理。
 - Tauri webview 是 WKWebView（Safari 核心），避免 Chrome-only CSS。
 - Tauri v2 capabilities 權限模型：fs 路徑與 shell 指令需明確白名單。
 
@@ -45,8 +45,10 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
 | C6 | — | ~~parked 唯讀清單~~ 併入 M2（park 操作存在前唯讀清單恆空，無法 dogfood） | ➡️ 2026-08-15 併入 M2 |
 | C7 | add-detail-slideover | 詳情改為右側滑出覆蓋面板：清單不變形不移位、露出區可直接切換 change；移除 ChangeRail 窄軌 | ✅ 2026-08-17 archived |
 | C8 | add-specs-view | Specs 頁補齊：capability 清單＋spec 全文 slideover 詳情；App 首次由單頁變多頁（state 切換，不引入 router） | ✅ 2026-08-17 archived |
-| C9 | add-archived-view | Archived 頁補齊（缺頁收尾的最後一頁；Settings 不在此列，併入 M3）：檔案層直讀 archive 目錄、唯讀詳情含 delta spec、slideover 外殼抽 `PanelShell` 共用 | ✅ 2026-08-17 archived |
+| C9 | add-archived-view | Archived 頁補齊（缺頁收尾的最後一頁；Settings 不在此列，見下）：檔案層直讀 archive 目錄、唯讀詳情含 delta spec、slideover 外殼抽 `PanelShell` 共用 | ✅ 2026-08-17 archived |
 | C10 | | UI 視覺精修（畫面到齊後的整體打磨） | ⏭️ 下一個 |
+
+Settings 不在 M1 之列：它不是缺頁，而是覆蓋層——原併入 M3、2026-08-18 改列為 M4 前置（見下）。
 
 **UI 設計的兩層時間線**：結構層（佈局 wireframe）跟著每個 change 的 design.md 走、動工前人工審；視覺層（tokens／主題）D1 打底、中間 change 只用 tokens 不追求美、C10 收尾精修。
 
@@ -67,11 +69,18 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 
 ### M3 — 操作與指令合併
 
-從 UI 觸發常用操作（archive、validate 等）、合併式指令（一鍵收尾）、錯誤與確認流程。Settings 頁併入此里程碑（設定項要等操作面到齊才有內容可放）。
+從 UI 觸發常用操作（archive、validate 等）、合併式指令（一鍵收尾）、錯誤與確認流程。
+
+> Settings 原併入本里程碑（理由：設定項要等操作面到齊才有內容可放），已於 2026-08-18 移出——
+> M3 的操作面帶來的是**確認流程**而非設定，而唯一的真設定（CLI 路徑）的痛點時機是 M4。
 
 ### M4 — Tauri 打包
 
-套上 Tauri v2 外殼、capabilities 設定、CLI 路徑偵測、`tauri build` 產出 .app 日常使用。
+套上 Tauri v2 外殼、capabilities 設定、`tauri build` 產出 .app 日常使用。
+
+| # | change | 內容 | 狀態 |
+|---|--------|------|------|
+| S1 | add-settings-modal | M4 前置：openspec CLI 路徑的偵測與覆寫（GUI App 不繼承 shell PATH，不先解決則打包後開起來是空的）、Settings modal 與唯讀環境診斷 | 🚧 進行中 |
 
 ## 已收斂決策補充（srun:decisions 產出，propose 時寫入各 change design）
 

@@ -34,8 +34,12 @@ describe('resolveConfigDir', () => {
 
 describe('parseConfig', () => {
   it('讀得懂的內容原樣還原', () => {
-    const raw = JSON.stringify({ projects: ['/a', '/b'], lastActivePath: '/b' })
-    expect(parseConfig(raw)).toEqual({ projects: ['/a', '/b'], lastActivePath: '/b' })
+    const raw = JSON.stringify({ projects: ['/a', '/b'], lastActivePath: '/b', openspecBin: '/opt/bin/openspec' })
+    expect(parseConfig(raw)).toEqual({
+      projects: ['/a', '/b'],
+      lastActivePath: '/b',
+      openspecBin: '/opt/bin/openspec',
+    })
   })
 
   it('空內容、非 JSON、非物件一律視為空清單', () => {
@@ -48,7 +52,26 @@ describe('parseConfig', () => {
 
   it('欄位型別不對時逐欄位丟掉，不整份放棄', () => {
     const raw = JSON.stringify({ projects: ['/a', 42, '', null, '/a', '/b'], lastActivePath: 7 })
-    expect(parseConfig(raw)).toEqual({ projects: ['/a', '/b'], lastActivePath: null })
+    expect(parseConfig(raw)).toEqual({ projects: ['/a', '/b'], lastActivePath: null, openspecBin: null })
+  })
+
+  // openspecBin 是後加的欄位，舊設定檔一定沒有它——缺失、型別不符、空字串都得降級成
+  // 自動偵測（null），且不能連累同一份檔案裡讀得懂的其他欄位（design D4 的無 migration 前提）
+  it('openspecBin 缺失（舊設定檔）時降級為自動偵測，其餘欄位照常', () => {
+    const raw = JSON.stringify({ projects: ['/a'], lastActivePath: '/a' })
+    expect(parseConfig(raw)).toEqual({ projects: ['/a'], lastActivePath: '/a', openspecBin: null })
+  })
+
+  it('openspecBin 型別不符或為空字串時降級為自動偵測，其餘欄位照常', () => {
+    for (const bin of [42, null, '', {}, ['/x']]) {
+      const raw = JSON.stringify({ projects: ['/a'], lastActivePath: '/a', openspecBin: bin })
+      expect(parseConfig(raw)).toEqual({ projects: ['/a'], lastActivePath: '/a', openspecBin: null })
+    }
+  })
+
+  it('openspecBin 為有效路徑時原樣保留，即使其餘欄位壞掉', () => {
+    const raw = JSON.stringify({ projects: 'nope', lastActivePath: 7, openspecBin: '/opt/bin/openspec' })
+    expect(parseConfig(raw)).toEqual({ projects: [], lastActivePath: null, openspecBin: '/opt/bin/openspec' })
   })
 })
 
@@ -66,12 +89,16 @@ describe('readConfig／writeConfig', () => {
   })
 
   it('寫入後讀回相同內容，目錄不存在時自動建立', async () => {
-    await writeConfig({ projects: ['/a'], lastActivePath: '/a' }, file)
-    expect(await readConfig(file)).toEqual({ projects: ['/a'], lastActivePath: '/a' })
+    await writeConfig({ projects: ['/a'], lastActivePath: '/a', openspecBin: '/opt/bin/openspec' }, file)
+    expect(await readConfig(file)).toEqual({
+      projects: ['/a'],
+      lastActivePath: '/a',
+      openspecBin: '/opt/bin/openspec',
+    })
   })
 
   it('寫入不留下 temp 殘檔', async () => {
-    await writeConfig({ projects: ['/a'], lastActivePath: null }, file)
+    await writeConfig({ projects: ['/a'], lastActivePath: null, openspecBin: null }, file)
     const entries = await readdir(path.dirname(file))
     expect(entries).toEqual(['config.json'])
   })
@@ -87,10 +114,11 @@ describe('readConfig／writeConfig', () => {
   })
 
   it('覆寫是整檔替換，不留前一版殘餘', async () => {
-    await writeConfig({ projects: ['/a', '/b', '/c'], lastActivePath: '/c' }, file)
-    await writeConfig({ projects: ['/a'], lastActivePath: null }, file)
+    await writeConfig({ projects: ['/a', '/b', '/c'], lastActivePath: '/c', openspecBin: '/old' }, file)
+    await writeConfig({ projects: ['/a'], lastActivePath: null, openspecBin: null }, file)
 
-    expect(await readConfig(file)).toEqual({ projects: ['/a'], lastActivePath: null })
-    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ projects: ['/a'], lastActivePath: null })
+    const expected = { projects: ['/a'], lastActivePath: null, openspecBin: null }
+    expect(await readConfig(file)).toEqual(expected)
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual(expected)
   })
 })

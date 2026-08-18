@@ -1,9 +1,8 @@
 import type { AppConfig } from './app-config'
 import { realpath, stat } from 'node:fs/promises'
-import { homedir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { readConfig, writeConfig } from './app-config'
+import { expandHome, readConfig, writeConfig } from './app-config'
 
 /**
  * 「目前專案」的單一持有處（design D1）：從 C5 起這是伺服端的執行期狀態，
@@ -193,13 +192,4 @@ async function isDirectory(target: string): Promise<boolean> {
 
 export function isOpenSpecProject(dir: string): Promise<boolean> {
   return isDirectory(path.join(dir, 'openspec'))
-}
-
-/** 貼進來的路徑常帶 `~`，展開一下比丟「找不到」有用 */
-function expandHome(target: string): string {
-  if (target === '~')
-    return homedir()
-  if (target.startsWith('~/') || target.startsWith(`~${path.sep}`))
-    return path.join(homedir(), target.slice(2))
-  return target
 }

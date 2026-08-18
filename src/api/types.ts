@@ -233,7 +233,57 @@ export interface OpenSpecGateway {
    * web 版問本機 server（macOS 走 osascript），M4 Tauri 版走 dialog plugin。
    */
   pickFolder: () => Promise<PickFolderOutcome>
+
+  /** 目前的 CLI 模式與解析結果；連不到 server 時以失敗態表達，不拋錯 */
+  getCliSettings: () => Promise<CliSettings>
+  /** 驗證並套用一個明示覆寫路徑；失敗不寫入、目前生效者不變（spec app-settings） */
+  applyCliPath: (path: string) => Promise<CliApplyResult>
+  /** 撤掉覆寫並重跑三段降級偵測 */
+  redetectCli: () => Promise<CliSettings>
+  /** 環境診斷；連不到 server 時為 null（畫面以佔位表達，不編假值） */
+  getDiagnostics: () => Promise<EnvironmentDiagnostics | null>
+  /** 開啟某路徑的所在位置；能力判定在伺服端，一律依 status 分流（比照 pickFolder） */
+  revealPath: (path: string) => Promise<RevealOutcome>
 }
+
+/** CLI 執行檔的兩種來源：自動偵測／使用者明示覆寫（spec app-settings「CLI 路徑的兩種模式」） */
+export type CliMode = 'auto' | 'override'
+
+/**
+ * 目前生效的 CLI 解析結果。狀態列三態直接落在這組欄位上：
+ * `version` 有值＝成功、`message` 有值＝失敗、兩者皆空＝尚未驗證。
+ */
+export interface CliSettings {
+  mode: CliMode
+  /** 實際 spawn 的執行檔（命令名或絕對路徑）；null＝解析全數未命中 */
+  bin: string | null
+  version: string | null
+  /** 可據以排除問題的失敗訊息 */
+  message: string | null
+}
+
+export type CliApplyResult
+  = { ok: true, settings: CliSettings }
+    | { ok: false, message: string }
+
+/** 唯讀診斷區的四項＋「開啟所在位置」的能力旗標（spec openspec-gateway「環境診斷通道」） */
+export interface EnvironmentDiagnostics {
+  /** 應用程式設定檔的絕對路徑 */
+  configPath: string
+  /** 目前目標專案；null＝沒有選定的專案（UI 明確標示為無，MUST NOT 顯示空白） */
+  projectPath: string | null
+  /** 檔案變動通知（即時刷新）目前是否運作 */
+  watching: boolean
+  appVersion: string
+  /** 執行環境是否支援開啟檔案所在位置；能力判定在伺服端 */
+  canReveal: boolean
+}
+
+/** 開啟所在位置的結果；與 PickFolderOutcome 同一套姿態——能力與失敗都收在回傳裡 */
+export type RevealOutcome
+  = { status: 'revealed' }
+    | { status: 'unsupported' }
+    | { status: 'failed' }
 
 /**
  * 選資料夾的結果：能力、取消、失敗都收在同一個回傳裡，呼叫端不必另外探測能力。

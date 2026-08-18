@@ -128,7 +128,10 @@ export const useProjectsStore = defineStore('projects', () => {
     void refreshBadges()
   }
 
-  /** 帶徽章的完整清單重取；期間又切過專案就丟棄（晚到的數字屬於上一個世代） */
+  /**
+   * 帶徽章的完整清單重取；期間又切過專案就丟棄（晚到的數字屬於上一個世代）。
+   * 換 CLI 執行檔後也走這裡——徽章同樣是 CLI 算出來的（spec app-settings 重載範圍）。
+   */
   async function refreshBadges(): Promise<void> {
     const mine = generation.value
     const result = await gateway.listProjects()
@@ -156,5 +159,6 @@ export const useProjectsStore = defineStore('projects', () => {
     startAdd,
     remove,
     switchTo,
+    refreshBadges,
   }
 })

@@ -54,6 +54,32 @@
     opacity 1ms linear 219ms;
 }
 
+/* Settings modal 進出場（SettingsModal.vue 的 MODAL_MOTION 指向這裡）：遮罩與盒子同拍——
+   兩者一起淡入，盒子另外自 0.96 放大到 1（ui-motion 的 modal 配方：250ms／--sr-ease-out，
+   退場取 70% ＝ 175ms）。盒子是置中的，transform-origin 留在 center（modal 是錨定規則的例外）。
+   Vue 的 transition class 只落在根元素，盒子的那一份因此得靠後代選擇器；
+   縮放走 scale 個別屬性而非 transform，reduced motion 才拿得掉縮放、留下淡入淡出
+   （降級由盒子上的 .sr-motion 接手，見下方 media query） */
+.settings-enter {
+  transition: opacity 250ms var(--sr-ease-out);
+}
+
+.settings-enter .settings-panel {
+  transition: scale 250ms var(--sr-ease-out);
+}
+
+.settings-from .settings-panel {
+  scale: 0.96;
+}
+
+.settings-leave {
+  transition: opacity 175ms var(--sr-ease-out);
+}
+
+.settings-leave .settings-panel {
+  transition: scale 175ms var(--sr-ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* 降級不是關閉：留下顏色與透明度變化，移除位移與循環動畫 */
   *,

@@ -35,7 +35,7 @@
 1. **Logo＋App 名**——套 Tauri 後兼作視窗拖曳區（macOS 無邊框需求）。
 2. **專案清單**：全展開直接點擊切換（不用下拉）；過多才收合（C5 定案：超過 6 個折疊「Show all」，current 永遠可見）；每項掛進行中 change 數徽章；hover 浮現 ✕ 移除（C5 實作為就地確認列——側欄 224px 放不下對話框，文案講明只移出清單不動磁碟）；底部「＋ Add project」（web 過渡期展開貼路徑輸入列，Tauri 後換原生選資料夾）。
 3. **Specs／Archive**：低頻入口，共用清單→Markdown pattern。
-4. **⚙ Settings**：底部固定不捲動。
+4. **⚙ Settings**：底部固定不捲動。它是**覆蓋層入口而非頁**——點擊疊出 Settings modal，主區當前頁與已開啟的詳情都不受影響，因此這一項永遠不掛當前頁高亮（`add-settings-modal` design D1／D2）。
 
 ### 主區：雙群組同頁
 

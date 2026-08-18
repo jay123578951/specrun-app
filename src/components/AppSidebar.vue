@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import { useSettingsStore } from '../stores/settings'
 import { useViewStore } from '../stores/view'
 import ProjectSwitcher from './ProjectSwitcher.vue'
 
 const view = useViewStore()
+const settings = useSettingsStore()
 </script>
 
 <template>
-  <!-- 四段結構依 docs/ui-structure-decisions.md；專案清單段自 C5 起是可互動的多專案清單，
-       Specs 與 Archived 都是換頁入口，只剩 Settings 是靜態殼（M3 才填） -->
+  <!-- 四段結構依 docs/ui-structure-decisions.md；專案清單段自 C5 起是可互動的多專案清單。
+       Specs 與 Archived 是換頁入口，Settings 則是覆蓋層入口——底部段的分隔線正好承載
+       「它的行為也不一樣」（design D2） -->
   <aside class="flex flex-col overflow-hidden border-r border-line bg-surface">
     <div class="flex items-center gap-2.5 px-5 py-5">
       <span class="h-2 w-2 rotate-45 bg-accent-bright" aria-hidden="true" />
@@ -48,10 +51,11 @@ const view = useViewStore()
     </nav>
 
     <div class="mt-auto border-t border-line px-3 py-4">
-      <div class="side-item">
+      <!-- 覆蓋層而非頁：MUST NOT 掛當前頁高亮，開啟它也不動 nav 段既有的高亮（spec change-list） -->
+      <button type="button" class="side-action" @click="settings.open()">
         <span class="i-lucide-settings h-4 w-4" aria-hidden="true" />
         Settings
-      </div>
+      </button>
     </div>
   </aside>
 </template>

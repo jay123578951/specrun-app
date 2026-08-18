@@ -2,7 +2,10 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useDetailStore } from './detail'
 
-/** 主區目前顯示的頁；Settings 仍是死項，落地前不進這個聯集 */
+/**
+ * 主區目前顯示的頁。Settings 永遠不在這個聯集裡——它是疊在任何頁之上的覆蓋層
+ * （design D2），開關不改變當前頁，因此沒有「切到 Settings」這回事。
+ */
 export type AppView = 'changes' | 'specs' | 'archived'
 
 /**

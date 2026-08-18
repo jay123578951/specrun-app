@@ -6,6 +6,7 @@ import ArchivedPanel from './components/ArchivedPanel.vue'
 import ArchivedView from './components/ArchivedView.vue'
 import ArtifactPanel from './components/ArtifactPanel.vue'
 import ChangeList from './components/ChangeList.vue'
+import SettingsModal from './components/SettingsModal.vue'
 import SpecPanel from './components/SpecPanel.vue'
 import SpecsView from './components/SpecsView.vue'
 import ToastStack from './components/ToastStack.vue'
@@ -13,6 +14,7 @@ import { useArchivedStore } from './stores/archived'
 import { useChangesStore } from './stores/changes'
 import { useDetailStore } from './stores/detail'
 import { useProjectsStore } from './stores/projects'
+import { useSettingsStore } from './stores/settings'
 import { useSpecsStore } from './stores/specs'
 import { useViewStore } from './stores/view'
 
@@ -22,6 +24,7 @@ const projects = useProjectsStore()
 const specs = useSpecsStore()
 const archived = useArchivedStore()
 const view = useViewStore()
+const settings = useSettingsStore()
 
 /**
  * 面板左側露出的清單寬度：足夠讀出卡片名稱左段（mono 字體、靠左），
@@ -113,6 +116,10 @@ function move(step: number): void {
 
 /** ↑↓ 切換與 Esc 收合只在面板開啟期間成立；清單狀態下鍵盤不搶任何行為 */
 function onKeydown(event: KeyboardEvent): void {
+  // Settings 開啟時整個讓位（design D10）：Esc 只由 modal 自己處理，
+  // 否則背後剛好開著詳情時 Esc 會穿透把它關掉。不做堆疊式依序關閉——只有這一層 modal
+  if (settings.isOpen)
+    return
   if (!panelOpen.value || event.metaKey || event.ctrlKey || event.altKey)
     return
   const target = event.target as HTMLElement | null
@@ -186,5 +193,7 @@ watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
       </Transition>
     </div>
   </div>
+  <!-- Settings 疊在任何頁之上、與面板槽零耦合（design D2）：不進上面的 v-if chain -->
+  <SettingsModal />
   <ToastStack />
 </template>

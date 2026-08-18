@@ -15,13 +15,18 @@ export interface AppConfig {
   projects: string[]
   /** 最後啟用的專案；啟動優先序的第二順位 */
   lastActivePath: string | null
+  /**
+   * 使用者明示指定的 openspec 執行檔；null＝自動偵測（design D4）。
+   * 只存明示覆寫——偵測結果是機器環境的衍生物，寫回去就成了會過期的假資料。
+   */
+  openspecBin: string | null
 }
 
 const APP_FOLDER = 'specrun-app'
 const FILE_NAME = 'config.json'
 
 export function emptyConfig(): AppConfig {
-  return { projects: [], lastActivePath: null }
+  return { projects: [], lastActivePath: null, openspecBin: null }
 }
 
 export interface ConfigDirInputs {
@@ -37,6 +42,15 @@ export function resolveConfigDir({ platform, env, home }: ConfigDirInputs): stri
   if (platform === 'win32')
     return path.join(env.APPDATA?.trim() || path.join(home, 'AppData', 'Roaming'), APP_FOLDER)
   return path.join(env.XDG_CONFIG_HOME?.trim() || path.join(home, '.config'), APP_FOLDER)
+}
+
+/** 貼進來的路徑常帶 `~`，展開一下比丟「找不到」有用（專案路徑與 CLI 路徑共用） */
+export function expandHome(target: string): string {
+  if (target === '~')
+    return homedir()
+  if (target.startsWith('~/') || target.startsWith(`~${path.sep}`))
+    return path.join(homedir(), target.slice(2))
+  return target
 }
 
 export function configFilePath(): string {
@@ -73,9 +87,12 @@ export function parseConfig(raw: string | null): AppConfig {
   }
 
   const last = record.lastActivePath
+  // 舊設定檔沒有 openspecBin 欄位——缺失與形狀不符同一種處理，回 null 即自動偵測，無需 migration
+  const bin = record.openspecBin
   return {
     projects,
     lastActivePath: typeof last === 'string' && last ? last : null,
+    openspecBin: typeof bin === 'string' && bin ? bin : null,
   }
 }
 

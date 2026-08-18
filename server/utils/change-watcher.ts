@@ -30,6 +30,14 @@ let mounted = false
 let generation = 0
 let timer: ReturnType<typeof setTimeout> | null = null
 
+/**
+ * watcher 目前是否真的掛著（環境診斷用）。掛不起來、無目標專案、監看中斷都是 false
+ * ——三者對使用者是同一件事：即時刷新現在不運作。
+ */
+export function isWatching(): boolean {
+  return watcher !== null
+}
+
 /** 訂閱變動通知；回傳取消訂閱。第一個訂閱者到來時才掛 watcher */
 export function subscribeToChanges(listener: Listener): () => void {
   void ensureWatching()
