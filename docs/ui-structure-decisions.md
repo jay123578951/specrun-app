@@ -16,26 +16,37 @@
 
 ```
 ┌──────────────┬──────────────────────────────────────┐
-│ ◆ specrun    │ Active (2)                           │
-│──────────────│ ▸ add-park-mechanism    3/7 · 2h ago │
-│ PROJECTS     │   ▓▓▓▓▓▓░░░░░░░░                     │
-│ ● specrun ③  │   「why 首句摘錄（兩行 clamp）」        │
-│ ○ side-proj ①│ ▸ fix-watcher-debounce  1/4 · 1d ago │
-│ ＋ Add       │                                      │
-│──────────────│ PARKED (2)                           │
-│ Specs        │ ⏸ old-idea       5/9 · parked 3w ago │
-│ Archive      │ ⏸ big-refactor   0/12 · parked 1mo   │
+│ ◆ specrun    │ specrun / Changes ▾        ⟳ Refresh │
 │──────────────│                                      │
+│ PROJECTS     │ ACTIVE (2)                           │
+│ ● specrun ③  │ ▸ add-park-mechanism    3/7 · 2h ago │
+│ ○ side-proj ①│   ▓▓▓▓▓▓░░░░░░░░                     │
+│ ＋ Add       │   「why 首句摘錄（兩行 clamp）」        │
+│              │ ▸ fix-watcher-debounce  1/4 · 1d ago │
+│              │                                      │
+│              │ PARKED (2)                           │
+│              │ ⏸ old-idea       5/9 · parked 3w ago │
+│──────────────│ ⏸ big-refactor   0/12 · parked 1mo   │
 │ ⚙ Settings   │                                      │
 └──────────────┴──────────────────────────────────────┘
 ```
 
 ### 側欄（上到下）
 
+`move-page-nav-to-breadcrumb` 起為三段：原本的 Specs／Archive 入口整段移除——兩者在資料層是目前專案的產物，放在專案清單段之外會讀成跨專案共用的全域入口。三頁之間的切換改由主區頁首的麵包屑承擔（見下方「主區頁首：麵包屑」），側欄自此只管專案與全域設定，不再有任何當前頁高亮。
+
 1. **Logo＋App 名**——套 Tauri 後兼作視窗拖曳區（macOS 無邊框需求）。
 2. **專案清單**：全展開直接點擊切換（不用下拉）；過多才收合（C5 定案：超過 6 個折疊「Show all」，current 永遠可見）；每項掛進行中 change 數徽章；hover 浮現 ✕ 移除（C5 實作為就地確認列——側欄 224px 放不下對話框，文案講明只移出清單不動磁碟）；底部「＋ Add project」（web 過渡期展開貼路徑輸入列，Tauri 後換原生選資料夾）。
-3. **Specs／Archive**：低頻入口，共用清單→Markdown pattern。
-4. **⚙ Settings**：底部固定不捲動。它是**覆蓋層入口而非頁**——點擊疊出 Settings modal，主區當前頁與已開啟的詳情都不受影響，因此這一項永遠不掛當前頁高亮（`add-settings-modal` design D1／D2）。
+3. **⚙ Settings**：底部固定不捲動。它是**覆蓋層入口而非頁**——點擊疊出 Settings modal，主區當前頁與已開啟的詳情都不受影響，因此這一項永遠不掛當前頁高亮（`add-settings-modal` design D1／D2）。
+
+### 主區頁首：麵包屑（`move-page-nav-to-breadcrumb`）
+
+三頁共用一行頁首：左側麵包屑 `<專案名> / [當前頁 ▾]`，右側是該頁的 Refresh。它同時承擔兩件事——寫出「現在看的是哪個專案」（全 App 唯一說出這件事的地方），以及承擔 Changes／Specs／Archived 三頁之間的切換。
+
+- 專案段是純標籤：專案切換的唯一入口仍是側欄的專案清單。
+- 頁下拉三項齊列並標示當前項——它回答的是「現在在哪」，不是「可以去哪」；下拉不顯示各頁數量（Specs／Archived 是進頁載入、離頁清空，要有數字就得預先載入三頁資料）。
+- 數量：Specs／Archived 掛在麵包屑上；Changes 頁不掛，Active 與 Parked 的數量各由所屬群組標題承擔（`Active (n)` 因此自頁標位下移回群組標題位，與 `Parked (n)` 對稱）。
+- 無目標專案時整條不呈現，因此該狀態下沒有任何進入 Specs／Archived 的路徑——那兩頁當下只有與 Changes 相同的空狀態，加入專案後也一律落在 Changes 頁。
 
 ### 主區：雙群組同頁
 
@@ -106,8 +117,8 @@
 | 三欄佈局／固定兩欄 master-detail | 壓縮 Markdown 橫寬導致一直換行 |
 | 詳情用換頁 | 快速掃描情境要快進快出、保清單狀態 |
 | modal 蓋板式 overlay | 留下的清單邊要可點擊切換（互動軌），收合變形更貼合 |
-| 頂部區段 tabs（Changes/Specs/Archive/Parked 並列） | Parked 與 Changes 須同頁；Specs/Archive 低頻不配一級 tab |
-| 專案下拉選單 | 要全展開快速切換 |
+| 頂部區段 tabs（Changes/Specs/Archive/Parked 並列） | Parked 與 Changes 須同頁；Specs/Archive 低頻不配一級 tab（`move-page-nav-to-breadcrumb` 後仍成立：三頁收在麵包屑的單一下拉裡，不是並列的一級 tabs） |
+| 專案下拉選單 | 要全展開快速切換。**否決範圍僅限專案切換**——`move-page-nav-to-breadcrumb` 的頁下拉不在此列：頁切換屬低頻，正是下拉適用的場景，「要全展開快速切換」的理由不涵蓋它 |
 | 搜尋／過濾 | 單專案 ~5 change，為不存在的規模設計 |
 | Command palette（⌘K） | 操作面太小，儀式感大於效率；↑↓＋Esc 已覆蓋掃描動線 |
 | in-app 編輯 | 記入 ROADMAP 觀察項——先以「Open in editor」滿足（5% 成本吃 90% 需求）；成本在併發衝突與編輯體驗無底洞 |

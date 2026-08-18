@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import { useProjectsStore } from '../stores/projects'
 import { useSettingsStore } from '../stores/settings'
 import { useSpecsStore } from '../stores/specs'
+import PageHeader from './PageHeader.vue'
 import StateNotice from './StateNotice.vue'
 
 /**
@@ -29,6 +30,8 @@ const showSkeleton = computed(() => specs.firstLoadPending && !noProject.value)
 const notOpenSpecProject = computed(() => specs.listError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => specs.listError?.kind === 'call-failed')
 const isEmpty = computed(() => !specs.listError && specs.count === 0)
+/** 數量掛在麵包屑上（spec page-navigation），出現條件沿用原頁標：載入中與錯誤時不報數字 */
+const showCount = computed(() => !showSkeleton.value && !specs.listError)
 
 function toggle(id: string): void {
   // 點當前列＝收合，點其他列＝面板原地換內容（沿用 ChangeCard 的語意）
@@ -73,11 +76,7 @@ function toggle(id: string): void {
         </div>
       </div>
 
-      <header v-if="!noProject" class="flex items-center justify-between gap-4">
-        <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
-          Specs<span v-if="!showSkeleton && !specs.listError"> ({{ specs.count }})</span>
-        </h2>
-
+      <PageHeader :count="showCount ? specs.count : undefined">
         <button
           type="button"
           class="btn relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
@@ -92,7 +91,7 @@ function toggle(id: string): void {
           />
           Refresh
         </button>
-      </header>
+      </PageHeader>
 
       <section class="mt-4 space-y-2">
         <StateNotice

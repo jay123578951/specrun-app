@@ -120,6 +120,10 @@ function onKeydown(event: KeyboardEvent): void {
   // 否則背後剛好開著詳情時 Esc 會穿透把它關掉。不做堆疊式依序關閉——只有這一層 modal
   if (settings.isOpen)
     return
+  // 頁切換下拉展開時同樣整個讓位（spec page-navigation）：↑↓ 歸下拉的三項，
+  // Esc 只收下拉、不穿透關掉背後的詳情。與上面的 Settings 是同一種形狀，不做堆疊
+  if (view.menuOpen)
+    return
   if (!panelOpen.value || event.metaKey || event.ctrlKey || event.altKey)
     return
   const target = event.target as HTMLElement | null

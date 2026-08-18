@@ -5,6 +5,7 @@ import { useProjectsStore } from '../stores/projects'
 import { useSettingsStore } from '../stores/settings'
 import ChangeCard from './ChangeCard.vue'
 import ChangeCardSkeleton from './ChangeCardSkeleton.vue'
+import PageHeader from './PageHeader.vue'
 import ParkedDropZone from './ParkedDropZone.vue'
 import StateNotice from './StateNotice.vue'
 
@@ -141,11 +142,8 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
         </div>
       </div>
 
-      <header v-if="!noProject" class="flex items-center justify-between gap-4">
-        <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
-          Active<span v-if="!showSkeleton && !store.blockingError"> ({{ store.activeCount }})</span>
-        </h2>
-
+      <!-- Changes 頁的數量不上麵包屑：Active 與 Parked 各自由群組標題承擔（spec page-navigation） -->
+      <PageHeader>
         <button
           type="button"
           class="btn relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
@@ -160,69 +158,79 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
           />
           Refresh
         </button>
-      </header>
+      </PageHeader>
 
-      <section
-        ref="activeZone"
-        class="mt-4 space-y-3 transition-[background-color] duration-150 ease-[var(--sr-ease-out)]"
-        :class="markActiveGroup ? GROUP_MARK : ''"
-      >
-        <StateNotice
-          v-if="noProject"
-          icon="i-lucide-folder-plus"
-          title="No project yet"
-          body="Add a folder that contains an openspec/ directory and its changes show up here."
+      <!-- 「Active (n)」原本站在頁標的位置卻是群組語意，麵包屑接手頁標後它回到群組標題位，
+           與下方的 Parked 對稱（design：併入既有 header 行） -->
+      <section class="mt-6">
+        <header v-if="!noProject" class="flex items-center">
+          <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
+            Active<span v-if="!showSkeleton && !store.blockingError"> ({{ store.activeCount }})</span>
+          </h2>
+        </header>
+
+        <div
+          ref="activeZone"
+          class="mt-4 space-y-3 transition-[background-color] duration-150 ease-[var(--sr-ease-out)]"
+          :class="markActiveGroup ? GROUP_MARK : ''"
         >
-          <button type="button" class="btn" @click="projects.startAdd()">
-            <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
-            Add project
-          </button>
-        </StateNotice>
+          <StateNotice
+            v-if="noProject"
+            icon="i-lucide-folder-plus"
+            title="No project yet"
+            body="Add a folder that contains an openspec/ directory and its changes show up here."
+          >
+            <button type="button" class="btn" @click="projects.startAdd()">
+              <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
+              Add project
+            </button>
+          </StateNotice>
 
-        <template v-else-if="showSkeleton">
-          <ChangeCardSkeleton v-for="n in 3" :key="n" />
-        </template>
+          <template v-else-if="showSkeleton">
+            <ChangeCardSkeleton v-for="n in 3" :key="n" />
+          </template>
 
-        <StateNotice
-          v-else-if="notOpenSpecProject"
-          icon="i-lucide-folder-x"
-          title="Not an OpenSpec project"
-          body="specrun found no openspec/ directory at this path. The folder may have moved — switch to another project, or remove this one from the list."
-          :detail="store.targetPath"
-        />
-
-        <StateNotice
-          v-else-if="loadFailed"
-          icon="i-lucide-file-warning"
-          tone="error"
-          title="Could not load changes"
-          body="The request did not complete, so this list may be missing. This is usually temporary."
-          :detail="store.blockingError?.detail"
-        >
-          <button type="button" class="btn" :disabled="store.busy" @click="store.load()">
-            Try again
-          </button>
-        </StateNotice>
-
-        <!-- 空群組作為落點時，標示由這個區塊自己的邊框與底色表達；外層不另加 outline（design D4） -->
-        <StateNotice
-          v-else-if="isEmpty"
-          icon="i-lucide-inbox"
-          title="No active changes"
-          :body="emptyActiveBody"
-          :target="dropTarget === 'active'"
-        />
-
-        <!-- 順序即 CLI 回傳順序（lastModified 新→舊），前端不重排 -->
-        <TransitionGroup v-bind="GROUP_MOTION" tag="div" class="relative space-y-3">
-          <ChangeCard
-            v-for="change in store.visibleChanges"
-            :key="change.name"
-            :change="change"
-            @drag-start="onDragStart"
-            @drag-end="onDragEnd"
+          <StateNotice
+            v-else-if="notOpenSpecProject"
+            icon="i-lucide-folder-x"
+            title="Not an OpenSpec project"
+            body="specrun found no openspec/ directory at this path. The folder may have moved — switch to another project, or remove this one from the list."
+            :detail="store.targetPath"
           />
-        </TransitionGroup>
+
+          <StateNotice
+            v-else-if="loadFailed"
+            icon="i-lucide-file-warning"
+            tone="error"
+            title="Could not load changes"
+            body="The request did not complete, so this list may be missing. This is usually temporary."
+            :detail="store.blockingError?.detail"
+          >
+            <button type="button" class="btn" :disabled="store.busy" @click="store.load()">
+              Try again
+            </button>
+          </StateNotice>
+
+          <!-- 空群組作為落點時，標示由這個區塊自己的邊框與底色表達；外層不另加 outline（design D4） -->
+          <StateNotice
+            v-else-if="isEmpty"
+            icon="i-lucide-inbox"
+            title="No active changes"
+            :body="emptyActiveBody"
+            :target="dropTarget === 'active'"
+          />
+
+          <!-- 順序即 CLI 回傳順序（lastModified 新→舊），前端不重排 -->
+          <TransitionGroup v-bind="GROUP_MOTION" tag="div" class="relative space-y-3">
+            <ChangeCard
+              v-for="change in store.visibleChanges"
+              :key="change.name"
+              :change="change"
+              @drag-start="onDragStart"
+              @drag-end="onDragEnd"
+            />
+          </TransitionGroup>
+        </div>
       </section>
 
       <!-- Parked 與 Active 同頁分群（docs/ui-structure-decisions.md）：park／unpark

@@ -17,6 +17,19 @@ export const useViewStore = defineStore('view', () => {
   const currentView = ref<AppView>('changes')
 
   /**
+   * 頁切換下拉是否展開。狀態放這裡而不是元件內：App.vue 的全域鍵盤要據此整段讓位
+   * （spec page-navigation：下拉展開期間清單與面板的 ↑↓、Esc 不得同時作用），
+   * 與 Settings 的 isOpen 是同一種形狀。
+   */
+  const menuOpen = ref(false)
+
+  /**
+   * 自下拉切頁後，把焦點交棒給新頁的觸發項（spec：選定後 focus 交回觸發項）。
+   * 麵包屑隨頁面元件重建，切頁那一刻舊的觸發項已不存在，接力點只能在新元件的掛載處。
+   */
+  const focusPageMenu = ref(false)
+
+  /**
    * 切頁即關詳情、不記憶（design：切頁即關）。specs／archived 那兩側的面板狀態隨
    * 頁面元件卸載一起清掉（見各自 store 的 enter／reset），這裡只需要處理常駐的 change 詳情。
    */
@@ -28,5 +41,5 @@ export const useViewStore = defineStore('view', () => {
     useDetailStore().close()
   }
 
-  return { currentView, show }
+  return { currentView, menuOpen, focusPageMenu, show }
 })

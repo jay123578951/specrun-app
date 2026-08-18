@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useArchivedStore } from '../stores/archived'
 import { useProjectsStore } from '../stores/projects'
+import PageHeader from './PageHeader.vue'
 import StateNotice from './StateNotice.vue'
 
 /**
@@ -27,6 +28,8 @@ const showSkeleton = computed(() => archived.firstLoadPending && !noProject.valu
 const notOpenSpecProject = computed(() => archived.listError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => archived.listError?.kind === 'call-failed')
 const isEmpty = computed(() => !archived.listError && archived.count === 0)
+/** 數量掛在麵包屑上（spec page-navigation），出現條件沿用原頁標：載入中與錯誤時不報數字 */
+const showCount = computed(() => !showSkeleton.value && !archived.listError)
 
 function toggle(dir: string): void {
   // 點當前列＝收合，點其他列＝面板原地換內容（沿用 ChangeCard 的語意）
@@ -48,11 +51,7 @@ function progressTitle(completed: number, total: number): string {
   <!-- 面板開啟時清單留在原地不卸載，捲動位置自然保留 -->
   <main class="h-full overflow-y-auto px-8 py-7">
     <div class="mx-auto max-w-5xl">
-      <header v-if="!noProject" class="flex items-center justify-between gap-4">
-        <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
-          Archived<span v-if="!showSkeleton && !archived.listError"> ({{ archived.count }})</span>
-        </h2>
-
+      <PageHeader :count="showCount ? archived.count : undefined">
         <button
           type="button"
           class="btn relative before:absolute before:inset-x-0 before:content-[''] before:-inset-y-1"
@@ -67,7 +66,7 @@ function progressTitle(completed: number, total: number): string {
           />
           Refresh
         </button>
-      </header>
+      </PageHeader>
 
       <section class="mt-4 space-y-2">
         <StateNotice

@@ -91,11 +91,19 @@ export default defineConfig<Theme>({
     // h-12 在根字級 14px 下 ＝ 42px，是能守住密集工具介面點擊面積下限的最小級距
     'tab-item': 'h-12 px-3 border-b-2 border-transparent text-ui-sm cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:text-text active:bg-surface-hover active:text-text kbd-focus',
 
+    // 麵包屑的頁下拉觸發項：與 btn-inline 同一階（不畫盒子、hover 才浮底色），
+    // 但文字取 text——它是麵包屑裡唯一的焦點，旁邊的專案名與數量才是 text-3
+    'crumb-page': 'inline-flex items-center gap-1.5 h-8 px-2 rounded text-ui-sm text-text cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover active:bg-line/50 kbd-focus',
+
+    // 下拉選單項：唯一消費者是上面那顆觸發項展開的三頁清單；current 的 accent 底由呼叫端加
+    'menu-item': 'w-full flex items-center gap-2 px-2.5 py-1.5 rounded text-left text-ui-sm text-text-2 cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:bg-surface-hover hover:text-text active:bg-line/50 kbd-focus',
+
     // 圖示按鈕：視覺 28px、實際點擊面積外擴到 44px（28 ＋ 8×2；::before 撐開，不動版面）
     'icon-btn': 'relative h-8 w-8 flex shrink-0 items-center justify-center border border-line rounded text-text-2 cursor-pointer transition-[background-color,color] duration-150 ease-[var(--sr-ease-out)] before:absolute before:-inset-[8px] before:content-[\'\'] hover:bg-surface-hover hover:text-text active:bg-line/50 disabled:cursor-not-allowed disabled:opacity-55 kbd-focus',
 
-    // 具名層級，template 不出現裸 z 值。toast 疊在 modal 之上——
-    // Settings 內觸發的失敗提示必須看得見
+    // 具名層級，template 不出現裸 z 值。menu 疊在內容之上（卡片自身有 z-10）、
+    // 但仍在 modal 之下；toast 疊在 modal 之上——Settings 內觸發的失敗提示必須看得見
+    'z-menu': 'z-30',
     'z-modal': 'z-50',
     'z-toast': 'z-100',
   },
