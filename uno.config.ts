@@ -78,7 +78,9 @@ export default defineConfig<Theme>({
     // 抬升與選中底色由呼叫端切換，與 ChangeCard 同一套姿態
     'list-row': 'w-full flex items-center gap-3 px-4.5 py-3 rounded border border-line text-left cursor-pointer transition-[transform,background-color] duration-150 ease-[var(--sr-ease-out)] kbd-focus',
 
-    // artifact tab：選中態的底線與文字色由呼叫端切換。
+    // artifact tab：選中底線的責任已移交 ArtifactTabs 的 indicator（design D6），
+    // 這裡的 border-b-2 border-transparent 只留作佔位（拿掉行盒會少 2px）；
+    // 呼叫端仍切文字色，transition-colors 為它而留。
     // h-12 在根字級 14px 下 ＝ 42px，是能守住密集工具介面點擊面積下限的最小級距
     'tab-item': 'h-12 px-3 border-b-2 border-transparent text-ui-sm cursor-pointer transition-colors duration-150 ease-[var(--sr-ease-out)] hover:text-text active:bg-surface-hover active:text-text kbd-focus',
 

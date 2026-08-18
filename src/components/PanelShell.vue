@@ -12,8 +12,10 @@ import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 const props = defineProps<{
   /** 收合鈕 aria-label 的主體（`spec`／`detail`／`archived change`） */
   collapseLabel: string
-  /** 換內容的識別鍵：值一變就把捲動歸零（沿用上一份的位置只會讀到半途） */
-  scrollKey: string
+  /** 身分鍵（change／spec 名）：值一變＝換了一份東西 */
+  identityKey: string
+  /** 內容鍵（tab 名）：值一變＝同一份東西換頁；無 tabs 的面板給空值 */
+  contentKey: string
 }>()
 
 defineEmits<{ collapse: [] }>()
@@ -28,40 +30,54 @@ const scroller = ref<HTMLElement>()
  */
 const FADE_SUPPRESS_MS = 200
 
+/**
+ * 淡入時長兩檔（design D5）：換 change 是身分變更、換 tab 是同一份 change 換頁，
+ * 幅度差一階。兩檔都寫成完整字面值，class 才進得了 UnoCSS 的靜態掃描。
+ */
+const FADE_IDENTITY = 'transition-opacity duration-180 ease-[var(--sr-ease-out)]'
+const FADE_CONTENT = 'transition-opacity duration-160 ease-[var(--sr-ease-out)]'
+
 /** true = 淡入起點：內容區壓在 opacity 0 且無過場；false 才掛回 transition（兩分支互斥） */
 const fadeStart = ref(false)
+/** 這一輪淡入要用的時長檔，由觸發來源決定 */
+const fadeClass = ref(FADE_CONTENT)
 
 let lastSwitchAt = 0
 let rafId = 0
 let disposed = false
 
-watch(() => props.scrollKey, async () => {
-  if (scroller.value)
-    scroller.value.scrollTop = 0
+watch(
+  () => [props.identityKey, props.contentKey] as const,
+  async ([identityKey], [prevIdentityKey]) => {
+    if (scroller.value)
+      scroller.value.scrollTop = 0
 
-  const now = performance.now()
-  const suppressed = now - lastSwitchAt < FADE_SUPPRESS_MS
-  lastSwitchAt = now
-  if (suppressed) {
-    // 連按中把上一輪排程一併取消，免得它在壓 0 之後才把 opacity 放回、播出半截淡入
-    cancelAnimationFrame(rafId)
-    fadeStart.value = false
-    return
-  }
+    fadeClass.value = identityKey === prevIdentityKey ? FADE_CONTENT : FADE_IDENTITY
 
-  // watcher 是 pre-flush，壓 0 先於新內容 patch；等 patch 完再過雙 rAF，
-  // 讓 opacity: 0 先被瀏覽器算過一次，放回 1 的過場才會真的播
-  fadeStart.value = true
-  await nextTick()
-  if (disposed)
-    return
-  cancelAnimationFrame(rafId)
-  rafId = requestAnimationFrame(() => {
-    rafId = requestAnimationFrame(() => {
+    const now = performance.now()
+    const suppressed = now - lastSwitchAt < FADE_SUPPRESS_MS
+    lastSwitchAt = now
+    if (suppressed) {
+      // 連按中把上一輪排程一併取消，免得它在壓 0 之後才把 opacity 放回、播出半截淡入
+      cancelAnimationFrame(rafId)
       fadeStart.value = false
+      return
+    }
+
+    // watcher 是 pre-flush，壓 0 先於新內容 patch；等 patch 完再過雙 rAF，
+    // 讓 opacity: 0 先被瀏覽器算過一次，放回 1 的過場才會真的播
+    fadeStart.value = true
+    await nextTick()
+    if (disposed)
+      return
+    cancelAnimationFrame(rafId)
+    rafId = requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(() => {
+        fadeStart.value = false
+      })
     })
-  })
-})
+  },
+)
 
 // 面板收合瞬間若剛好在切換，別讓在飛的回呼落在已卸載的元件上
 onBeforeUnmount(() => {
@@ -103,7 +119,7 @@ onBeforeUnmount(() => {
     <div
       ref="scroller"
       class="min-h-0 flex-1 overflow-y-auto px-8 py-7"
-      :class="fadeStart ? 'opacity-0 transition-none' : 'transition-opacity duration-120 ease-[var(--sr-ease-out)]'"
+      :class="fadeStart ? 'opacity-0 transition-none' : fadeClass"
     >
       <slot />
     </div>

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useArchivedStore } from '../stores/archived'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
+import ArtifactTabs from './ArtifactTabs.vue'
 import MarkdownView from './MarkdownView.vue'
 import PanelShell from './PanelShell.vue'
 import StateNotice from './StateNotice.vue'
@@ -16,8 +17,6 @@ import StateNotice from './StateNotice.vue'
 
 const archived = useArchivedStore()
 
-// 換 change 或換 tab 都是新內容，捲動歸零由外殼依這個鍵處理
-const scrollKey = computed(() => `${archived.openDir} ${archived.currentTab}`)
 /** 詳情讀成功卻一個檔案都沒有：目錄空了不是錯誤，但也不能靜默留白 */
 const noFiles = computed(() =>
   !archived.loading && !archived.contentError && archived.artifacts.length === 0,
@@ -27,7 +26,8 @@ const noFiles = computed(() =>
 <template>
   <PanelShell
     collapse-label="archived change"
-    :scroll-key="scrollKey"
+    :identity-key="archived.openDir ?? ''"
+    :content-key="archived.currentTab ?? ''"
     @collapse="archived.close()"
   >
     <template #actions>
@@ -65,25 +65,15 @@ const noFiles = computed(() =>
       </div>
 
       <!-- tabs 是現場列舉的結果（proposal → design → delta specs → tasks → 其他）。
-           首個 tab 去掉左內距：文字與底線都對齊標題的左緣 -->
-      <div v-if="archived.artifacts.length" role="tablist" class="-mb-px flex gap-1">
-        <button
-          v-for="artifact in archived.artifacts"
-          :id="`archived-tab-${artifact.id}`"
-          :key="artifact.id"
-          type="button"
-          role="tab"
-          class="tab-item first:pl-0"
-          :class="artifact.id === archived.currentTab
-            ? 'border-accent-bright text-text'
-            : 'text-text-3'"
-          :aria-selected="artifact.id === archived.currentTab"
-          :aria-controls="`archived-panel-${artifact.id}`"
-          @click="archived.selectTab(artifact.id)"
-        >
-          {{ artifact.id }}
-        </button>
-      </div>
+           標記與選中指示與 change 詳情面板共用同一份 ArtifactTabs，行為不會兩處分歧 -->
+      <ArtifactTabs
+        v-if="archived.artifacts.length"
+        :items="archived.artifacts"
+        :current="archived.currentTab"
+        :identity="archived.openDir"
+        id-prefix="archived-"
+        @select="archived.selectTab($event)"
+      />
       <!-- 沒有 tabs（載入中／失敗）時撐住同高度，頭部不會先塌一截再彈回來 -->
       <div v-else class="h-12" aria-hidden="true" />
     </template>

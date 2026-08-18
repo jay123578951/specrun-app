@@ -75,6 +75,14 @@
     transition-property: opacity !important;
   }
 
+  /* artifact tabs 的選中底線（design D7）：機制與上面的 .sr-motion 同源——
+     transition-property 縮到 opacity，translate／scale 便瞬間歸位。
+     指示本身照樣落在正確的 tab 上，只是不演出移動；不做「退回 per-tab border」
+     的雙軌實作，兩套選中呈現等於兩套要維護的視覺 */
+  .tab-indicator {
+    transition-property: opacity !important;
+  }
+
   /* 拖曳是直接操作，降級不是關閉：卡片照樣跟著指標，只拿掉放大與返回原位的補間。
      凹槽、目的地標示、落點底色與文案切換全數保留——那些是純顏色與透明度的變化 */
   .card-dragging {

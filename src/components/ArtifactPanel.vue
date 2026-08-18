@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
+import ArtifactTabs from './ArtifactTabs.vue'
 import CopyNameButton from './CopyNameButton.vue'
 import MarkdownView from './MarkdownView.vue'
 import PanelShell from './PanelShell.vue'
@@ -29,15 +30,13 @@ const busy = computed(() => changes.busy || detail.refreshing)
 const interactiveTasks = computed(() =>
   !detail.isParked && detail.currentArtifact?.id === 'tasks' && detail.currentArtifact.files.length === 1,
 )
-
-// 換 change 或換 tab 都是新內容，捲動歸零由外殼依這個鍵處理
-const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
 </script>
 
 <template>
   <PanelShell
     collapse-label="detail"
-    :scroll-key="scrollKey"
+    :identity-key="detail.changeName ?? ''"
+    :content-key="detail.currentTab ?? ''"
     @collapse="detail.close()"
   >
     <!-- 動作區：Open in editor 等按鈕 M3 才填，先有複製名稱與 refresh -->
@@ -91,25 +90,15 @@ const scrollKey = computed(() => `${detail.changeName} ${detail.currentTab}`)
       </div>
 
       <!-- tabs 完全依 CLI 回傳的 artifact 清單，名稱不寫死（custom schema 必須可用）。
-           首個 tab 去掉左內距：文字與底線都對齊標題的左緣，不讓 px-3 把整排推歪 -->
-      <div v-if="detail.artifacts.length" role="tablist" class="-mb-px flex gap-1">
-        <button
-          v-for="artifact in detail.artifacts"
-          :id="`tab-${artifact.id}`"
-          :key="artifact.id"
-          type="button"
-          role="tab"
-          class="tab-item first:pl-0"
-          :class="artifact.id === detail.currentTab
-            ? 'border-accent-bright text-text'
-            : 'text-text-3'"
-          :aria-selected="artifact.id === detail.currentTab"
-          :aria-controls="`panel-${artifact.id}`"
-          @click="detail.selectTab(artifact.id)"
-        >
-          {{ artifact.id }}
-        </button>
-      </div>
+           標記與選中指示都在 ArtifactTabs，與 archived 詳情共用同一份 -->
+      <ArtifactTabs
+        v-if="detail.artifacts.length"
+        :items="detail.artifacts"
+        :current="detail.currentTab"
+        :identity="detail.changeName"
+        id-prefix=""
+        @select="detail.selectTab($event)"
+      />
       <!-- 沒有 tabs（載入中／失敗）時撐住同高度，頭部不會先塌一截再彈回來 -->
       <div v-else class="h-12" aria-hidden="true" />
     </template>

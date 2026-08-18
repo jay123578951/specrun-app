@@ -191,6 +191,7 @@
 - **低調外觀內建在尺寸階裡**，不拆成「盒子 class ＋ 色調 class」併寫。專案目前只有一種按鈕色調，讓每個呼叫端預先付兩個 class 的稅不划算；真要加實心主按鈕時再開名稱空間，遷移成本與現在相同。
 - **`btn-danger` 的覆蓋必須帶 `!`**：它要壓過的 `border-line`／`text-text-2` 與自己來自同一條 UnoCSS 規則，勝負由 CSS 產生順序決定、不是 class 屬性的書寫順序，漏了會靜默變灰而不報錯。
 - **點擊面積外擴用釘死的 px，不用 rem 級距**（`before:-inset-[8px]`、`before:-inset-[10px]`）。WCAG 2.5.5 的 44px 與 2.5.8 的 24px 是無障礙硬指標，不該隨排版基準漂移——`before:-inset-2` 在 14px 根字級下只有 7px，宣告 44px 實得 38.5px。視覺尺寸仍走 rem 級距（那本來就是排版的一部分），只有點擊面積這條下限脫鉤。
+- **`tab-item` 的內距只管點擊面積，不兼差當對齊工具**：tabs 列要與面板標題左緣對齊，是由 tablist 的 `-ml-3` 抵掉首顆的左內距達成（與同一列的 `-mb-px` 同一手法：對齊是列的事，由列自己宣告）。曾經改用 `first:pl-0`／`first:px-0` 去雕第一顆的盒子，結果是內距同時扛點擊面積、tab 間距、文字起點三個責任，補一個必壞另外兩個。選中底線同理量文字而非盒寬（`ArtifactTabs.vue`，change `animate-artifact-tab-switch` design D9）。
 - **`tab-item` 一改高度，兩個面板頭部的 `pb` 就得跟著重算**：頭部上下留白刻意不對稱，`pb` 是用來抵消 tabs 自帶的垂直置中空白（= (tab 高 − 行盒 20.8) ÷ 2），讓「標題→按鈕」與「標題→tabs」看起來等距。`ArtifactPanel` 與 `ArchivedPanel` 必須同值。
 - **刻意的例外**：專案列的移除入口（`ProjectSwitcher.vue` 絕對定位的小按鈕）維持小尺寸、不外擴點擊面積。它疊在專案切換鈕上，放大等於從「切換專案」這個主要目標身上收回空間；它低於 WCAG 24px 是已知取捨，要處理得連該列的資訊層級一起重排。Markdown 的 task checkbox（13px，`markdown.css`）同樣不在本表——它的點擊面積受限於 `markdown-it-task-lists` 的 HTML 產出與事件委派，屬行為變更。
 

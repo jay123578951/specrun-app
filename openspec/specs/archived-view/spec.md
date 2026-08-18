@@ -33,7 +33,7 @@ Archived 頁：以清單呈現目標專案的 archived change（名稱、歸檔�
 - **THEN** 順序為：同日兩筆（名稱字母序）→ 較舊一筆 → 無日期一筆
 
 ### Requirement: 詳情 slideover（唯讀）
-點擊卡片 SHALL 以 slideover 覆蓋面板開啟該 archived change 的詳情；tabs 集合 SHALL 為現場列舉：change 目錄頂層的 `*.md` 檔＋`specs/` 下的各 delta spec（tab 名為 `specs/<capability-path>`）；tabs 順序 SHALL 為 proposal → design → 各 delta spec（字母序）→ tasks → 其他 `*.md`（字母序），僅列實際存在的檔案。內容 SHALL 整份唯讀，Markdown 渲染規範沿用 artifact-view 的「Markdown 唯讀渲染」，tasks 的 checkbox MUST NOT 可勾選。面板 header SHALL 含收合鈕與手動 Refresh。面板開啟期間左側露出區的卡片 SHALL 可點擊切換，當前開啟卡 SHALL 高亮，再次點擊當前卡 SHALL 收合面板。面板的進出場與原地換內容動效 SHALL 沿用 artifact-view 的「詳情滑出面板」與「覆蓋檢視下的清單切換」規範，MUST NOT 自成一套值。
+點擊卡片 SHALL 以 slideover 覆蓋面板開啟該 archived change 的詳情；tabs 集合 SHALL 為現場列舉：change 目錄頂層的 `*.md` 檔＋`specs/` 下的各 delta spec（tab 名為 `specs/<capability-path>`）；tabs 順序 SHALL 為 proposal → design → 各 delta spec（字母序）→ tasks → 其他 `*.md`（字母序），僅列實際存在的檔案。內容 SHALL 整份唯讀，Markdown 渲染規範沿用 artifact-view 的「Markdown 唯讀渲染」，tasks 的 checkbox MUST NOT 可勾選。面板 header SHALL 含收合鈕與手動 Refresh。面板開啟期間左側露出區的卡片 SHALL 可點擊切換，當前開啟卡 SHALL 高亮，再次點擊當前卡 SHALL 收合面板。面板的進出場、原地換內容與 **tab 切換**的動效 SHALL 沿用 artifact-view 的「詳情滑出面板」、「覆蓋檢視下的清單切換」與「artifact tab 切換的過場」規範，MUST NOT 自成一套值。tabs 的呈現與選中指示行為 SHALL 與 change 詳情面板同源，MUST NOT 出現兩處分歧。
 
 #### Scenario: 開啟詳情
 - **WHEN** 使用者點擊某 archived change 卡片
@@ -42,6 +42,10 @@ Archived 頁：以清單呈現目標專案的 archived change（名稱、歸檔�
 #### Scenario: 動效與 change 詳情一致
 - **WHEN** 使用者開啟、收合面板，或於面板開啟中切換至另一個 archived change
 - **THEN** 過場的位移與時長與 change 詳情面板一致
+
+#### Scenario: tab 切換與 change 詳情一致
+- **WHEN** 使用者在 archived 詳情面板內切換 tab
+- **THEN** 選中指示的滑行與內容淡入與 change 詳情面板完全一致，換 archived change 時指示同樣直接就位、不滑行
 
 #### Scenario: delta spec tab
 - **WHEN** 該 archived change 的 `specs/` 下有 `change-list/spec.md`

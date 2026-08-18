@@ -16,7 +16,8 @@ const specs = useSpecsStore()
 <template>
   <PanelShell
     collapse-label="spec"
-    :scroll-key="specs.openId ?? ''"
+    :identity-key="specs.openId ?? ''"
+    content-key=""
     @collapse="specs.close()"
   >
     <template #actions>
