@@ -145,10 +145,9 @@ const checkAllTitle = computed(() => {
     <!-- 主動刷新是「我要等新資料」的明示：清空面板、大膽用 skeleton 回饋 -->
     <ArtifactSkeleton v-if="detail.refreshing" />
 
-    <!-- 冷路徑：不用 skeleton（design D8），只留一行安靜的提示，資料回來就換上 -->
-    <p v-else-if="detail.loading" class="text-ui-sm text-text-3">
-      Loading…
-    </p>
+    <!-- 墊底路徑（無快取可顯示）：同一個面板的讀取中只有一種樣子，
+         沿用刷新那份 skeleton，不因觸發來源分岔出第二種骨架 -->
+    <ArtifactSkeleton v-else-if="detail.loading" />
 
     <StateNotice
       v-else-if="detail.error"
