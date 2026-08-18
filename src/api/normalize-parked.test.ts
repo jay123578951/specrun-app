@@ -15,7 +15,7 @@ describe('normalizeParkedList: 清單', () => {
         name: 'add-old-idea',
         parkedAt: '2026-07-20T10:00:00.000Z',
         tasks: '## 1. 段落\n\n- [x] 1.1 做完的\n- [ ] 1.2 還沒的\n',
-        proposal: '## Why\n\nChange 一多就有擱置需求。第二句不該進摘錄。\n',
+        proposal: '## Why\n\nChange 一多就有擱置需求。第二句同段一併帶回。\n',
       }],
     }))
 
@@ -28,7 +28,7 @@ describe('normalizeParkedList: 清單', () => {
         totalTasks: 2,
         status: 'in-progress',
         parkedAt: Date.parse('2026-07-20T10:00:00.000Z'),
-        summary: 'Change 一多就有擱置需求。',
+        summary: 'Change 一多就有擱置需求。第二句同段一併帶回。',
       }],
     })
   })
@@ -114,7 +114,7 @@ describe('countTasks: 進度現場解析', () => {
 // 這裡只確認續出的入口仍可用，parked 側接得上同一份抽取
 describe('extractWhy: 續出入口', () => {
   it('自 normalize-parked 續出，行為與原處一致', () => {
-    expect(extractWhy('## Why\n\n第一句。第二句。')).toBe('第一句。')
+    expect(extractWhy('## Why\n\n第一句。第二句。')).toBe('第一句。第二句。')
   })
 })
 

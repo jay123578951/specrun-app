@@ -52,7 +52,7 @@
 | 標題 | change 名 |
 | 長條進度條 | tasks 完成百分比，旁附 n/m 數字；一排卡片的進度條構成總覽視圖 |
 | 相對時間 | 最後修改；parked 卡片改顯示停放時點（parked 3w ago） |
-| Why 摘錄 | proposal `## Why` 首句（到第一個句號），**純機械抽取不做 AI 加工**，去 markdown 語法，CSS 兩行 clamp。品質天花板＝proposal 第一句寫作品質，接受之（反向形成寫作紀律） |
+| Why 摘錄 | proposal `## Why` 第一段全文，**純機械抽取不做 AI 加工**，去 markdown 語法，CSS 兩行 clamp。兩行是上限不是目標：抽取端取不到卡片寬度與斷行，不猜顯示行數，截斷點與省略號全交呈現層 |
 | hover 動作 | ⏸ Park（parked 為 ▶ Restore）／⧉ 複製 change 名稱到剪貼簿（貼終端用）／✕ 刪除整個 change 目錄（跳確認對話框） |
 
 明確不放：artifact 完成度點列（propose 一口氣生完時全亮＝噪音，dogfood 後有需要再加）、schema 名、validate 狀態。

@@ -77,13 +77,13 @@ describe('normalizeChangeList: 正常清單', () => {
 describe('normalizeChangeList: Why 摘錄', () => {
   const second = { ...IN_PROGRESS, name: 'fix-watcher' }
 
-  it('有 proposal 的那筆抽出 `## Why` 首句', () => {
+  it('有 proposal 的那筆抽出 `## Why` 第一段', () => {
     const result = normalizeChangeList(probe({
       stdout: listStdout([IN_PROGRESS]),
-      proposals: { 'add-change-list': '## Why\n\n清單只有名稱時看不出用途。第二句不進摘錄。\n' },
+      proposals: { 'add-change-list': '## Why\n\n清單只有名稱時看不出用途。第二句同段一併帶回。\n' },
     }))
 
-    expect(result.ok && result.changes[0]?.summary).toBe('清單只有名稱時看不出用途。')
+    expect(result.ok && result.changes[0]?.summary).toBe('清單只有名稱時看不出用途。第二句同段一併帶回。')
   })
 
   it('表中沒有該筆 proposal 時摘錄為空，其餘項目照常', () => {

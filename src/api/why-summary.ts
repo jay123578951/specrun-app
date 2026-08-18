@@ -1,15 +1,20 @@
 /**
- * proposal `## Why` 首句的機械摘錄（純函式，web 與 M4 Tauri 版共用）。
+ * proposal `## Why` 第一段的機械摘錄（純函式，web 與 M4 Tauri 版共用）。
  *
  * 兩個資料源都要摘錄——active 清單走 CLI 回應後的檔案直讀，parked 走現場解析——
- * 抽取規則只能有一份，否則同一份 proposal 在兩處會顯示不同的一句話（design D2）。
+ * 抽取規則只能有一份，否則同一份 proposal 在兩處會顯示不同的內容（design D2）。
  */
 
 const WHY_HEADING = /^#{1,6}[ \t]+why[ \t]*$/i
 
 /**
- * proposal `## Why` 的首句（到第一個句號為止），純機械抽取、不做 AI 加工
- * （docs/ui-structure-decisions.md 的卡片規格）。品質天花板就是 proposal 第一句的寫作品質。
+ * proposal `## Why` 之後第一段的全文，純機械抽取、不做 AI 加工
+ * （docs/ui-structure-decisions.md 的卡片規格）。
+ *
+ * 抽取單位是「段落」而非「句」：空行是這份資料裡唯一不需啟發式判斷的邊界，
+ * 判定句末則得處理縮寫、版本號、檔名等歧義，每條規則都有自己的反例（design D1）。
+ * 不設字元上限、也不預測顯示行數——純函式取不到卡片寬度與實際斷行，
+ * 截斷點與省略號一律交由呈現層的 `line-clamp` 決定（design D2、D3）。
  */
 export function extractWhy(source: string): string {
   const lines = source.split(/\r?\n/)
@@ -31,20 +36,10 @@ export function extractWhy(source: string): string {
     paragraph.push(text)
   }
 
-  return firstSentence(stripMarkdown(paragraph.join(' ')))
+  return stripMarkdown(paragraph.join(' '))
 }
 
-/**
- * 中英文句號都算句末；找不到句號就整段帶回（clamp 交給 CSS）。
- * 全形標點自己就是句末，半形 `.` 得跟著空白或結尾才算——否則 `design.md`、`e.g.`
- * 這類寫法會把句子攔腰切斷。
- */
-function firstSentence(text: string): string {
-  const end = text.search(/[。！？]|[.!?](?:\s|$)/)
-  return end === -1 ? text : text.slice(0, end + 1)
-}
-
-/** 只去掉行內語法記號，不做重排；摘錄要的是可讀的一句話，不是還原後的 Markdown */
+/** 只去掉行內語法記號，不做重排；摘錄要的是可讀的文字，不是還原後的 Markdown */
 function stripMarkdown(text: string): string {
   return text
     .replace(/`([^`]*)`/g, '$1')

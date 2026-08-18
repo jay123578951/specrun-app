@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { extractWhy } from './why-summary'
 
-describe('extractWhy: proposal 首句摘錄', () => {
-  it('只取 Why 段落的第一段第一句', () => {
+describe('extractWhy: proposal 第一段摘錄', () => {
+  it('多句段落整段帶回，不在句號處截斷', () => {
     const proposal = '## Why\n\n第一句。第二句。\n\n第二段不要。\n\n## What Changes\n\n不相關\n'
-    expect(extractWhy(proposal)).toBe('第一句。')
+    expect(extractWhy(proposal)).toBe('第一句。第二句。')
+  })
+
+  it('只取第一段，空行之後的段落不進摘錄', () => {
+    expect(extractWhy('## Why\n\n第一段。\n\n第二段。\n'))
+      .toBe('第一段。')
+  })
+
+  it('同段落跨行以單一空白接合為一行', () => {
+    expect(extractWhy('## Why\n\n第一行\n第二行'))
+      .toBe('第一行 第二行')
   })
 
   it('去掉行內 markdown 語法', () => {
@@ -12,31 +22,17 @@ describe('extractWhy: proposal 首句摘錄', () => {
       .toBe('把 code 與 粗體 和 連結 攤平。')
   })
 
-  it('英文句號同樣算句末', () => {
-    expect(extractWhy('## Why\n\nParked changes add noise. Second sentence.')).toBe('Parked changes add noise.')
-  })
-
-  it('半形句號不接空白時不算句末，`design.md` 不被攔腰截斷', () => {
+  it('半形句號不再是特例，`design.md` 與後續句子完整保留', () => {
     expect(extractWhy('## Why\n\n細節見 design.md 的第二節。後續說明。'))
-      .toBe('細節見 design.md 的第二節。')
+      .toBe('細節見 design.md 的第二節。後續說明。')
     expect(extractWhy('## Why\n\nSee section 2.1 for details. Rest.'))
-      .toBe('See section 2.1 for details.')
+      .toBe('See section 2.1 for details. Rest.')
   })
 
-  /**
-   * 「句號＋空白」這條判準覆蓋不到後接空白的英文縮寫（`e.g. `、`i.e. `）——
-   * 要分辨得懂縮寫詞表，成本遠高於摘錄這個輔助資訊值得付的價。
-   * spec openspec-gateway 已把這個代價立為 scenario，不是待修的 bug。
-   */
-  it('後接空白的英文縮寫仍會被視為句末（spec 明文接受的代價）', () => {
-    expect(extractWhy('## Why\n\nSee e.g. the second section. Rest.')).toBe('See e.g.')
-  })
-
-  it('段落無句末標點時回傳整段全文', () => {
-    expect(extractWhy('## Why\n\n一句沒有句號的話')).toBe('一句沒有句號的話')
-    // 同段落跨行也一起帶回，行間以空白接合
-    expect(extractWhy('## Why\n\n沒有標點的第一行\n沒有標點的第二行'))
-      .toBe('沒有標點的第一行 沒有標點的第二行')
+  /** 句末判定移除後，縮寫誤切這個已知代價一併消失（design D1） */
+  it('後接空白的英文縮寫不再提早結束', () => {
+    expect(extractWhy('## Why\n\nSee e.g. the second section. Rest.'))
+      .toBe('See e.g. the second section. Rest.')
   })
 
   it('沒有 Why 段落回空字串', () => {
