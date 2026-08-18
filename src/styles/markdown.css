@@ -185,21 +185,24 @@
   list-style: none;
 }
 
-/* 換行的字對齊第一行的文字、不跑到勾選框底下（負 text-indent 抵掉 padding） */
+/* 換行的字對齊第一行的文字、不跑到勾選框底下（負 text-indent 抵掉 padding）
+   值＝框寬 17px ＋ margin-right 10px（0.75em，checkbox 自身 UA 預設字級 13.3333px）＝ 27px，
+   換算 .md-body 16px 字級 ＝ 1.6875em——用實際 DOM 量測換行後文字起點驗證過，兩行文字左緣完全對齊 */
 .md-body .task-list-item {
-  padding-left: 1.45em;
-  text-indent: -1.45em;
+  padding-left: 1.6875em;
+  text-indent: -1.6875em;
 }
 
 .md-body .task-list-item-checkbox {
   appearance: none;
-  width: 13px;
-  height: 13px;
-  margin-right: 0.55em;
+  width: 17px;
+  height: 17px;
+  margin-right: 0.75em;
   border: 1px solid var(--sr-line);
   border-radius: 3px;
   background-color: var(--sr-bg);
-  vertical-align: -1px;
+  /* -3px：框從 13px 放大到 17px（+4），沿用原本的視覺中心，位移量同步加深 (-1 - 4/2) 以維持與文字大寫字高置中的關係 */
+  vertical-align: -3px;
   cursor: default;
 }
 
@@ -232,5 +235,23 @@
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='none' stroke='%2311151a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='M2.5 6.2 4.8 8.5 9.5 3.8'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: 11px;
+  /* 15px＝框內側可用空間（17px 邊框盒 － 1px 邊框×2），維持打勾圖示貼滿內緣的既有比例 */
+  background-size: 15px;
+}
+
+/* 已完成項目：刪除線 + 降階字色與未完成項目一眼可分；唯讀 artifact／可互動 tasks tab 一致套用，不鎖 [data-line]
+   markdown-it-task-lists 在 tight list 把 checkbox 放成 li 的直接子節點、loose list 則多包一層 <p>，兩種結構都要涵蓋 */
+.md-body .task-list-item:has(> .task-list-item-checkbox:checked),
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) {
+  color: var(--sr-text-3);
+  text-decoration-line: line-through;
+  text-decoration-color: var(--sr-text-3);
+}
+
+/* 連結／行內 code 各自帶明色，完成態要一併降階，避免只有純文字變色的半截效果 */
+.md-body .task-list-item:has(> .task-list-item-checkbox:checked) a,
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) a,
+.md-body .task-list-item:has(> .task-list-item-checkbox:checked) code,
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) code {
+  color: var(--sr-text-3);
 }

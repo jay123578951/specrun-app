@@ -87,7 +87,7 @@ change 詳情檢視：點開卡片後自右側滑入、覆蓋於清單之上的�
 - **THEN** 內容區顯示「此 artifact 尚未建立」語意的空狀態（英文文案），無錯誤樣式
 
 ### Requirement: Markdown 唯讀渲染
-artifact 內容 SHALL 以 Markdown 渲染，支援 GFM 表格與 task list；code block SHALL 有語法高亮。詳情檢視 SHALL 為唯讀、MUST NOT 提供任何編輯能力，唯一例外為 tasks artifact tab 內的 task list checkbox 勾選（見「tasks checkbox 勾選」）；tasks 以外的 artifact，其 task list checkbox SHALL 呈現勾選狀態但 MUST NOT 可互動。tasks artifact 含多個檔案時（非預設 schema 的罕見情形）SHALL 同樣維持唯讀——勾選僅於單檔 tasks 開放。
+artifact 內容 SHALL 以 Markdown 渲染，支援 GFM 表格與 task list；code block SHALL 有語法高亮。詳情檢視 SHALL 為唯讀、MUST NOT 提供任何編輯能力，唯一例外為 tasks artifact tab 內的 task list checkbox 勾選（見「tasks checkbox 勾選」）；tasks 以外的 artifact，其 task list checkbox SHALL 呈現勾選狀態但 MUST NOT 可互動。tasks artifact 含多個檔案時（非預設 schema 的罕見情形）SHALL 同樣維持唯讀——勾選僅於單檔 tasks 開放。已勾選的 task list 項目 SHALL 以刪除線與降階字色與未完成項目區辨，此呈現 SHALL 一致套用於所有 artifact，不隨 checkbox 是否可互動而異。
 
 #### Scenario: 非 tasks artifact 的唯讀 checkbox
 - **WHEN** proposal 或 custom schema artifact 的內容含 task list 項目
@@ -96,6 +96,10 @@ artifact 內容 SHALL 以 Markdown 渲染，支援 GFM 表格與 task list；cod
 #### Scenario: tasks 的唯讀 checkbox
 - **WHEN** 某 change 的 tasks artifact 含多個既存檔案且其內容含 task list 項目
 - **THEN** 畫面呈現對應的勾選狀態，點擊 checkbox 無任何效果
+
+#### Scenario: 已完成項目的視覺區辨
+- **WHEN** 任一 artifact 的內容含已勾選的 task list 項目
+- **THEN** 該項目的文字以刪除線與降階字色呈現，與未完成項目一眼可分；此區辨不因 artifact 是否可互動而不同
 
 #### Scenario: code block 高亮
 - **WHEN** artifact 內容含標註語言的 code fence
