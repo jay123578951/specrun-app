@@ -7,6 +7,12 @@ context: |
   慣例：change 一律切小、功能逐步堆疊，一次只開一個進行中的 change；
   寧可多個小 change 也不要一個大 change。
 
+  詞彙墓碑——canonical 詞 ←（已廢勿用）。舊文件撞到已廢詞代表該段內容過期；
+  之後任何決策推翻或改名了既有概念，定案當下在此加一行：
+  - slideover（詳情滑出面板）← 窄軌、收合變形、ChangeRail（C7 add-detail-slideover 推翻）
+  - park / unpark ← 暫存（Spectra 用語，本專案不沿用）
+  - 麵包屑頁切換 ← 側欄 Specs/Archived 入口、側欄當前頁高亮（move-page-nav-to-breadcrumb 移除）
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
