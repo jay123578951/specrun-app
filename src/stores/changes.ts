@@ -76,10 +76,17 @@ export const useChangesStore = defineStore('changes', () => {
 
   /**
    * 兩側的落地水位：每次真的把伺服端回應寫進 `changes.value`／`parked.value` 就 +1
-   * （被搶號丟棄的回應不算）。只給 settleMove 的外部刪除判定當時間基準用——
+   * （被搶號丟棄的回應不算）。原生用途是給 settleMove 的外部刪除判定當時間基準——
    * 它需要知道「當下陣列內容是不是行動完成之後才落地的」，而不只是內容長什麼樣。
+   *
+   * `changesLandSeq` 另外還服務 projects store 的徽章即時更新（spec project-management
+   * 「每專案徽章弱一致」）：projects store 掛一個 watch 在這顆計數器上，落地當下直接讀
+   * `changes`／`blockingError` 就地改掉目前專案那一項，不再對整批專案各跑一趟
+   * `openspec list --json`（refreshBadges 那條舊路徑太貴，見 projects.ts）。這也是它要用
+   * `ref` 而非 `parkedLandSeq` 那種 closure-local `let` 的唯一原因——只有它有外部訂閱者；
+   * `parkedLandSeq` 只給同檔案內的 settleMove 讀，沒有理由一起變 reactive。
    */
-  let changesLandSeq = 0
+  const changesLandSeq = ref(0)
   let parkedLandSeq = 0
 
   /**
@@ -113,7 +120,7 @@ export const useChangesStore = defineStore('changes', () => {
     // 只看當下陣列會把搶號空窗（unpark 已離開 parked、載有結果的 listChanges 被
     // loadSilently 搶號丟棄）誤判成刪除
     const floor = move.landedFloor
-    if (floor && changesLandSeq > floor.changes && parkedLandSeq > floor.parked
+    if (floor && changesLandSeq.value > floor.changes && parkedLandSeq > floor.parked
       && !inChanges && !inParked) {
       moving.value = null
     }
@@ -191,7 +198,7 @@ export const useChangesStore = defineStore('changes', () => {
     changes.value = result.changes
     targetPath.value = result.targetPath
     blockingError.value = null
-    changesLandSeq++
+    changesLandSeq.value++
     // 這次搶號可能正是撤走 moving 所需要的那筆落地資料：見 settleMove 註解
     settleMove()
   }
@@ -248,7 +255,7 @@ export const useChangesStore = defineStore('changes', () => {
         changes.value = result.changes
         targetPath.value = result.targetPath
         blockingError.value = null
-        changesLandSeq++
+        changesLandSeq.value++
         return
       }
 
@@ -263,8 +270,11 @@ export const useChangesStore = defineStore('changes', () => {
       changes.value = []
       targetPath.value = result.targetPath || targetPath.value
       blockingError.value = result.error
-      // 佔版錯誤也算權威落地：清單確定是空的，讓刪除判定得以收掉懸著的 moving
-      changesLandSeq++
+      // 佔版錯誤也算權威落地：清單確定是空的，讓刪除判定得以收掉懸著的 moving。
+      // 對徽章而言這正是「取不到真實數字」（CLI 失敗／非 openspec 專案，spec 驗收：
+      // 取數失敗不編數字）——不能讓這次落地被 projects store 讀成 0，watch 端靠
+      // blockingError 分辨，這裡不必額外傳值
+      changesLandSeq.value++
     }
     finally {
       // 過期的那一輪不准動旗標——新世代可能正在自己的首載中，或已有更晚一次 load() 接手；
@@ -327,7 +337,7 @@ export const useChangesStore = defineStore('changes', () => {
         if (moving.value?.name === name) {
           moving.value = {
             ...moving.value,
-            landedFloor: { changes: changesLandSeq, parked: parkedLandSeq },
+            landedFloor: { changes: changesLandSeq.value, parked: parkedLandSeq },
           }
         }
         // 不在這裡清樂觀層：這次 load() 的 listChanges 可能被 watcher 觸發的 loadSilently()
@@ -387,6 +397,7 @@ export const useChangesStore = defineStore('changes', () => {
     parkReason,
     parkPending,
     moving,
+    changesLandSeq,
     visibleChanges,
     visibleParked,
     activeCount,

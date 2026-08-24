@@ -1,6 +1,6 @@
 import type { ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../api'
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { gateway } from '../api'
 import { useChangesStore } from './changes'
 import { useDetailStore } from './detail'
@@ -22,6 +22,36 @@ export const useProjectsStore = defineStore('projects', () => {
 
   const hasProject = computed(() => currentPath.value !== null)
   const currentProject = computed(() => projects.value.find(each => each.current) ?? null)
+
+  /**
+   * 目前專案徽章的即時更新（spec project-management「每專案徽章弱一致」）：changes store
+   * 每次真的落地（load 成功／loadSilently 成功／load 佔版錯誤）就會撞一下 changesLandSeq，
+   * 這裡就地改掉目前專案那一項——不呼叫 refreshBadges()，那支要對清單裡每個專案各跑一趟
+   * `openspec list --json`（約 1s／個），旁邊每存一次檔就壓 N 個 node process，不划算。
+   *
+   * 數字取自 `changes.changes`（真實資料）而非 `changes.visibleChanges`（含樂觀搬移層）：
+   * park／unpark 進行中那一刻兩者會差 1，但 visibleChanges 只是「畫面上暫時多顯示一張卡」
+   * 的呈現手法，真正落地的 change 數以伺服端資料為準——徽章若跟著樂觀層走，操作失敗、
+   * 卡片彈回原群組時徽章又要再跳一次，反而製造抖動。
+   *
+   * blockingError 非空（CLI 失敗／非 openspec 專案）時徽章寫回 null，不把「取不到數字」
+   * 編造成「0 個 change」（spec 驗收：取數失敗不編數字）。
+   *
+   * 非目前專案不受影響（規格允許延遲到下次刷新才反映）；invalidate() 清空 changes 資料
+   * 時不會撞 changesLandSeq，所以切換專案途中不會把新專案的徽章瞬間寫成 0。
+   */
+  watch(() => useChangesStore().changesLandSeq, () => {
+    const project = currentProject.value
+    if (!project)
+      return
+
+    const changes = useChangesStore()
+    const badge = changes.blockingError ? null : changes.changes.length
+    projects.value = projects.value.map(each => (each.path === project.path ? { ...each, badge } : each))
+  // sync flush：badge 更新本身很輕（一次陣列 map），沒有等下個 tick 的理由；
+  // 用預設的 pre/post flush 會讓 `await changes.load()` 之後立刻讀 projects.projects
+  // 讀到還沒更新的舊值（watch 回呼被排到下一個 microtask 才跑）
+  }, { flush: 'sync' })
 
   async function load(): Promise<void> {
     const result = await gateway.listProjects()
