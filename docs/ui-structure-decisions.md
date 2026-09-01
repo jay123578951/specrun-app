@@ -153,6 +153,8 @@
 | text-3 | `#6C7583` | 摘錄、佔位 |
 | accent | `#3A7791` | 品牌色：進度條填色、選中底、chip 底 |
 | accent-bright | `#82B4C9` | active 文字、focus ring、圖示高亮 |
+| code-bg | `#1E2A34` | Markdown 行內 code 底（accent 12% 疊在 surface 上） |
+| code-text | `#A8C2D1` | Markdown 行內 code 字 |
 | parked | `#C4956B` | 霧橙（TokyoNight orange 降飽和） |
 | done | `#6BAFA3` | 霧青綠（TokyoNight teal 降飽和） |
 | error | `#C07886` | 霧紅（TokyoNight red 降飽和） |
@@ -160,6 +162,8 @@
 打樣檔存於 `docs/style-preview.html`（瀏覽器開啟可看色板、字體、版面實際渲染），D1 實作 tokens 時以上表為準。
 
 色彩紀律：全色板飽和度鎖同一低水位；accent 是唯一「顏色」，語意色是它的親戚；chip 用半透明色底（色相 10–15% alpha 底＋亮字），不做參考圖式多色粉彩。
+
+行內 code 沿用 chip 的同一套語彙（accent 12% 底＋亮字），因為 mono 在本 App 就代表「系統裡的一個名字」——change 名、路徑、識別碼，與 chip 同一種東西。辨識度由字扛（字對底 7.87:1），底只做極輕的襯（對面板 1.13:1，單看等於沒有）：句子不該被一排色塊切斷。字色刻意比 accent-bright 更亮、彩度更低，否則會與同色的連結認錯——連結維持 accent-bright 不動。
 
 ### 字體（定稿，經打樣四組並排比較後人工選定）
 

@@ -78,12 +78,14 @@
   color: var(--sr-text-2);
 }
 
-/* inline code：與正文同流，只靠底色與 mono 區隔，不加邊框免得句子被切碎 */
+/* inline code：與正文同流，不加邊框免得句子被切碎。
+   區隔由字色承擔——原本靠底色，但 surface-hover 對面板只差 1.13:1，
+   那一階是給 hover 用的「動起來才看得到」的差，靜態擺著等於不存在 */
 .md-body code {
   padding: 0.12em 0.36em;
   border-radius: 3px;
-  background-color: var(--sr-surface-hover);
-  color: var(--sr-text);
+  background-color: var(--sr-code-bg);
+  color: var(--sr-code-text);
   font-family: var(--sr-font-mono);
   font-size: 14px;
 }
@@ -256,4 +258,10 @@
 .md-body .task-list-item:has(> .task-list-item-checkbox:checked) strong,
 .md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) strong {
   color: var(--sr-text-3);
+}
+
+/* code 的底帶 accent 色相，只降字色會剩「灰字配彩底」——正是上面那條在防的半截效果 */
+.md-body .task-list-item:has(> .task-list-item-checkbox:checked) code,
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) code {
+  background-color: var(--sr-surface-hover);
 }

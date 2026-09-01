@@ -27,6 +27,13 @@
   --sr-text-3: #6c7583; /* 摘錄、佔位 */
   --sr-accent: #3a7791; /* 品牌色：進度條填色、選中底、chip 底 */
   --sr-accent-bright: #82b4c9; /* active 文字、focus ring、圖示高亮 */
+
+  /* Markdown 行內 code：沿用 chip 的語彙（色相低比例底＋亮字）。
+     辨識度由字扛（字對底 7.87:1），底只做極輕的襯——底對面板僅 1.13:1，
+     單獨看等於沒有，這是刻意的：句子不該被一排色塊切斷。
+     字色比 --sr-accent-bright 更亮、彩度更低，才不會跟同色的連結認錯 */
+  --sr-code-bg: #1e2a34; /* accent 12% 疊在 surface 上 */
+  --sr-code-text: #a8c2d1;
   --sr-parked: #c4956b; /* 霧橙 */
   --sr-done: #6bafa3; /* 霧青綠 */
   --sr-error: #c07886; /* 霧紅 */
