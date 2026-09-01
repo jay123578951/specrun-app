@@ -248,10 +248,12 @@
   text-decoration-color: var(--sr-text-3);
 }
 
-/* 連結／行內 code 各自帶明色，完成態要一併降階，避免只有純文字變色的半截效果 */
+/* 連結／行內 code／粗體各自帶明色，完成態要一併降階，避免只有純文字變色的半截效果 */
 .md-body .task-list-item:has(> .task-list-item-checkbox:checked) a,
 .md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) a,
 .md-body .task-list-item:has(> .task-list-item-checkbox:checked) code,
-.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) code {
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) code,
+.md-body .task-list-item:has(> .task-list-item-checkbox:checked) strong,
+.md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) strong {
   color: var(--sr-text-3);
 }
