@@ -300,7 +300,11 @@ Parked 群組為空且 Active 群組有卡片時，SHALL 呈現一個落點區�
 - **THEN** Parked 群組的落點區塊呈不可用樣式並說明原因，拖曳落點不被接受
 
 ### Requirement: 側欄結構
-側欄 SHALL 呈現三段結構（Logo＋App 名／專案清單／Settings）；專案清單段 SHALL 為可互動的多專案清單，其行為（列項、切換、加入、移除、徽章）由 project-management capability 規範。側欄 MUST NOT 設置任何頁入口項（Changes／Specs／Archived）——三頁之間的切換由 page-navigation capability 的麵包屑承擔，因此側欄 MUST NOT 出現任何當前頁高亮；專案清單段的目前專案標記僅表示「目前是哪個專案」，MUST NOT 兼作頁位置指示。Settings 項 SHALL 可互動：點擊開啟 Settings 覆蓋層（其行為由 app-settings capability 規範）；Settings 是覆蓋層而非頁，因此 Settings 項 MUST NOT 具備當前頁高亮，開啟 Settings 亦 MUST NOT 改變主區當前頁。
+側欄 SHALL 呈現三段結構（品牌記號＋App 名／專案清單／Settings）；品牌記號段 SHALL 呈現品牌記號與 wordmark，記號的組成、動態與不可互動性由 brand-mark capability 規範。專案清單段 SHALL 為可互動的多專案清單，其行為（列項、切換、加入、移除、徽章）由 project-management capability 規範。側欄 MUST NOT 設置任何頁入口項（Changes／Specs／Archived）——三頁之間的切換由 page-navigation capability 的麵包屑承擔，因此側欄 MUST NOT 出現任何當前頁高亮；專案清單段的目前專案標記僅表示「目前是哪個專案」，MUST NOT 兼作頁位置指示。Settings 項 SHALL 可互動：點擊開啟 Settings 覆蓋層（其行為由 app-settings capability 規範）；Settings 是覆蓋層而非頁，因此 Settings 項 MUST NOT 具備當前頁高亮，開啟 Settings 亦 MUST NOT 改變主區當前頁。
+
+#### Scenario: 品牌記號段
+- **WHEN** 側欄呈現
+- **THEN** 最上方一列為品牌記號與 wordmark "specrun"，該列無任何可互動項（記號行為詳見 brand-mark）
 
 #### Scenario: 專案徽章
 - **WHEN** 目前專案有 3 個進行中 change

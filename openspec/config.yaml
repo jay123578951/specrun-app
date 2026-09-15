@@ -12,6 +12,7 @@ context: |
   - slideover（詳情滑出面板）← 窄軌、收合變形、ChangeRail（C7 add-detail-slideover 推翻）
   - park / unpark ← 暫存（Spectra 用語，本專案不沿用）
   - 麵包屑頁切換 ← 側欄 Specs/Archived 入口、側欄當前頁高亮（move-page-nav-to-breadcrumb 移除）
+  - 品牌記號 ← Logo（側欄最上方那一段的稱呼，add-orb-logo 改名）
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
