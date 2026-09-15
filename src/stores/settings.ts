@@ -31,8 +31,8 @@ export const useSettingsStore = defineStore('settings', () => {
   /** 手動模式的路徑草稿 */
   const draft = ref('')
   /**
-   * 套用失敗的訊息。與 `settings` 分開存是 design D6 的直接後果：
-   * 驗證失敗時目前生效的解析結果原封不動，只有狀態列改口。
+   * 套用失敗的訊息。與 `settings` 分開存，是「驗證與套用是同一個動作」推出來的結果：
+   * 驗證失敗時不寫入 config，目前生效的解析結果原封不動，只有狀態列改口。
    */
   const applyError = ref<string | null>(null)
   const applying = ref(false)
@@ -120,8 +120,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * 驗證並套用（design D6 的單一動作）：成功才持久化並立即生效；
-   * 失敗不寫入、原先生效的執行檔不受影響，訊息就地貼在狀態列。
+   * 驗證與套用合成單一動作，不另設儲存鈕——這樣就沒有「已驗證但忘記存」的中間態。
+   * 成功才持久化並立即生效；失敗不寫入、原先生效的執行檔不受影響，訊息就地貼在狀態列。
    */
   async function apply(): Promise<void> {
     if (busy.value)

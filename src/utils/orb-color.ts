@@ -1,7 +1,7 @@
 /**
- * 品牌記號的染色（design D3）：把 orb-engine 幾何算出的明暗值映射到
+ * 品牌記號的染色：把 orb-engine 幾何算出的明暗值映射到
  * `--sr-surface` 與 `--sr-accent-bright` 之間，不墊下限——墊下限會壓縮深淺差距，
- * 點會失去前後層次、糊成短橫槓（design D3 打樣結論）。
+ * 點會失去前後層次、糊成短橫槓——這是打樣時實際踩到的。
  *
  * 純函式、不碰 DOM：呼叫端自行用 getComputedStyle 讀兩個色票、parseHexColor 轉成 RgbColor 再傳入。
  */

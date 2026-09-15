@@ -185,7 +185,8 @@ export const useChangesStore = defineStore('changes', () => {
   let flagSeq = 0
 
   /**
-   * watcher 通知觸發的重載：資料照換，但失敗完全靜默（design D5 的來源分流）。
+   * watcher 通知觸發的重載：資料照換，但失敗完全靜默。失敗提示只留給使用者自己按的
+   * 刷新與掛載首載——這一次不是他按的，跳錯誤只會平白打斷他。
    * 進行中狀態也不打旗標——旁邊每存一次檔就轉一圈 refresh 圖示只是噪音。
    */
   async function loadSilently(): Promise<void> {

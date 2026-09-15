@@ -2,7 +2,7 @@
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 /**
- * slideover 三處（Artifact／Spec／Archived）共用的外殼（design D5：rule of three 到齊）。
+ * slideover 三處（Artifact／Spec／Archived）共用的外殼——同一套外殼寫到第三次才抽出來共用。
  *
  * 這裡只放三頁都相同的骨架——定位／底色／左緣線、header 的收合鈕與動作槽、
  * 捲動容器與換內容時的捲動歸零；標題、tabs、內容各自從 slot 填。

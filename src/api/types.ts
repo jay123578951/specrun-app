@@ -108,7 +108,7 @@ export type SpecContentResult
 export interface ProjectEntry {
   /** canonical 化後的絕對路徑，同時是各操作的識別鍵 */
   path: string
-  /** 顯示名＝目錄名，與別項同名時帶父層消歧（design D2：不另存顯示名） */
+  /** 顯示名＝目錄名，與別項同名時帶父層消歧；不另存顯示名，少一個要維護的欄位 */
   name: string
   current: boolean
   /** 由 env／cwd 決定但不在持久化清單中——顯示為暫時項（spec 覆寫與 fallback 為暫時項） */
@@ -132,7 +132,11 @@ export type ProjectActionResult
   = { ok: true, snapshot: ProjectsSnapshot, alreadyExisted?: boolean }
     | { ok: false, message: string, detail?: string }
 
-/** park 不可用的兩種形態；UI 據此禁用按鈕並給對應提示（spec park 降級） */
+/**
+ * park 不可用的兩種形態：不是 git repo，或 `.git` 是檔案的 git worktree。
+ * park 把 change 搬進 `<repo>/.git/` 底下，這兩種情形都沒有那個目錄可放。
+ * UI 據此禁用按鈕並給對應提示——不靜默失敗，也不改存別的地方。
+ */
 export type ParkUnavailableReason = 'not-git-repo' | 'git-worktree'
 
 /**
@@ -326,7 +330,8 @@ export interface ProbeFailure {
 
 /**
  * `GET /api/changes/:name` 的回傳：一次 `status --change` 呼叫的原始輸出，
- * 加上依 `artifactPaths` 讀齊的檔案內容（design D1 的一趟打包）。
+ * 加上依 `artifactPaths` 讀齊的檔案內容，一趟打包回傳：artifact 只有數 KB，
+ * 打包成本趨近零，換來切 tab 零延遲、整趟只有一個載入狀態。
  * 同樣只轉送不解析——分類與組裝在 shared normalize。
  */
 export interface ChangeDetailProbe extends ChangeListProbe {

@@ -17,8 +17,8 @@ export const useViewStore = defineStore('view', () => {
   const currentView = ref<AppView>('changes')
 
   /**
-   * 頁切換下拉是否展開。狀態放這裡而不是元件內：App.vue 的全域鍵盤要據此整段讓位
-   * （spec page-navigation：下拉展開期間清單與面板的 ↑↓、Esc 不得同時作用），
+   * 頁切換下拉是否展開。狀態放這裡而不是元件內：App.vue 的全域鍵盤要據此整段讓位——
+   * 下拉展開期間，清單與面板的 ↑↓、Esc 不得同時作用，否則一個 Esc 會連下拉帶詳情一起關掉。
    * 與 Settings 的 isOpen 是同一種形狀。
    */
   const menuOpen = ref(false)

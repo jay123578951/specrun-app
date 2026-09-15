@@ -254,7 +254,9 @@ function focusable(): HTMLElement[] {
                 </p>
               </div>
 
-              <!-- 狀態列就地呈現，不走 toast（spec app-settings「驗證結果就地呈現」） -->
+              <!-- 狀態列就地呈現，不走 toast：toast 會自動消失，而驗證結果要一直留著，
+                   讓人核對版本或照著失敗訊息排錯。設定盒裡本來就有位置可貼——
+                   有專屬位置就地貼、沒有位置才 toast -->
               <!-- 單行狀態（ok／unverified）真的上下置中；只有 failed 是兩行，才靠上對齊第一行 -->
               <div
                 class="mt-3.5 flex gap-2.5 border border-line rounded bg-bg px-3 py-2.5"

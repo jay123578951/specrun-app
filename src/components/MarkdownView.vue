@@ -39,7 +39,7 @@ watch([html, () => props.pendingLines], () => {
     box.toggleAttribute('data-pending', pending.includes(Number(box.dataset.line)))
 }, { flush: 'post' })
 
-/** design D2：整片 md-body 一個委派，不逐顆綁 listener */
+/** 整片 md-body 一個委派接住點擊，不逐顆 checkbox 綁 listener——每次重渲染整片都被換掉 */
 function onClick(event: MouseEvent): void {
   if (!props.interactive)
     return

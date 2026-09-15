@@ -37,7 +37,7 @@
 }
 
 /* slideover 進出場（App.vue 的 PANEL_MOTION 指向這裡）：全幅純位移的 drawer 式滑入滑出，
-   per-property 時值 utility 組不出所以落在這裡。fade 經兩輪驗收整組移除（design D3 v3）；
+   per-property 時值 utility 組不出所以落在這裡。fade 經兩輪驗收整組移除——它的存在感蓋過移動；
    drawer 曲線初速約為 --sr-ease-out 的一半，全幅距離才不會回到舊版的高速掃過。
    opacity 是幽靈值：正常模式 1ms 不可感知（進場貼起點、退場貼終點），只為 reduced motion
    存在——.sr-motion 把 transition-property 蓋成 opacity 後，opacity 承接第一組時值

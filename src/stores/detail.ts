@@ -7,9 +7,9 @@ import { isCheckedLine, isTaskLine, lineTextAt, lineTexts, toggleTaskLines } fro
 import { useChangesStore } from './changes'
 
 /**
- * 詳情檢視的狀態（design D7：同畫面變形無 URL 需求，不引入 router）。
+ * 詳情檢視的狀態。詳情開合只是同一個畫面的變形，沒有 URL 需求，所以不引入 router。
  *
- * 新鮮度策略 design D4（stale-while-revalidate）：session 內看過的 change 立即
+ * 新鮮度策略（stale-while-revalidate）：看過的 change（跨 session 也留著）立即
  * 顯示上次內容、零等待，但每次進入／切換仍照樣重取——快取只墊底、不取代重取，
  * 內容有變才靜默換上。旁邊跑 Claude Code 改檔案的場景下保鮮語意不丟。
  */
@@ -17,8 +17,9 @@ export const useDetailStore = defineStore('detail', () => {
   /** 目前開啟的 change 名；null＝詳情未開 */
   const changeName = ref<string | null>(null)
   /**
-   * 開著的是 parked change（design D6 的資料路徑分流）：
-   * 走快照 bundle 而非 `openspec status`，且整份詳情唯讀（tasks 不可勾）。
+   * 開著的是 parked change，資料路徑就此分流：parked change 已從專案的 changes 目錄
+   * 搬進 `<repo>/.git/` 底下，CLI 問不到它，只能讀 park 當下留的快照 bundle。
+   * 詳情也整份唯讀（tasks 不可勾）——全 App 的寫入點只開給 active change 的 tasks。
    */
   const isParked = ref(false)
   const detail = shallowRef<ChangeDetail | null>(null)

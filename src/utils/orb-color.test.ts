@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { orbDotColor, parseHexColor } from './orb-color'
 
-// 用 tokens.css 實際的兩個色票，驗證映射落在 spec 要求的兩端（design D3：不墊下限）
+// 用 tokens.css 實際的兩個色票，驗證映射兩端各自到底：最暗端就落在 surface、不墊下限
 const surface = parseHexColor('#1a1f27')
 const accentBright = parseHexColor('#82b4c9')
 
@@ -30,7 +30,7 @@ describe('orbDotColor', () => {
     expect(orbDotColor(1.5, surface, accentBright)).toEqual(surface)
   })
 
-  it('white = 0.5 精確落在線性中點（design D3：直接內插、不套曲線，也不四捨五入）', () => {
+  it('white = 0.5 精確落在線性中點（直接內插、不套曲線，也不四捨五入）', () => {
     // surface #1a1f27＝(26,31,39)、accentBright #82b4c9＝(130,180,201)，中點＝算術平均
     expect(orbDotColor(0.5, surface, accentBright)).toEqual({ r: 78, g: 105.5, b: 120 })
   })

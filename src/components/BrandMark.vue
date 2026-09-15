@@ -5,13 +5,15 @@ import { orbDotColor, parseHexColor } from '../utils/orb-color'
 import { MODE_FRAMES, resolvePreset } from '../utils/orb-engine'
 
 /**
- * 側欄品牌記號（spec brand-mark；design D1–D7）：orb-engine 的幾何一字不改，
- * 這裡只負責上色、逐幀迴圈與瀏覽器事件——套件原本的 React 版（index.es.js）不搬。
+ * 側欄品牌記號：orb-engine 的幾何一字不改，日後上游更新才能直接對檔比差異；
+ * 這裡只負責上色、逐幀迴圈與瀏覽器事件——套件原本的 React 版（index.es.js）不搬，
+ * 它要 React ≥18，本專案是 Vue 3。
  */
 
-// design D2：套件的 20 與 64 是兩份各自調過的設計，用 64 的設計換取取樣密度，CSS 再縮到 50px 呈現
+// 套件的 20 與 64 是兩份各自調過的設計，不是同一份縮放：20 的設計一圈只有 15 個取樣點，
+// 疊 8 圈會在同一角度上徑向黏成短橫槓。用 64 的設計換取樣密度，CSS 再縮到 50px 呈現
 const DESIGN_SIZE = 64
-// design D7 實測值：波紋繞一圈約 2.9 秒
+// 實測波紋繞一圈約 2.9 秒
 const SPEED_MULTIPLIER = 0.6
 
 const canvasEl = ref<HTMLCanvasElement>()
@@ -68,7 +70,12 @@ function stopLoop(): void {
   cancelAnimationFrame(rafId)
 }
 
-/** 讀 visibilityState 與 reduced-motion，決定跑不跑——MUST NOT 用 hasFocus（design D4） */
+/**
+ * 讀 visibilityState 與 reduced-motion，決定跑不跑。
+ * 不看 hasFocus：視窗看得見但沒焦點，正是使用者最常瞥向記號的時候
+ * （人在終端機跑指令、specrun 擺旁邊），拿焦點當開關會讓記號剛好在那時凍住。
+ * 要再省電就降重畫頻率，不是改用焦點。
+ */
 function syncRunState(): void {
   if (prefersReducedMotion()) {
     stopLoop()
@@ -121,7 +128,7 @@ onBeforeUnmount(() => {
     <canvas ref="canvasEl" class="block h-[50px] w-[50px]" />
     <!-- 中央的終端機提示符號：path data 抄自 @iconify-json/lucide 1.2.123 的 terminal 圖示，
          套件升版不會跟著走；stroke-width 調到 2.42 是刻意的——
-         16px 圖框縮放後畫出來才是 design D7 定案的 1.60px -->
+         16px 圖框縮放後畫出來才是定案的 1.60px 筆畫 -->
     <svg
       class="absolute left-1/2 top-1/2 h-[16px] w-[16px] -translate-x-1/2 -translate-y-1/2 text-accent-bright"
       viewBox="0 0 24 24"

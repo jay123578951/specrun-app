@@ -83,7 +83,8 @@ export async function renderMarkdown(source: string, options: RenderOptions = {}
 const CHECKBOX_PREFIX = '<input class="task-list-item-checkbox"'
 
 /**
- * design D2：把來源行號寫進 checkbox 的 `data-line`，點擊經事件委派取回。
+ * 把來源行號寫進 checkbox 的 `data-line`，點擊經事件委派取回——寫入請求送的是
+ * 「行號＋行原文」，checkbox 自己得帶著行號，點下去才問得出要改哪一行。
  * 行號取自 inline token 的 `map`（該 task 行的起點），與 store 手上的來源字串同一份。
  * 排在 plugin 的 `github-task-lists` 之後（push 進 core chain 尾端）。
  */
@@ -124,8 +125,10 @@ function normalizeLang(lang: string): string | null {
 }
 
 /**
- * design D6：外部 URL 新分頁開啟（M4 換系統瀏覽器）；相對路徑連結降級為非互動文字——
- * artifact 互跳與編輯器開啟整組延後，留一個點了沒反應的 `<a>` 只會讓人一直點。
+ * 外部 URL 一律開新分頁；桌面版現在也是開在 App 內建的 webview 裡。等桌面版接上「請系統
+ * 用預設瀏覽器開這個網址」這個能力，才會改成把外部 URL 丟給使用者的預設瀏覽器開。
+ * 相對路徑連結降級為非互動文字——artifact 互跳與編輯器開啟整組延後，留一個點了沒反應的
+ * `<a>` 只會讓人一直點。
  */
 function applyLinkPolicy(md: Md): void {
   const isExternal = (href: string) => /^(?:https?:|mailto:)/i.test(href)
