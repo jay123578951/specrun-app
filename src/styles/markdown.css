@@ -172,7 +172,7 @@
   border-radius: 2px;
 }
 
-/* 相對路徑連結：看得出是引用，但不假裝可點（design D6） */
+/* 相對路徑連結：看得出是引用，但不假裝可點 */
 .md-body .md-link-inert {
   color: var(--sr-text-2);
   text-decoration: underline dotted;

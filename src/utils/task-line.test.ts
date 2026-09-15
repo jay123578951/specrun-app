@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { isCheckedLine, isTaskLine, lineTextAt, toggleTaskLines } from './task-line'
 
-/** 只翻勾選字元、其餘 byte 不動——spec openspec-gateway「僅翻轉勾選標記」的落點 */
+/** 只翻勾選字元、其餘 byte 不動——「僅翻轉勾選標記」的落點 */
 describe('toggleTaskLines', () => {
-  /** 單顆點擊＝只帶一行的批次，兩者共用同一條路徑（design D2） */
+  /** 單顆點擊＝只帶一行的批次，兩者共用同一條路徑 */
   function one(content: string, line: number, expectedText: string, checked: boolean) {
     return toggleTaskLines(content, [{ line, expectedText }], checked)
   }

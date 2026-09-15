@@ -24,12 +24,12 @@ const parked = computed(() => 'parkedAt' in props.change ? props.change : null)
 
 const hasTasks = computed(() => props.change.totalTasks > 0)
 const isComplete = computed(() => props.change.status === 'complete')
-// 進度只用資料層給的數字：active 來自引擎，parked 來自現場解析（design D4）
+// 進度只用資料層給的數字：active 來自引擎，parked 來自現場解析
 const ratio = computed(() => hasTasks.value
   ? Math.min(1, Math.max(0, props.change.completedTasks / props.change.totalTasks))
   : 0)
 
-/** active 卡＝最後修改時間；parked 卡＝停放時點，且可能不明（spec fallback） */
+/** active 卡＝最後修改時間；parked 卡＝停放時點，且可能不明 */
 const timestamp = computed(() => parked.value ? parked.value.parkedAt : (props.change as ChangeSummary).lastModified)
 const timeLabel = computed(() => {
   if (!parked.value)
@@ -52,12 +52,12 @@ const actionTitle = computed(() => {
 const current = computed(() => detail.changeName === props.change.name)
 
 /**
- * 拖曳＝狀態切換（spec change-list 拖曳卡片切換狀態）。自製 Pointer Events：
- * 目的地只有一個群組、群組內不重排，需要的只是「跟著指標走」，不值得引入拖曳庫（design D1）。
+ * 拖曳＝狀態切換。自製 Pointer Events：
+ * 目的地只有一個群組、群組內不重排，需要的只是「跟著指標走」，不值得引入拖曳庫。
  * 5px 門檻把「點開詳情」與「拖去對面」分流——卡片是大目標，容得下略大的門檻。
  */
 const DRAG_THRESHOLD_PX = 5
-/** 返回原位比進場動畫長，讓「沒去成」看得見（design D10） */
+/** 返回原位比進場動畫長，讓「沒去成」看得見 */
 const RETURN_MS = 250
 
 const root = ref<HTMLElement | null>(null)
@@ -66,7 +66,7 @@ const origin = ref<{ id: number, x: number, y: number } | null>(null)
 const dragging = ref(false)
 const returning = ref(false)
 const offset = ref({ x: 0, y: 0 })
-/** 拖曳啟動當下量到的卡片高度：卡片脫離文件流後由凹槽頂著，下方卡片才不會跳（design D9） */
+/** 拖曳啟動當下量到的卡片高度：卡片脫離文件流後由凹槽頂著，下方卡片才不會跳 */
 const frozenHeight = ref(0)
 /** 拖曳過的那次互動不得開詳情——click 在 pointerup 之後才來 */
 const swallowClick = ref(false)
@@ -77,7 +77,7 @@ const floating = computed(() => dragging.value || returning.value)
 let returnTimer: ReturnType<typeof setTimeout> | undefined
 
 function onPointerDown(event: PointerEvent): void {
-  // park 不可用時整個拖曳關閉（spec 拖曳取消與禁用）；動作按鈕自己就是等價操作，按著不該拖
+  // park 不可用時整個拖曳關閉；動作按鈕自己就是等價操作，按著不該拖
   if (event.button !== 0 || !changes.parkAvailable)
     return
   if ((event.target as HTMLElement).closest('button'))
@@ -194,16 +194,16 @@ function runAction(): void {
 
 <template>
   <!-- 外層是卡片的版位：拖曳期間卡片脫離文件流，這層留在原地變成凹槽（bg-bg 比 surface 深，
-       讀起來是挖穿卡片層），高度釘在拖起前量到的實測值，位置整段拖曳不動（spec 原位凹槽） -->
+       讀起來是挖穿卡片層），高度釘在拖起前量到的實測值，位置整段拖曳不動 -->
   <div
     class="relative"
     :class="floating ? 'z-10 border border-line rounded border-dashed bg-bg' : ''"
     :style="floating ? { height: `${frozenHeight}px` } : undefined"
   >
-    <!-- 卡片是詳情的入口；hover 抬升並浮現單一動作按鈕（Park／Restore，spec change-list）。
+    <!-- 卡片是詳情的入口；hover 抬升並浮現單一動作按鈕（Park／Restore）。
          role=button 而非 <button>：卡片內含 progressbar 等流內容，塞進 button 不合法。
          開啟中的那張改掛 accent 底、拿掉 card-lift——它已經是當前項，不再是入口。
-         拖曳中同樣拿掉 card-lift：它的 :active { transform: none } 會把拿起來的卡片壓回去（design D7）。
+         拖曳中同樣拿掉 card-lift：它的 :active { transform: none } 會把拿起來的卡片壓回去。
          cursor 走 grab 而非 pointer：卡片同時是入口與可拖曳物件，而拖曳是這裡唯一「指標形狀才講得出來」
          的能力——點擊入口另有整片 hover 抬升在說。拿起後由 .card-dragging 接手 grabbing -->
     <article
@@ -237,7 +237,7 @@ function runAction(): void {
              shortcut 產在 shortcuts layer、這裡的 utility 產在 default layer（後產生），同 property 才會
              是這條蓋過 icon-btn 而非互相打斷——分開寫容易漏帶其中一顆。
              hover:bg-line/70 蓋掉 icon-btn 的 hover:bg-surface-hover：卡片 hover 時底色已經是
-             surface-hover，這兩顆鈕只在那之後才浮現，同色會讓底色回饋整個消失（design 缺漏 2）。
+             surface-hover，這兩顆鈕只在那之後才浮現，同色會讓底色回饋整個消失。
              active:bg-line 另補：icon-btn 的 active:bg-line/50 也在 shortcuts layer，若這裡只補
              hover 不補 active，default layer 的 hover 規則會在按下時繼續生效、蓋掉 icon-btn 的
              press 態——hover／press 要用同一層的兩條規則才能維持正確的遞亮階梯 -->
@@ -247,7 +247,7 @@ function runAction(): void {
           @keydown.stop
         />
 
-        <!-- 統計圖示釘死 13px 而非走 h-3／h-3.5 級距（同 ::before 外擴的理由，design D4）：
+        <!-- 統計圖示釘死 13px 而非走 h-3／h-3.5 級距（同 ::before 外擴的理由）：
              根字級 14px 下那兩階是 10.5／12.25px，dpr 2 落在半個 device px 上，stroke 圖示會糊。
              13px 讓 list-checks 的墨水（占視框 66.7%）約 8.7px，貼近 13px 數字 9.9px 的 cap height；
              clock 墨水占 91.7%、同框下自然大一階，那是兩顆圖示的固有差異，不逐顆校準 -->
@@ -284,7 +284,7 @@ function runAction(): void {
              .stop 是 spec 要求——按這顆不能順便把詳情打開。
              transition 合併寫 opacity/background-color/color：分開寫 transition-opacity 會產在
              default layer、蓋掉 icon-btn shortcut（shortcuts layer）的 transition-[background-color,color]，
-             background-color／color 的補間整個消失，只剩 opacity 在補間（design 缺漏 1） -->
+             background-color／color 的補間整個消失，只剩 opacity 在補間 -->
         <button
           type="button"
           class="icon-btn ml-1 transition-[opacity,background-color,color] duration-150 ease-[var(--sr-ease-out)]"
@@ -314,8 +314,8 @@ function runAction(): void {
         </button>
       </div>
 
-      <!-- Why 摘錄：抽不到就整塊不渲染、不留佔位——卡片高度因此不一致是規格接受的行為
-           （spec change-list）。active 與 parked 共用這一段，兩側摘錄同源同規則 -->
+      <!-- Why 摘錄：抽不到就整塊不渲染、不留佔位——卡片高度因此不一致是規格接受的行為。
+           active 與 parked 共用這一段，兩側摘錄同源同規則 -->
       <p v-if="change.summary" class="mt-3 line-clamp-2 text-ui-sm text-text-3">
         {{ change.summary }}
       </p>
@@ -330,7 +330,7 @@ function runAction(): void {
         :aria-valuenow="hasTasks ? change.completedTasks : undefined"
         :aria-label="hasTasks ? `${change.completedTasks} of ${change.totalTasks} tasks complete` : undefined"
       >
-        <!-- scaleX 而非 width：C3 watcher 進度補間時才有便宜的 GPU 動畫可用 -->
+        <!-- scaleX 而非 width：watcher 進度補間時才有便宜的 GPU 動畫可用 -->
         <div
           class="h-full origin-left rounded-full transition-transform duration-300 ease-[var(--sr-ease-out)]"
           :class="isComplete ? 'bg-done' : 'bg-accent'"

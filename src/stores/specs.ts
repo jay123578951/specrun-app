@@ -4,7 +4,7 @@ import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
 
 /**
- * Specs 頁的狀態源。與 changes 那一側刻意不同的兩點（design）：
+ * Specs 頁的狀態源。與 changes 那一側刻意不同的兩點：
  * 沒有 watcher（進頁重載即可，弱一致），也沒有內容快取（切頁即關、不記憶——
  * spec 全文小、重取一趟就好，留著只會多一份跨專案撞名的風險）。
  */
@@ -33,7 +33,7 @@ export const useSpecsStore = defineStore('specs', () => {
   let listSeq = 0
   let contentSeq = 0
 
-  /** 進入 Specs 頁：不接續上次狀態，清空後重新載入（spec 切頁即關與重新載入） */
+  /** 進入 Specs 頁：不接續上次狀態，清空後重新載入 */
   async function enter(): Promise<void> {
     reset()
     await load()

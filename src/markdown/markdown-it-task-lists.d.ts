@@ -3,7 +3,7 @@ declare module 'markdown-it-task-lists' {
   import type { MarkdownIt } from 'markdown-it'
 
   export interface TaskListsOptions {
-    /** true 才讓 checkbox 可勾；本 App 維持唯讀（勾選是 C4） */
+    /** true 才讓 checkbox 可勾；本 App 這個開關恆為 false，可勾選另有一條路徑實作 */
     enabled?: boolean
     label?: boolean
     labelAfter?: boolean

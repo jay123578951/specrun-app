@@ -39,10 +39,10 @@ const PANEL_MIN_WIDTH = 420
  * 三頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西。
  *
  * 全幅純位移的 drawer 式滑入滑出：fade 曾以「短位移＋淡入淡出」兩種配方（同拍、解耦）
- * 進過場，兩輪驗收都是 fade 的存在感蓋過移動，整組移除（design D3）。也不回舊版
+ * 進過場，兩輪驗收都是 fade 的存在感蓋過移動，整組移除。也不回舊版
  * 220ms／--sr-ease-out——那是高速掃過的元兇；時長放慢到 300／220ms、曲線換
- * --sr-ease-drawer 壓低初速（design D4／D5）。opacity-0 是幽靈值：正常模式 1ms 內
- * 結束、不可感知，只為 reduced motion 的淡入淡出降級存在（design D6）。
+ * --sr-ease-drawer 壓低初速。opacity-0 是幽靈值：正常模式 1ms 內
+ * 結束、不可感知，只為 reduced motion 的淡入淡出降級存在。
  * 時值與曲線住在 interactions.css 的 .panel-reveal-*（per-property 時值 utility 組不出）。
  */
 const PANEL_MOTION = {
@@ -69,7 +69,7 @@ let unsubscribe: (() => void) | null = null
 
 onMounted(async () => {
   // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過。
-  // watcher 只服務 changes 那一側——Specs 頁刻意不擴充監看（design：進頁重載即可）
+  // watcher 只服務 changes 那一側——Specs 頁刻意不擴充監看（進頁重載即可）
   unsubscribe = gateway.subscribeToChanges(syncFromWatcher)
 
   window.addEventListener('keydown', onKeydown)
@@ -77,7 +77,7 @@ onMounted(async () => {
   // 專案清單先到位：主區才知道現在是「無目標專案」還是「這個專案讀不到」
   await projects.load()
   await store.load()
-  // 清單抓齊後把各 change 的詳情依序預載進快取，之後點開零等待（design D4）
+  // 清單抓齊後把各 change 的詳情依序預載進快取，之後點開零等待
   detail.prefetch(store.changes.map(change => change.name))
 })
 
@@ -116,11 +116,11 @@ function move(step: number): void {
 
 /** ↑↓ 切換與 Esc 收合只在面板開啟期間成立；清單狀態下鍵盤不搶任何行為 */
 function onKeydown(event: KeyboardEvent): void {
-  // Settings 開啟時整個讓位（design D10）：Esc 只由 modal 自己處理，
+  // Settings 開啟時整個讓位：Esc 只由 modal 自己處理，
   // 否則背後剛好開著詳情時 Esc 會穿透把它關掉。不做堆疊式依序關閉——只有這一層 modal
   if (settings.isOpen)
     return
-  // 頁切換下拉展開時同樣整個讓位（spec page-navigation）：↑↓ 歸下拉的三項，
+  // 頁切換下拉展開時同樣整個讓位：↑↓ 歸下拉的三項，
   // Esc 只收下拉、不穿透關掉背後的詳情。與上面的 Settings 是同一種形狀，不做堆疊
   if (view.menuOpen)
     return
@@ -197,7 +197,7 @@ watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
       </Transition>
     </div>
   </div>
-  <!-- Settings 疊在任何頁之上、與面板槽零耦合（design D2）：不進上面的 v-if chain -->
+  <!-- Settings 疊在任何頁之上、與面板槽零耦合：不進上面的 v-if chain -->
   <SettingsModal />
   <ToastStack />
 </template>

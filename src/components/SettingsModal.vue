@@ -3,9 +3,9 @@ import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 
 /**
- * App 的第一個 modal（design D1）：內容為 1 組控制＋4 行唯讀，有硬上限、永不捲動，
+ * App 的第一個 modal：內容為 1 組控制＋4 行唯讀，有硬上限、永不捲動，
  * 所以由內容決定尺寸而不是由容器決定。疊在任何頁之上、不進 App.vue 的面板槽——
- * 詳情開著也能疊上來，關掉就回到原狀（design D2）。
+ * 詳情開著也能疊上來，關掉就回到原狀。
  */
 
 const settings = useSettingsStore()
@@ -18,7 +18,7 @@ const MODAL_MOTION = {
   'leave-to-class': 'settings-from opacity-0',
 } as const
 
-/** 內容決定寬度：最長的一行是 config.json 的絕對路徑（design 標示為可微調的留白） */
+/** 內容決定寬度：最長的一行是 config.json 的絕對路徑 */
 const PANEL_WIDTH = 620
 
 const panel = ref<HTMLElement>()
@@ -42,7 +42,7 @@ const rows = computed(() => {
     {
       key: 'project',
       label: 'Current project',
-      // 無目標專案要明確說出來，不能留空白或顯示誤導的路徑（spec app-settings）
+      // 無目標專案要明確說出來，不能留空白或顯示誤導的路徑
       value: env ? (env.projectPath ?? 'No project selected') : '—',
       mono: Boolean(env?.projectPath),
       revealable: true,
@@ -90,7 +90,7 @@ watch(() => settings.isOpen, async (open) => {
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 /**
- * Esc 由 Settings 自己處理（design D10）：全域 handler 在 modal 開啟時整個讓位，
+ * Esc 由 Settings 自己處理：全域 handler 在 modal 開啟時整個讓位，
  * 所以 Esc 絕不會穿透關掉背後的詳情面板。Tab 的環繞也在這裡——modal 開啟期間
  * 焦點不得離開盒子（ui-interaction-states 的 modal 規範）。
  */
@@ -136,7 +136,7 @@ function focusable(): HTMLElement[] {
   <Teleport to="body">
     <Transition v-bind="MODAL_MOTION">
       <div v-if="settings.isOpen" class="z-modal fixed inset-0 flex items-center justify-center p-6">
-        <!-- 極輕壓暗＋攔截點擊；點遮罩即關（design D8／D9——驗證即套用，沒有未儲存狀態可弄丟） -->
+        <!-- 極輕壓暗＋攔截點擊；點遮罩即關（驗證即套用，沒有未儲存狀態可弄丟） -->
         <div class="absolute inset-0 bg-overlay" @click="settings.close()" />
 
         <div
@@ -246,7 +246,7 @@ function focusable(): HTMLElement[] {
                     Verify &amp; apply
                   </button>
                 </div>
-                <!-- 不做檔案選擇對話框（design D5）：openspec 幾乎都裝在隱藏目錄，
+                <!-- 不做檔案選擇對話框：openspec 幾乎都裝在隱藏目錄，
                      原生 dialog 預設看不到；路徑的來源本來就是終端機輸出 -->
                 <p class="mt-2 text-ui-sm text-text-3 text-pretty">
                   Run <code class="text-text-2 font-mono">which openspec</code> in your terminal and paste the
@@ -311,7 +311,7 @@ function focusable(): HTMLElement[] {
                     {{ row.value }}
                   </dd>
                   <!-- 不支援的平台顯示為禁用＋說明原因，不隱藏：隱藏會讓使用者
-                       既不知道有這個能力、也不知道為何沒有（design 風險欄） -->
+                       既不知道有這個能力、也不知道為何沒有 -->
                   <button
                     v-if="row.revealable"
                     type="button"

@@ -9,9 +9,9 @@
  *
  * Elevation 規範：層次靠 surface 色階＋1px 邊框做，全域禁用 box-shadow；
  * 唯一例外是浮層（dropdown、toast、Settings modal）用的 --sr-shadow-overlay。
- * modal 是第三個適用者，且是唯一帶遮罩的一個（--sr-overlay，design D8）。
+ * modal 是第三個適用者，且是唯一帶遮罩的一個（--sr-overlay）。
  * 適用範圍到此為止：MUST NOT 擴及 slideover——PanelShell 的「無陰影、無 backdrop、
- * 露出區的清單不變暗也不被攔截」是 artifact-view 的規定，不受本例外影響。
+ * 露出區的清單不變暗也不被攔截」，不受本例外影響。
  */
 
 :root {
@@ -47,7 +47,7 @@
   /* 浮層陰影：全 App 唯一允許的 box-shadow */
   --sr-shadow-overlay: 0 8px 24px -8px rgb(0 0 0 / 0.55);
 
-  /* modal 遮罩：極輕壓暗（design D8）。深色主題下 modal 與背後卡片同為 --sr-surface，
+  /* modal 遮罩：極輕壓暗。深色主題下 modal 與背後卡片同為 --sr-surface，
      不壓暗的話邊界只剩 1px 線在撐；壓到標準的 0.55 又會把一個九行的設定盒演成重大中斷 */
   --sr-overlay: rgb(0 0 0 / 0.35);
 

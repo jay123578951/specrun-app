@@ -5,11 +5,11 @@ import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 
 /**
- * 側欄的專案清單（design wireframe）：全展開直接點擊切換、hover ✕ 移除、
+ * 側欄的專案清單：全展開直接點擊切換、hover ✕ 移除、
  * 底部「＋ Add project」。清單超過門檻才折疊，current 永遠可見。
  */
 
-/** 超過這個數量才折疊；side bar 高度容得下的量，數字純憑手感（design 刻意留白） */
+/** 超過這個數量才折疊；side bar 高度容得下的量，數字純憑手感 */
 const COLLAPSE_THRESHOLD = 6
 
 const projects = useProjectsStore()
@@ -35,14 +35,14 @@ const visible = computed<ProjectEntry[]>(() => {
 
 const collapsible = computed(() => projects.projects.length > COLLAPSE_THRESHOLD)
 
-/** 開 dialog 前先收掉開著的移除確認；分流與提示全在 store（design D5） */
+/** 開 dialog 前先收掉開著的移除確認；分流與提示全在 store */
 function startAdd(): void {
   confirming.value = null
   void projects.startAdd()
 }
 
 /**
- * 點專案項＝進入該專案的 Changes 主頁（spec project-management）。換頁與換專案是
+ * 點專案項＝進入該專案的 Changes 主頁。換頁與換專案是
  * 兩件獨立的事：點目前專案時 `switchTo` 會早退，但頁還是要回主頁；已在主頁時兩者
  * 都不作用，所以「已在主頁點目前專案」自然是無反應。
  */
@@ -64,7 +64,7 @@ async function confirmRemove(path: string): Promise<void> {
       Projects
     </p>
 
-    <!-- 空清單：側欄只留一句與底下的 Add 入口，主區負責完整引導（spec 空清單引導） -->
+    <!-- 空清單：側欄只留一句與底下的 Add 入口，主區負責完整引導 -->
     <p v-if="projects.loaded && !projects.projects.length" class="mt-2 px-2.5 text-ui-sm text-text-3">
       No projects yet.
     </p>

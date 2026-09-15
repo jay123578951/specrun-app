@@ -4,12 +4,12 @@ import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
 
 /**
- * Archived 頁的狀態源（design D6）：生命週期比照 specs store——進頁載入、離頁清空、
+ * Archived 頁的狀態源：生命週期比照 specs store——進頁載入、離頁清空、
  * 不裝 watcher（archived 目錄只增不改，弱一致就夠）、不留內容快取（切頁即關）。
  *
  * 刻意不併進 detail store：那裡綁著 watcher 同步、prefetch 快取與 parked 分流，
  * archived 全都不需要，硬塞只會讓兩邊的失效語意互相污染。
- * 唯讀的第二道防線也在這裡——這個 store 根本沒有寫入面（design D7）。
+ * 唯讀的第二道防線也在這裡——這個 store 根本沒有寫入面。
  */
 export const useArchivedStore = defineStore('archived', () => {
   const items = shallowRef<ArchivedSummary[]>([])
@@ -44,7 +44,7 @@ export const useArchivedStore = defineStore('archived', () => {
   let listSeq = 0
   let contentSeq = 0
 
-  /** 進入 Archived 頁：不接續上次狀態，清空後重新載入（spec 切頁即關與重新載入） */
+  /** 進入 Archived 頁：不接續上次狀態，清空後重新載入 */
   async function enter(): Promise<void> {
     reset()
     await load()

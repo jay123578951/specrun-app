@@ -28,7 +28,7 @@ const GROUP_MOTION = {
 
 /**
  * 無目標專案是「還沒開始」不是錯誤——排在所有錯誤分支之前，
- * 免得使用者第一次開 App 就先讀到一則 CLI 錯誤（spec 空清單引導）。
+ * 免得使用者第一次開 App 就先讀到一則 CLI 錯誤。
  * 清單取回來之前不算數，否則首幀會閃一下空狀態。
  */
 const noProject = computed(() => projects.loaded && !projects.hasProject)
@@ -39,8 +39,8 @@ const isEmpty = computed(() => !store.blockingError && store.activeCount === 0)
 
 /**
  * 只要清單裡還有任何一張卡片，兩群組就都在——拖曳切換狀態需要恆常存在的落點，
- * 隱藏空群組會讓「第一次以拖曳 park」永無可能成立（spec 群組、排序與恆常呈現）。
- * 兩群組皆空是例外：沒有卡片可拖、落點無作用，滿版功能性 UI 只是新專案首屏的噪音（design D5）。
+ * 隱藏空群組會讓「第一次以拖曳 park」永無可能成立。
+ * 兩群組皆空是例外：沒有卡片可拖、落點無作用，滿版功能性 UI 只是新專案首屏的噪音。
  * 載入中與錯誤分支不參與判斷——active 與 parked 兩路請求先後到齊，
  * 依半份資料決定群組是否顯示會讓 Parked 群組閃現一下。
  */
@@ -48,14 +48,14 @@ const showParked = computed(() =>
   !noProject.value && !showSkeleton.value && !store.blockingError
   && (store.parkedCount > 0 || store.activeCount > 0))
 
-// 沒有 parked change 時提「從 Parked 拖回」是無效指引——那個群組當下根本不存在（design D5 連帶後果）
+// 沒有 parked change 時提「從 Parked 拖回」是無效指引——那個群組當下根本不存在
 const emptyActiveBody = computed(() => store.parkedCount > 0
   ? 'Changes you create with the openspec CLI show up here. You can also drag one back from Parked.'
   : 'Changes you create with the openspec CLI show up here.')
 
 /**
  * 拖曳工作階段：卡片負責跟隨指標，清單負責「這一趟要去哪裡」。
- * 群組只有兩個且群組內不重排，目的地在拿起的那一刻就唯一確定，不必等指標移入（design D2）。
+ * 群組只有兩個且群組內不重排，目的地在拿起的那一刻就唯一確定，不必等指標移入。
  */
 const dragging = ref<{ name: string, from: 'active' | 'parked' } | null>(null)
 const dropTarget = computed(() => {
@@ -63,14 +63,14 @@ const dropTarget = computed(() => {
     return null
   return dragging.value.from === 'active' ? 'parked' : 'active'
 })
-/** 有卡片的群組才掛群組標示；群組為空時改由它的空內容區塊自己表達，兩者互斥（design D4） */
+/** 有卡片的群組才掛群組標示；群組為空時改由它的空內容區塊自己表達，兩者互斥 */
 const markActiveGroup = computed(() => dropTarget.value === 'active' && store.activeCount > 0)
 const markParkedGroup = computed(() => dropTarget.value === 'parked' && store.parkedCount > 0)
 
 /**
- * 群組標示用 outline 不用 border／padding：outline 不參與佈局，標示出現與消失都不推動任何卡片
- * （spec：標示不造成版面位移）。框線用 line 而非 accent——accent/25 已經是「詳情開啟中的那張卡」
- * 的既有語意，同時出現兩種 accent 底就分不清哪個是什麼（design D3）。
+ * 群組標示用 outline 不用 border／padding：outline 不參與佈局，標示出現與消失都不推動任何卡片。
+ * 框線用 line 而非 accent——accent/25 已經是「詳情開啟中的那張卡」
+ * 的既有語意，同時出現兩種 accent 底就分不清哪個是什麼。
  */
 const GROUP_MARK = 'rounded bg-accent/5 outline-1 outline-dashed outline-line outline-offset-8'
 
@@ -81,7 +81,7 @@ function onDragStart(payload: { name: string, from: 'active' | 'parked' }): void
   dragging.value = payload
 }
 
-/** 放手：只認目的地群組的範圍，其餘一律取消——不觸發操作、也不是錯誤（spec 拖曳取消與禁用） */
+/** 放手：只認目的地群組的範圍，其餘一律取消——不觸發操作、也不是錯誤 */
 function onDragEnd(payload: { x: number, y: number } | null): void {
   const session = dragging.value
   dragging.value = null
@@ -123,7 +123,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
             openspec CLI not available
           </p>
           <!-- 路徑已可設定，原文案的「reachable on PATH, then refresh」自本 change 起是
-               錯誤指引（design D7）：改說真正的出口，並在這裡就給入口 -->
+               錯誤指引：改說真正的出口，並在這裡就給入口 -->
           <p class="mt-0.5 text-ui-sm text-text-2 text-pretty">
             specrun could not run the openspec command. Point it at the executable in settings, or install
             openspec if it is missing.
@@ -142,7 +142,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
         </div>
       </div>
 
-      <!-- Changes 頁的數量不上麵包屑：Active 與 Parked 各自由群組標題承擔（spec page-navigation） -->
+      <!-- Changes 頁的數量不上麵包屑：Active 與 Parked 各自由群組標題承擔 -->
       <PageHeader>
         <button
           type="button"
@@ -161,7 +161,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
       </PageHeader>
 
       <!-- 「Active (n)」原本站在頁標的位置卻是群組語意，麵包屑接手頁標後它回到群組標題位，
-           與下方的 Parked 對稱（design：併入既有 header 行） -->
+           與下方的 Parked 對稱 -->
       <section class="mt-6">
         <header v-if="!noProject" class="flex items-center">
           <h2 class="text-ui-xs text-text-3 uppercase tracking-wider">
@@ -211,7 +211,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
             </button>
           </StateNotice>
 
-          <!-- 空群組作為落點時，標示由這個區塊自己的邊框與底色表達；外層不另加 outline（design D4） -->
+          <!-- 空群組作為落點時，標示由這個區塊自己的邊框與底色表達；外層不另加 outline -->
           <StateNotice
             v-else-if="isEmpty"
             icon="i-lucide-inbox"
@@ -233,7 +233,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
         </div>
       </section>
 
-      <!-- Parked 與 Active 同頁分群（docs/ui-structure-decisions.md）：park／unpark
+      <!-- Parked 與 Active 同頁分群：park／unpark
            就是卡片在兩個群組之間搬家，兩邊用同一組進出場動畫才讀得出「它去了那裡」 -->
       <section v-if="showParked" class="mt-8">
         <header class="flex items-center">
@@ -258,7 +258,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
             />
           </TransitionGroup>
 
-          <!-- 空群組的落點區塊：常駐低強度，成為目的地才提對比並改成放手語意（spec 空狀態） -->
+          <!-- 空群組的落點區塊：常駐低強度，成為目的地才提對比並改成放手語意 -->
           <ParkedDropZone v-if="store.parkedCount === 0" :target="dropTarget === 'parked'" />
         </div>
       </section>

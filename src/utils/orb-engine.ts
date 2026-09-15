@@ -25,7 +25,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  *
- * 本專案只用這份與框架、DOM 無關的幾何運算（見 openspec/changes/add-orb-logo/design.md D1）：
+ * 本專案只用這份與框架、DOM 無關的幾何運算：
  * 吃 (size, t, opts)，吐出該幀的點與線清單，不含任何上色或 canvas 操作。
  * 上色與逐幀迴圈是本專案另寫的 Vue 元件（src/components/BrandMark.vue），不在此檔內。
  * 以下內容為原始檔案一字不改的搬入，因此不套用本專案的型別與 lint 規則。

@@ -7,7 +7,7 @@ import { useDetailStore } from './detail'
 import { useViewStore } from './view'
 
 /**
- * 側欄專案清單的狀態源。切換是一個伺服端動作（design D1），所以這裡的每個
+ * 側欄專案清單的狀態源。切換是一個伺服端動作，所以這裡的每個
  * 動作都是「呼叫 → 收下新的清單快照 → 若目前專案換了就讓其他 store 失效」。
  */
 export const useProjectsStore = defineStore('projects', () => {
@@ -24,7 +24,7 @@ export const useProjectsStore = defineStore('projects', () => {
   const currentProject = computed(() => projects.value.find(each => each.current) ?? null)
 
   /**
-   * 目前專案徽章的即時更新（spec project-management「每專案徽章弱一致」）：changes store
+   * 目前專案徽章的即時更新：changes store
    * 每次真的落地（load 成功／loadSilently 成功／load 佔版錯誤）就會撞一下 changesLandSeq，
    * 這裡就地改掉目前專案那一項——不呼叫 refreshBadges()，那支要對清單裡每個專案各跑一趟
    * `openspec list --json`（約 1s／個），旁邊每存一次檔就壓 N 個 node process，不划算。
@@ -35,7 +35,7 @@ export const useProjectsStore = defineStore('projects', () => {
    * 卡片彈回原群組時徽章又要再跳一次，反而製造抖動。
    *
    * blockingError 非空（CLI 失敗／非 openspec 專案）時徽章寫回 null，不把「取不到數字」
-   * 編造成「0 個 change」（spec 驗收：取數失敗不編數字）。
+   * 編造成「0 個 change」。
    *
    * 非目前專案不受影響（規格允許延遲到下次刷新才反映）；invalidate() 清空 changes 資料
    * 時不會撞 changesLandSeq，所以切換專案途中不會把新專案的徽章瞬間寫成 0。
@@ -64,8 +64,8 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   /**
-   * 加入專案的唯一入口（spec：原生 dialog）：側欄與各頁空狀態共用同一段分流，
-   * 免得四個按鈕各養一份。沒有可貼訊息的輸入列，所有失敗一律走 toast（design D4、D5）。
+   * 加入專案的唯一入口（原生 dialog）：側欄與各頁空狀態共用同一段分流，
+   * 免得四個按鈕各養一份。沒有可貼訊息的輸入列，所有失敗一律走 toast。
    */
   async function startAdd(): Promise<void> {
     const outcome = await gateway.pickFolder()
@@ -88,7 +88,7 @@ export const useProjectsStore = defineStore('projects', () => {
       useChangesStore().notifyInfo('That project is already in the list. Switched to it.')
   }
 
-  /** 加入即切換（spec 加入專案）；失敗原因交給 startAdd 決定怎麼呈現 */
+  /** 加入即切換；失敗原因交給 startAdd 決定怎麼呈現 */
   async function add(input: string): Promise<{ ok: true, alreadyExisted: boolean } | { ok: false, message: string }> {
     return mutate(
       () => gateway.addProject(input),
@@ -135,7 +135,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   /**
    * 收下新的清單快照；目前專案真的換了才動其他 store——
-   * 回主頁、detail 清空、changes 全量重載，最後才在背景補徽章（design D8）。
+   * 回主頁、detail 清空、changes 全量重載，最後才在背景補徽章。
    */
   async function adopt(snapshot: ProjectsSnapshot, before: string | null): Promise<void> {
     applySnapshot(snapshot)
@@ -146,7 +146,7 @@ export const useProjectsStore = defineStore('projects', () => {
     const changes = useChangesStore()
     const detail = useDetailStore()
 
-    // 換專案一律落在新專案的 Changes 主頁（spec project-management）——加入與移除
+    // 換專案一律落在新專案的 Changes 主頁——加入與移除
     // 也可能換掉目前專案，所以攔在這個唯一的匯流點，而不是各個按鈕上
     useViewStore().show('changes')
     detail.resetForProject()
@@ -160,7 +160,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   /**
    * 帶徽章的完整清單重取；期間又切過專案就丟棄（晚到的數字屬於上一個世代）。
-   * 換 CLI 執行檔後也走這裡——徽章同樣是 CLI 算出來的（spec app-settings 重載範圍）。
+   * 換 CLI 執行檔後也走這裡——徽章同樣是 CLI 算出來的。
    */
   async function refreshBadges(): Promise<void> {
     const mine = generation.value

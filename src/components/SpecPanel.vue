@@ -68,7 +68,7 @@ const specs = useSpecsStore()
       </button>
     </StateNotice>
 
-    <!-- 唯讀渲染規範沿用 artifact-view：同一個 MarkdownView，不開 interactive -->
+    <!-- 唯讀渲染：同一個 MarkdownView，不開 interactive -->
     <MarkdownView v-else :source="specs.content" />
   </PanelShell>
 </template>

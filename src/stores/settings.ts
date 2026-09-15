@@ -8,13 +8,13 @@ import { useSpecsStore } from './specs'
 import { useViewStore } from './view'
 
 /**
- * Settings 覆蓋層的狀態源（design D1／D2）。Settings 是疊在任何頁之上的 modal，
+ * Settings 覆蓋層的狀態源。Settings 是疊在任何頁之上的 modal，
  * 不進 `AppView` 聯集、不佔 App.vue 的面板槽——因此這裡只管自己，
  * 開關與主區的導覽狀態零耦合。
  */
 
 /**
- * 狀態列的三態（spec app-settings「驗證結果就地呈現」）：尚未驗證／成功含版本／
+ * 狀態列的三態：尚未驗證／成功含版本／
  * 失敗含訊息。就地呈現、不走 toast——設定盒裡有專屬位置可貼（依 projects.ts 慣例）。
  */
 export type CliStatus
@@ -92,7 +92,7 @@ export const useSettingsStore = defineStore('settings', () => {
     applyError.value = null
   }
 
-  /** 切到手動指定：只揭露輸入欄，不動伺服端——套用才是生效的那一刻（design D6） */
+  /** 切到手動指定：只揭露輸入欄，不動伺服端——套用才是生效的那一刻 */
   function useManual(): void {
     mode.value = 'override'
   }
@@ -146,7 +146,7 @@ export const useSettingsStore = defineStore('settings', () => {
       }
 
       adopt(result.settings)
-      // modal 不自動關（spec）：狀態列留著成功態，使用者關掉就看到資料已經回來
+      // modal 不自動關：狀態列留著成功態，使用者關掉就看到資料已經回來
       await reloadAfterCliChange()
     }
     finally {
@@ -155,7 +155,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * 換 CLI 執行檔後的重載範圍，比照 `projects.ts` 的 `adopt()`（design D6）：
+   * 換 CLI 執行檔後的重載範圍，比照 `projects.ts` 的 `adopt()`：
    * change 清單、目前所在頁的引擎資料、各專案徽章。
    * archived 走檔案層直讀、CLI 零參與；watcher 監看檔案系統、與 CLI 無關——兩者都不動。
    */

@@ -25,13 +25,13 @@ const scroller = ref<HTMLElement>()
 /**
  * 快速連按閘門：距上次切換小於這個間隔就只換內容、不播淡入。
  * 擋的是鍵盤 ↑↓ 連按（重複間隔 ~30–50ms）——不設閘，內容區會一直被壓回
- * opacity 0，讀起來是閃爍；單次點擊或單次按鍵照樣有淡入（design D7）。
+ * opacity 0，讀起來是閃爍；單次點擊或單次按鍵照樣有淡入。
  * 值只需大於鍵盤重複間隔、小於刻意的兩次操作，不必精確。
  */
 const FADE_SUPPRESS_MS = 200
 
 /**
- * 淡入時長兩檔（design D5）：換 change 是身分變更、換 tab 是同一份 change 換頁，
+ * 淡入時長兩檔：換 change 是身分變更、換 tab 是同一份 change 換頁，
  * 幅度差一階。兩檔都寫成完整字面值，class 才進得了 UnoCSS 的靜態掃描。
  */
 const FADE_IDENTITY = 'transition-opacity duration-180 ease-[var(--sr-ease-out)]'
@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
 
 <template>
   <!-- 底色抬一階＋左緣一條線就是全部的層次：無陰影、無 backdrop，
-       露出區的清單不變暗也不被攔截（spec artifact-view 無遮罩） -->
+       露出區的清單不變暗也不被攔截 -->
   <section class="min-w-0 flex flex-col overflow-hidden border-l border-line bg-surface">
     <header class="shrink-0 border-b border-line px-8 pt-4">
       <!-- 控制列自成一條：標題放大後與 28px 的 icon-btn 並排會比例打架，
@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
       <slot name="header" />
     </header>
 
-    <!-- 換內容時只淡這塊：header 與卡片高亮是身分回饋、必須即時（design D8）。
+    <!-- 換內容時只淡這塊：header 與卡片高亮是身分回饋、必須即時。
          兩個 class 分支互斥，避免 transition-none 與 transition-opacity 同時在場互打 -->
     <div
       ref="scroller"

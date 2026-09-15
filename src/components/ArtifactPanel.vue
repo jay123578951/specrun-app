@@ -23,7 +23,7 @@ function refresh(): void {
 const busy = computed(() => changes.busy || detail.refreshing)
 
 /**
- * 勾選只在單檔 tasks tab 開放（design D6）：其他 artifact、多檔 tasks（非預設 schema）
+ * 勾選只在單檔 tasks tab 開放：其他 artifact、多檔 tasks（非預設 schema）
  * 與 custom schema 的任何 tab 一律維持唯讀。parked change 整份唯讀——渲染端把
  * checkbox 交回 markdown-it 的 disabled 預設（視覺與行為一次到位）。
  */
@@ -32,9 +32,9 @@ const interactiveTasks = computed(() =>
 )
 
 /**
- * 批次入口的可用性（design D4）：無未勾行就沒有可寫的目標；有任何寫入在飛時也停用——
+ * 批次入口的可用性：無未勾行就沒有可寫的目標；有任何寫入在飛時也停用——
  * 那時快取已是樂觀翻轉後的內容，批次算出的 expectedText 與磁碟必然不符、整批會被判衝突。
- * 停用不隱藏（spec tasks 全部勾選）：勾完最後一項時該列不會突然少一塊。
+ * 停用不隱藏：勾完最後一項時該列不會突然少一塊。
  */
 const tasksWriting = computed(() => detail.pendingTaskLines.length > 0)
 const checkAllDisabled = computed(() => !detail.hasUncheckedTasks || tasksWriting.value)
@@ -56,7 +56,7 @@ const checkAllTitle = computed(() => {
     :content-key="detail.currentTab ?? ''"
     @collapse="detail.close()"
   >
-    <!-- 動作區：Open in editor 等按鈕 M3 才填，先有複製名稱與 refresh -->
+    <!-- 動作區：Open in editor 等按鈕之後才填，先有複製名稱與 refresh -->
     <template #actions>
       <CopyNameButton v-if="detail.changeName" :name="detail.changeName" />
       <button
@@ -95,7 +95,7 @@ const checkAllTitle = computed(() => {
           Parked · read-only
         </span>
 
-        <!-- 背景重取失敗但畫面有內容：不換錯誤畫面，只在頭部留一個小記號（spec 詳情錯誤呈現） -->
+        <!-- 背景重取失敗但畫面有內容：不換錯誤畫面，只在頭部留一個小記號 -->
         <span
           v-if="detail.staleWarning"
           class="shrink-0 flex items-center gap-1.5 text-ui-xs text-text-3"
@@ -118,7 +118,7 @@ const checkAllTitle = computed(() => {
       >
         <!-- 批次勾選：出現條件與 checkbox 可互動同源（interactiveTasks），
              因此 parked／非 tasks tab／多檔 tasks 一律長不出來。帶文字而非純圖示——
-             一次改寫數十行的操作，光靠圖示猜不出後果（design D5） -->
+             一次改寫數十行的操作，光靠圖示猜不出後果 -->
         <!-- 寫入中不放 spinner：樂觀更新已讓結果即刻可見，這裡只需 aria-busy＋停用；
              失敗才有動靜（整片彈回＋toast），成功一律靜默 -->
         <!-- btn-inline 而非 btn-sm：這一列容不下有邊框的盒子（理由見 uno.config.ts）。

@@ -7,7 +7,7 @@ withDefaults(defineProps<{
   detail?: string
   tone?: 'neutral' | 'error'
   /**
-   * 空群組作為拖曳目的地：由自身的邊框與底色表達標示（design D4）。
+   * 空群組作為拖曳目的地：由自身的邊框與底色表達標示。
    * 呼叫端 MUST NOT 在外層另加 outline——這個區塊已經有一圈實線框，外加即成雙層框。
    */
   target?: boolean

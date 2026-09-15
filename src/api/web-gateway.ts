@@ -100,11 +100,11 @@ export const webGateway: OpenSpecGateway = {
     let reconnecting = false
     source.onmessage = () => onChange()
     source.onerror = () => {
-      // EventSource 自帶重連：斷線期間不通知、全程不對外拋錯（spec 韌性）
+      // EventSource 自帶重連：斷線期間不通知、全程不對外拋錯
       reconnecting = true
     }
     source.onopen = () => {
-      // 斷線期間的變動可能已遺失且不會重播，重連成功視同收到一次通知，補一次重載補齊（spec 韌性）
+      // 斷線期間的變動可能已遺失且不會重播，重連成功視同收到一次通知，補一次重載補齊
       if (reconnecting) {
         reconnecting = false
         onChange()

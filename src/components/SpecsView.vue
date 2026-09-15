@@ -7,7 +7,7 @@ import PageHeader from './PageHeader.vue'
 import StateNotice from './StateNotice.vue'
 
 /**
- * Specs 頁：capability 的純列表（design：不仿 ChangeCard——specs 沒有進度與時間語意）。
+ * Specs 頁：capability 的純列表（不仿 ChangeCard——specs 沒有進度與時間語意）。
  * 進頁載入、離頁清空都綁在這個元件的生命週期上，所以「切頁即關、進頁重載」不需要
  * 額外的 watcher，也不會有跨專案的殘留資料。
  */
@@ -30,7 +30,7 @@ const showSkeleton = computed(() => specs.firstLoadPending && !noProject.value)
 const notOpenSpecProject = computed(() => specs.listError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => specs.listError?.kind === 'call-failed')
 const isEmpty = computed(() => !specs.listError && specs.count === 0)
-/** 數量掛在麵包屑上（spec page-navigation），出現條件沿用原頁標：載入中與錯誤時不報數字 */
+/** 數量掛在麵包屑上，出現條件沿用原頁標：載入中與錯誤時不報數字 */
 const showCount = computed(() => !showSkeleton.value && !specs.listError)
 
 function toggle(id: string): void {
@@ -57,7 +57,7 @@ function toggle(id: string): void {
             openspec CLI not available
           </p>
           <!-- 路徑已可設定，原文案的「reachable on PATH, then refresh」自本 change 起是
-               錯誤指引（design D7）：改說真正的出口，並在這裡就給入口 -->
+               錯誤指引：改說真正的出口，並在這裡就給入口 -->
           <p class="mt-0.5 text-ui-sm text-text-2 text-pretty">
             specrun could not run the openspec command. Point it at the executable in settings, or install
             openspec if it is missing.
@@ -149,7 +149,7 @@ function toggle(id: string): void {
           body="Capability specs live in openspec/specs/. Archive a change with the openspec CLI and they show up here."
         />
 
-        <!-- 順序即 CLI 回傳順序，前端不重排（spec specs-view） -->
+        <!-- 順序即 CLI 回傳順序，前端不重排 -->
         <button
           v-for="spec in specs.specs"
           :key="spec.id"

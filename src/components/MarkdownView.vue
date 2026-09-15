@@ -4,7 +4,7 @@ import { renderMarkdown } from '../markdown/render'
 
 const props = defineProps<{
   source: string
-  /** tasks 單檔時開啟：checkbox 可點（design D6） */
+  /** tasks 單檔時開啟：checkbox 可點 */
   interactive?: boolean
   /** 寫入進行中的來源行號；這些 checkbox 呈現 pending 且不再接受點擊 */
   pendingLines?: number[]
@@ -49,7 +49,7 @@ function onClick(event: MouseEvent): void {
   if (!box)
     return
 
-  // DOM 不是狀態源：翻轉一律由 store 對來源字串處理後重渲染（design D5），
+  // DOM 不是狀態源：翻轉一律由 store 對來源字串處理後重渲染，
   // 這裡擋掉瀏覽器自己的勾選，免得被忽略的點擊（pending 中）在畫面上留下假狀態
   event.preventDefault()
   if (box.hasAttribute('data-pending'))
@@ -62,7 +62,7 @@ function onClick(event: MouseEvent): void {
 </script>
 
 <template>
-  <!-- 渲染來源是本機 artifact，且管線維持 markdown-it 的 html: false（design D5） -->
+  <!-- 渲染來源是本機 artifact，且管線維持 markdown-it 的 html: false -->
   <!-- eslint-disable-next-line vue/no-v-html -->
   <div ref="root" class="md-body" @click="onClick" v-html="html" />
 </template>

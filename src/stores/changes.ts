@@ -55,19 +55,19 @@ export const useChangesStore = defineStore('changes', () => {
   const toasts = ref<Toast[]>([])
   /**
    * 專案世代：切換專案時 +1，讓切換前發出的請求認得出自己已過期。
-   * 舊專案的 in-flight 回應晚到會蓋掉新專案資料（design 風險欄的競態）。
+   * 舊專案的 in-flight 回應晚到會蓋掉新專案資料。
    */
   const generation = ref(0)
 
   /**
-   * parked 群組併在這裡（design D6）：同頁、同刷新節奏、同 invalidate 時機，
+   * parked 群組併在這裡：同頁、同刷新節奏、同 invalidate 時機，
    * 清單畫面仍只有一個狀態源。資料來源與 active 完全不同（現場解析檔案，不經 CLI）。
    */
   const parked = shallowRef<ParkedSummary[]>([])
   const parkAvailable = ref(false)
   const parkReason = ref<ParkUnavailableReason | null>(null)
   /**
-   * 進行中的 park／unpark：既是「同時只允許一個」的閘門，也是樂觀呈現的唯一真值（design D8）。
+   * 進行中的 park／unpark：既是「同時只允許一個」的閘門，也是樂觀呈現的唯一真值。
    * 兩者合併成一組狀態——並存兩個真值遲早會分岔（一個清了、另一個還在）。
    */
   const moving = ref<OptimisticMove | null>(null)
@@ -79,8 +79,8 @@ export const useChangesStore = defineStore('changes', () => {
    * （被搶號丟棄的回應不算）。原生用途是給 settleMove 的外部刪除判定當時間基準——
    * 它需要知道「當下陣列內容是不是行動完成之後才落地的」，而不只是內容長什麼樣。
    *
-   * `changesLandSeq` 另外還服務 projects store 的徽章即時更新（spec project-management
-   * 「每專案徽章弱一致」）：projects store 掛一個 watch 在這顆計數器上，落地當下直接讀
+   * `changesLandSeq` 另外還服務 projects store 的徽章即時更新：
+   * projects store 掛一個 watch 在這顆計數器上，落地當下直接讀
    * `changes`／`blockingError` 就地改掉目前專案那一項，不再對整批專案各跑一趟
    * `openspec list --json`（refreshBadges 那條舊路徑太貴，見 projects.ts）。這也是它要用
    * `ref` 而非 `parkedLandSeq` 那種 closure-local `let` 的唯一原因——只有它有外部訂閱者；
@@ -272,9 +272,8 @@ export const useChangesStore = defineStore('changes', () => {
       targetPath.value = result.targetPath || targetPath.value
       blockingError.value = result.error
       // 佔版錯誤也算權威落地：清單確定是空的，讓刪除判定得以收掉懸著的 moving。
-      // 對徽章而言這正是「取不到真實數字」（CLI 失敗／非 openspec 專案，spec 驗收：
-      // 取數失敗不編數字）——不能讓這次落地被 projects store 讀成 0，watch 端靠
-      // blockingError 分辨，這裡不必額外傳值
+      // 對徽章而言這正是「取不到真實數字」（CLI 失敗／非 openspec 專案）——不能讓這次落地被
+      // projects store 讀成 0，watch 端靠 blockingError 分辨，這裡不必額外傳值
       changesLandSeq.value++
     }
     finally {
@@ -294,7 +293,7 @@ export const useChangesStore = defineStore('changes', () => {
    * park／unpark：兩者都是「搬移目錄 → 兩個群組都變了」，所以成功後主動重載兩群組
    * （不等 watcher——它只看得到 `openspec/changes/` 那一半，且要等 debounce）。
    * 卡片在操作期間先行呈現於目的地群組（樂觀移動），失敗即撤回並丟 toast：
-   * 實際狀態仍以重新列舉的結果為準（spec 操作失敗呈現）。
+   * 實際狀態仍以重新列舉的結果為準。
    */
   function park(name: string): Promise<void> {
     return runParkAction(name, 'park', () => gateway.parkChange(name))

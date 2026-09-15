@@ -19,7 +19,7 @@
 }
 
 /* 拖曳中的卡片＝浮層：它脫離文件流、飄在其他內容之上，比 toast 更符合浮層的定義，
-   因此適用 --sr-shadow-overlay（tokens.css 既有例外的適用，不是新增例外，design D6）。
+   因此適用 --sr-shadow-overlay（tokens.css 既有例外的適用，不是新增例外）。
    只靠 1.02 的縮放讀不出「被拿起來」，卡片會像貼在紙面上滑動。
    位移走 translate/scale 個別屬性而非 transform：reduced motion 才能只拿掉縮放、留下跟隨。
    transition: none 讓跟隨逐幀對映指標，沒有補間可言 */
@@ -30,7 +30,7 @@
   transition: none;
 }
 
-/* 沒去成的返回：250ms 比進場動畫長，讓「回來了」看得見（design D10）。
+/* 沒去成的返回：250ms 比進場動畫長，讓「回來了」看得見。
    排在 .card-dragging 之後——返回期間兩個 class 同時在，後寫的 transition 才生效 */
 .card-returning {
   transition: translate 250ms var(--sr-ease-in-out);
@@ -101,7 +101,7 @@
     transition-property: opacity !important;
   }
 
-  /* artifact tabs 的選中底線（design D7）：機制與上面的 .sr-motion 同源——
+  /* artifact tabs 的選中底線：機制與上面的 .sr-motion 同源——
      transition-property 縮到 opacity，translate／scale 便瞬間歸位。
      指示本身照樣落在正確的 tab 上，只是不演出移動；不做「退回 per-tab border」
      的雙軌實作，兩套選中呈現等於兩套要維護的視覺 */

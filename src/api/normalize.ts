@@ -1,5 +1,5 @@
 /**
- * CLI 原始輸出 → App 型別的唯一轉換點（純函式，web 與 M4 Tauri 版共用）。
+ * CLI 原始輸出 → App 型別的唯一轉換點（純函式，web 與日後的 Tauri 版共用）。
  *
  * 判定順序刻意固定：spawn 層失敗 → 輸出可否解析 → exit code → root 是否為目標專案 → 逐筆欄位。
  * 每一關都往前收斂，後面的分支才能假設前面成立。
@@ -58,7 +58,7 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
 
   if (probe.exitCode !== 0) {
     const diagnostic = firstDiagnostic(payload)
-    // exit 非 0＋root 解析類診斷 payload＝目標路徑無 openspec root（design D3）
+    // exit 非 0＋root 解析類診斷 payload＝目標路徑無 openspec root
     if (diagnostic && isRootDiagnostic(diagnostic)) {
       return fail(
         'not-openspec-project',
@@ -91,7 +91,7 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
     changes.push(change)
   }
 
-  // 順序即 CLI 順序（lastModified 新→舊）；前端不重排（spec openspec-gateway）
+  // 順序即 CLI 順序（lastModified 新→舊）；前端不重排
   return { ok: true, targetPath: probe.targetPath, changes }
 }
 
@@ -149,7 +149,7 @@ export function normalizeChangeDetail(probe: ChangeDetailProbe): ChangeDetailRes
   for (const id of ids) {
     const files: ArtifactFile[] = []
     for (const entry of probe.files?.[id] ?? []) {
-      // 白名單內的檔案讀不到＝真失敗，不是缺件（spec openspec-gateway）
+      // 白名單內的檔案讀不到＝真失敗，不是缺件
       if (typeof entry.content !== 'string')
         return failLoad(joinDetail(`Could not read ${entry.path}.`, entry.error))
       files.push({ path: displayPath(entry.path, changeRoot), content: entry.content })
@@ -215,13 +215,13 @@ export function normalizeSpecList(probe: SpecListProbe): SpecListResult {
     specs.push(spec)
   }
 
-  // 順序即 CLI 順序；前端不重排（spec openspec-gateway）
+  // 順序即 CLI 順序；前端不重排
   return { ok: true, targetPath: probe.targetPath, specs }
 }
 
 /**
  * spec 全文：stdout 不是 JSON 而是 Markdown 原文，所以這裡只判「這趟呼叫成不成立」，
- * 內容一個字都不動（spec openspec-gateway「原樣轉交」）。
+ * 內容一個字都不動。
  * 空 stdout 一律當失敗——CLI 找不到 spec 時就是非 0＋空輸出，不能偽裝成一份空 spec。
  */
 export function normalizeSpecContent(probe: SpecContentProbe): SpecContentResult {
@@ -252,7 +252,7 @@ export function normalizeSpecContent(probe: SpecContentProbe): SpecContentResult
 }
 
 /**
- * CLI 回報的 root 是否就是目標專案（design D3）。判準是 `root.path` 比對；`source`
+ * CLI 回報的 root 是否就是目標專案。判準是 `root.path` 比對；`source`
  * 的 `implicit` 只是補強訊號——CLI 找不到任何 openspec root 時會以 cwd 造一個，
  * 此時路徑會「相符」但專案並不存在。
  */

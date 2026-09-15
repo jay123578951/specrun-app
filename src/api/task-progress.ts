@@ -1,5 +1,5 @@
 /**
- * tasks 檔案的進度解析（純函式，web 與 M4 Tauri 版共用）。
+ * tasks 檔案的進度解析（純函式，web 與日後的 Tauri 版共用）。
  *
  * openspec 看不見的 change（parked、archived）都得自己算進度，兩邊共用這一份——
  * 「什麼算一個 task」只能有一種認知，否則同一份 tasks.md 在兩頁會顯示不同數字。

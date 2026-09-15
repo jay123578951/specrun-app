@@ -9,7 +9,7 @@ const props = defineProps<{ target: boolean }>()
 const changes = useChangesStore()
 
 /**
- * 三態的強度階梯只用透明度與一層極淡底色表達，不新增顏色（design D4）。
+ * 三態的強度階梯只用透明度與一層極淡底色表達，不新增顏色。
  * 這個區塊自己就是目的地標示的載體——它已經有一圈虛線框，外層再套群組 outline
  * 就會出現兩個嵌套的框，使用者無從判斷哪個才是落點。
  */

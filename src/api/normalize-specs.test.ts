@@ -168,7 +168,7 @@ describe('normalizeSpecContent', () => {
     })
   })
 
-  // 空輸出不能偽裝成一份空 spec（spec openspec-gateway）
+  // 空輸出不能偽裝成一份空 spec
   it('exit 0 但輸出空白＝失敗', () => {
     const result = normalizeSpecContent(contentProbe({ stdout: '   \n' }))
 

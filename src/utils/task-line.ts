@@ -1,10 +1,10 @@
 /**
- * task 行的「只翻勾選字元」核心（design D3／D4）。
+ * task 行的「只翻勾選字元」核心。
  *
  * 伺服端寫檔與 store 的樂觀更新共用這一份：兩邊翻出來的字串必須逐 byte 相同，
  * watcher 重取回來的內容才會與快取全等，既有的「無差異不重繪」才吸收得掉。
  * 純字串運算、無 I/O——因此放在 shared 的 src/ 側，由 server route 反向 import
- * （與 normalize 同一個方向，design D1）。
+ * （與 normalize 同一個方向）。
  */
 
 /**
@@ -33,7 +33,7 @@ export function isCheckedLine(text: string): boolean {
 
 /**
  * 保留行尾符的切行：`\r\n`／`\n` 原樣留在該行尾端，
- * 拼回時 EOL 風格與「檔尾有無換行」全部保真（design D4）。
+ * 拼回時 EOL 風格與「檔尾有無換行」全部保真。
  */
 export function splitLines(content: string): string[] {
   return content.split(/(?<=\n)/)
@@ -50,7 +50,7 @@ export function lineTextAt(content: string, line: number): string | null {
   return raw === undefined ? null : stripEnding(raw)
 }
 
-/** 單次寫入的一個目標行（design D2）：行號與呼叫端所見的該行原文 */
+/** 單次寫入的一個目標行：行號與呼叫端所見的該行原文 */
 export interface TaskLineEdit {
   /** 0-based 來源行號 */
   line: number
@@ -60,7 +60,7 @@ export interface TaskLineEdit {
 
 /**
  * 比對每個目標行是否仍為它的 `expectedText`，全部成立才置換這些行的勾選字元、
- * 回傳整檔內容。批次為全有全無：任一行不符即整批放棄且不產出內容（design D2／D6）——
+ * 回傳整檔內容。批次為全有全無：任一行不符即整批放棄且不產出內容——
  * 單顆 checkbox 的點擊就是 `edits` 長度為 1 的情形，與批次共用這一條路徑。
  * 行文比對在語法判定之前——行已被外部改寫一律回衝突，不進翻行邏輯。
  */

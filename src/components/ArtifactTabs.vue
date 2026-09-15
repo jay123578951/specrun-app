@@ -6,7 +6,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * （兩處行為同源，不靠「兩邊記得改成一樣」維持一致）。
  *
  * 選中指示是一條絕對定位的 bar：量當前 tab 的 offsetLeft／offsetWidth，
- * 以個別屬性 translate／scale 就位（design D1／D2）。bar 本體寬 1px，
+ * 以個別屬性 translate／scale 就位。bar 本體寬 1px，
  * scale 直接把量到的 px 映成係數，因此不依賴 tablist 的容器寬——tabs 換批時
  * 容器寬會變，用容器寬當基準等於多一個要同步的來源。
  * 走個別屬性而非 transform 字串的理由與 .card-dragging 同源：
@@ -21,7 +21,7 @@ const props = defineProps<{
   items: readonly { id: string }[]
   /** 當前選中的 tab id */
   current: string | null
-  /** 身分鍵（change 名）：它一變代表 tabs 整批換掉，指示直接就位、不滑行（design D3） */
+  /** 身分鍵（change 名）：它一變代表 tabs 整批換掉，指示直接就位、不滑行 */
   identity: string | null
   /** id／aria-controls 的前綴，兩個面板各一組（''／'archived-'） */
   idPrefix: string
@@ -47,7 +47,7 @@ function keyOf(items: readonly { id: string }[]): string {
 }
 
 /**
- * 底線左右各超出文字的餘裕（`--spacing` 一級 ＝ 3.5px，design D9）。
+ * 底線左右各超出文字的餘裕（`--spacing` 一級 ＝ 3.5px）。
  * 相鄰底線的間隙 ＝ tab 間距 24.5px − 2 × 這個值，再放大就會連成一條。
  */
 const BLEED = 3.5
@@ -58,7 +58,7 @@ const BLEED = 3.5
  * （手法與 PanelShell 的淡入同源）。
  *
  * 量的是文字而非按鈕盒：內距是點擊面積，讓底線跟著盒寬走，首顆就得靠內距特例
- * 去雕形狀，間距與點擊面積會被一起犧牲（design D9）。span 沒有定位，offsetParent
+ * 去雕形狀，間距與點擊面積會被一起犧牲。span 沒有定位，offsetParent
  * 就是帶 relative 的 tablist，offsetLeft 已含按鈕位置與內距。
  */
 function place(instant: boolean): void {
@@ -92,7 +92,7 @@ function place(instant: boolean): void {
   })
 }
 
-// 量測觸發點 1：current／items 變動後等 DOM patch 完再量（design D4）
+// 量測觸發點 1：current／items 變動後等 DOM patch 完再量
 watch(
   () => [props.identity, keyOf(props.items), props.current] as const,
   async ([identity, items]) => {
@@ -135,7 +135,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 四顆 tab 的設定完全一致，沒有 first: 特例（design D9）：
+  <!-- 四顆 tab 的設定完全一致，沒有 first: 特例：
        -ml-3 抵掉首顆的左內距，讓它的文字左緣落在面板標題的左緣——
        對齊是「這一列」的事，由列自己宣告，與旁邊的 -mb-px 同一手法 -->
   <div ref="tablist" role="tablist" class="relative -mb-px -ml-3 flex gap-1">
@@ -151,12 +151,12 @@ onBeforeUnmount(() => {
       :aria-controls="`${idPrefix}panel-${item.id}`"
       @click="$emit('select', item.id)"
     >
-      <!-- 這層 span 是 indicator 的量測標的（design D9），不帶任何樣式 -->
+      <!-- 這層 span 是 indicator 的量測標的，不帶任何樣式 -->
       <span>{{ item.id }}</span>
     </button>
 
     <!-- 該列右端的動作槽：只有可寫入的詳情面板填（ArchivedPanel 不填，唯讀面板
-         因此不需任何條件判斷就長不出寫入入口，design D5）。tabs 靠左、它靠右，
+         因此不需任何條件判斷就長不出寫入入口）。tabs 靠左、它靠右，
          兩邊互不推擠，indicator 依 span 的 offsetLeft／offsetWidth 量測也不受影響 -->
     <div v-if="$slots.trailing" class="ml-auto flex shrink-0 items-center self-center">
       <slot name="trailing" />

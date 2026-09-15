@@ -5,9 +5,9 @@ import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 
 /**
- * 三頁共用的頁首（spec page-navigation）：左側麵包屑「<專案名> / <當前頁 ▾>」，
+ * 三頁共用的頁首：左側麵包屑「<專案名> / <當前頁 ▾>」，
  * 右側以 slot 收各頁自己的 Refresh。整行由這裡承擔而不只抽麵包屑本身——
- * 三頁的頁首結構必須一致，任一頁漏改就會出現兩種頁首（design Risks）。
+ * 三頁的頁首結構必須一致，任一頁漏改就會出現兩種頁首。
  */
 
 defineProps<{
@@ -30,7 +30,7 @@ const MENU_MOTION = {
   'leave-to-class': 'opacity-0 scale-96',
 } as const
 
-/** 三頁齊列且順序固定：下拉回答的是「現在在哪」，不是「可以去哪」（design） */
+/** 三頁齊列且順序固定：下拉回答的是「現在在哪」，不是「可以去哪」 */
 const PAGES: { value: AppView, label: string }[] = [
   { value: 'changes', label: 'Changes' },
   { value: 'specs', label: 'Specs' },
@@ -89,10 +89,10 @@ function detach(): void {
   document.removeEventListener('pointerdown', onPointerDown)
 }
 
-/** 選定當前頁只關下拉、不重新載入（spec）；`view.show()` 自己也會早退，這裡不重複判斷切頁效果 */
+/** 選定當前頁只關下拉、不重新載入；`view.show()` 自己也會早退，這裡不重複判斷切頁效果 */
 function select(target: AppView): void {
   const moving = target !== view.currentView
-  // 換頁會把觸發項連同這個元件一起換掉，焦點交棒給新頁的那一顆（spec：選定後 focus 交回觸發項）
+  // 換頁會把觸發項連同這個元件一起換掉，焦點交棒給新頁的那一顆（選定後 focus 交回觸發項）
   view.focusPageMenu = moving
   close()
   if (moving)
@@ -104,7 +104,7 @@ function items(): HTMLElement[] {
 }
 
 /**
- * 下拉展開期間鍵盤歸它（spec：清單與面板的方向鍵、Esc 讓位）——讓位本身由
+ * 下拉展開期間鍵盤歸它（清單與面板的方向鍵、Esc 讓位）——讓位本身由
  * `App.vue` 依 `view.menuOpen` 早退，形狀與 Settings 那一層相同。
  */
 function onKeydown(event: KeyboardEvent): void {
@@ -134,10 +134,10 @@ function onPointerDown(event: PointerEvent): void {
 </script>
 
 <template>
-  <!-- 無目標專案時整條不呈現（spec）：該狀態下頁首其他控制項也都不在 -->
+  <!-- 無目標專案時整條不呈現：該狀態下頁首其他控制項也都不在 -->
   <header v-if="!noProject" class="flex items-center justify-between gap-4">
     <div class="min-w-0 flex items-center gap-2">
-      <!-- 專案段是純標籤（design）：專案切換的唯一入口是側欄的專案清單 -->
+      <!-- 專案段是純標籤：專案切換的唯一入口是側欄的專案清單 -->
       <template v-if="projects.currentProject">
         <span
           class="truncate text-ui-sm text-text-3 font-mono"

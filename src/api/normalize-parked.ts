@@ -1,9 +1,9 @@
 /**
- * parked 清單／詳情的原始輸出 → App 型別（純函式，web 與 M4 Tauri 版共用）。
+ * parked 清單／詳情的原始輸出 → App 型別（純函式，web 與日後的 Tauri 版共用）。
  *
  * 與 normalize.ts 的分工相同：route 只做 IO，所有解析集中在這裡。
  * 差別在資料源——parked change 對 openspec 不可見，所以進度與摘錄都是現場從檔案
- * 內容算出來的（design D4），metadata 只補 park 時間與快照路徑。
+ * 內容算出來的，metadata 只補 park 時間與快照路徑。
  */
 
 import type {
@@ -41,7 +41,7 @@ export function normalizeParkedList(probe: ParkedListProbe): ParkedListResult {
 }
 
 /**
- * Parked 群組的排序：park 時間新→舊（spec 群組與排序）。
+ * Parked 群組的排序：park 時間新→舊。
  * 時間未知的排在最後——它們沒有可比的位置，塞在中間只會讓順序讀起來像壞掉。
  */
 function byParkedAtDesc(a: ParkedSummary, b: ParkedSummary): number {

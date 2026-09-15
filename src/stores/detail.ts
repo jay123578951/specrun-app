@@ -39,7 +39,7 @@ export const useDetailStore = defineStore('detail', () => {
     () => artifacts.value.find(artifact => artifact.id === currentTab.value) ?? null,
   )
 
-  /** 看過的 change → 上次取得的內容；跨 session 存 localStorage（design D4） */
+  /** 看過的 change → 上次取得的內容；跨 session 存 localStorage */
   const cache = new Map<string, ChangeDetail>(readPersistedCache())
 
   function remember(name: string, value: ChangeDetail): void {
@@ -68,7 +68,7 @@ export const useDetailStore = defineStore('detail', () => {
   let draining = false
 
   /**
-   * 清單載入完成後依序把各 active change 的詳情抓進快取（design D4）：啟動花幾秒，
+   * 清單載入完成後依序把各 active change 的詳情抓進快取：啟動花幾秒，
    * 換來之後點開零等待。依序發、不並發轟 CLI；失敗就算了，點開時還會重取。
    */
   async function prefetch(names: string[]): Promise<void> {
@@ -118,7 +118,7 @@ export const useDetailStore = defineStore('detail', () => {
       currentTab.value = resolveTab(cached, currentTab.value)
     }
     else {
-      // 冷路徑：面板先空著，但不留前一個 change 的內容（spec artifact-view）
+      // 冷路徑：面板先空著，但不留前一個 change 的內容
       detail.value = null
     }
 
@@ -166,7 +166,7 @@ export const useDetailStore = defineStore('detail', () => {
 
   /**
    * watcher 通知觸發：先看重載後的清單還有沒有這個 change——不在＝被 archive／刪除，
-   * 那是正常消失不是錯誤，走 Esc 同一條返回路徑（design D6）；還在才靜默重取內容。
+   * 那是正常消失不是錯誤，走 Esc 同一條返回路徑；還在才靜默重取內容。
    */
   async function syncWithChanges(names: string[]): Promise<void> {
     const name = changeName.value
@@ -188,7 +188,7 @@ export const useDetailStore = defineStore('detail', () => {
 
   /**
    * 背景重取當前 change：內容有變才靜默換上，失敗什麼都不做——不設 staleWarning、
-   * 不進錯誤畫面，留著舊內容等下一次通知（spec artifact-view 自動重取失敗靜默）。
+   * 不進錯誤畫面，留著舊內容等下一次通知。
    */
   async function loadSilently(): Promise<void> {
     const name = changeName.value
@@ -208,7 +208,7 @@ export const useDetailStore = defineStore('detail', () => {
   }
 
   /**
-   * 手動刷新：清空面板＋skeleton（spec 詳情手動刷新）。刷新是「我要等新資料」的明示，
+   * 手動刷新：清空面板＋skeleton。刷新是「我要等新資料」的明示，
    * 這裡刻意不吃快取墊底——留著舊內容就看不出資料到底換過沒有。
    */
   async function refresh(): Promise<void> {
@@ -240,7 +240,7 @@ export const useDetailStore = defineStore('detail', () => {
   }
 
   /**
-   * 切換專案：關掉詳情、清空快取與預載隊伍（spec 切換專案「已開啟的詳情視圖關閉」）。
+   * 切換專案：關掉詳情、清空快取與預載隊伍。
    * 快取以 change 名為鍵，跨專案可能撞名——留著就會拿 A 專案的內容墊 B 專案的底。
    * 代價是切回來時快取要重建，比餵錯內容划算得多。
    */
@@ -251,11 +251,11 @@ export const useDetailStore = defineStore('detail', () => {
     writePersistedCache(cache)
   }
 
-  /** 寫入進行中的來源行號：同顆連點忽略，UI 也據此呈現 pending（spec in-flight 連點忽略） */
+  /** 寫入進行中的來源行號：同顆連點忽略，UI 也據此呈現 pending */
   const pendingTaskLines = ref<number[]>([])
 
   /**
-   * 當前 tasks 是否還有未勾行——批次入口的可用性來源（design D4）。
+   * 當前 tasks 是否還有未勾行——批次入口的可用性來源。
    * 非 tasks tab、parked、多檔或無 tasks 檔案時一律 false：入口的出現／停用
    * 與 checkbox 可互動的判定同源，前端不另立一套規則。
    */
@@ -268,7 +268,7 @@ export const useDetailStore = defineStore('detail', () => {
   })
 
   /**
-   * tasks checkbox 的翻轉（design D5）：對快取的來源字串就地翻行 → 重渲染 → 才發請求。
+   * tasks checkbox 的翻轉：對快取的來源字串就地翻行 → 重渲染 → 才發請求。
    * 樂觀更新後的字串與寫入成功後檔案的真實內容逐 byte 相同，watcher 重取回來與快取全等，
    * 既有的「無差異不重繪」自然吸收，畫面零閃爍。
    */
@@ -286,10 +286,10 @@ export const useDetailStore = defineStore('detail', () => {
   }
 
   /**
-   * 批次勾選：把當前 tasks 檔案所有未勾行一次標記為完成（spec 批次勾選的樂觀更新與失敗彈回）。
-   * 目標集合自來源字串算出（design D3），與單顆點擊共用同一條寫入通道；
+   * 批次勾選：把當前 tasks 檔案所有未勾行一次標記為完成。
+   * 目標集合自來源字串算出，與單顆點擊共用同一條寫入通道；
    * 有任何寫入在飛時不發批次——那時快取已是樂觀翻轉後的內容，算出的 expectedText
-   * 必然與磁碟不符，整批會被判衝突（design D4）。
+   * 必然與磁碟不符，整批會被判衝突。
    */
   async function checkAllTasks(): Promise<void> {
     const file = tasksFile(detail.value)
@@ -307,7 +307,7 @@ export const useDetailStore = defineStore('detail', () => {
   async function writeToggle(edits: TaskLineEdit[], checked: boolean): Promise<void> {
     const name = changeName.value
     const file = tasksFile(detail.value)
-    // parked 是唯讀（spec parked tasks 不可勾）：UI 已把 checkbox 停用，這裡是第二道
+    // parked 是唯讀：UI 已把 checkbox 停用，這裡是第二道
     if (!name || !file || isParked.value || !edits.length)
       return
 
@@ -439,14 +439,14 @@ function resolveTab(detail: ChangeDetail, preferred: string | null): string | nu
   return ids[0] ?? null
 }
 
-/** 可寫入的 tasks 檔案：恰一個既存檔才算（design D6），其餘情形一律唯讀 */
+/** 可寫入的 tasks 檔案：恰一個既存檔才算，其餘情形一律唯讀 */
 function tasksFile(detail: ChangeDetail | null): ArtifactFile | null {
   const artifact = detail?.artifacts.find(each => each.id === 'tasks')
   return artifact?.files.length === 1 ? artifact.files[0]! : null
 }
 
 /**
- * 所有未勾選的 task 行（design D3）：判定沿用 task-line 既有的兩個函式——
+ * 所有未勾選的 task 行：判定沿用 task-line 既有的兩個函式——
  * 與 checkbox 可勾選與否的判準同一份，前端不會多出一套自己的規則，也不必查 DOM。
  */
 function uncheckedEdits(content: string): TaskLineEdit[] {

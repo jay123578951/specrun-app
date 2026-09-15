@@ -9,9 +9,9 @@ import StateNotice from './StateNotice.vue'
 
 /**
  * archived change 的唯讀詳情：外殼走共用的 PanelShell，內容是現場列舉的 tabs
- * （頂層 artifact ＋ delta spec，design D4）。
+ * （頂層 artifact ＋ delta spec）。
  *
- * 唯讀是雙防線（design D7）：這裡的 MarkdownView 一律不開 interactive，
+ * 唯讀是雙防線：這裡的 MarkdownView 一律不開 interactive，
  * 加上 archived store 根本沒有寫入面——checkbox 點了不會有任何事發生。
  */
 
@@ -114,7 +114,7 @@ const noFiles = computed(() =>
       tabindex="0"
       class="kbd-focus"
     >
-      <!-- 唯讀渲染規範沿用 artifact-view：同一個 MarkdownView，不開 interactive -->
+      <!-- 唯讀渲染：同一個 MarkdownView，不開 interactive -->
       <MarkdownView
         v-for="file in archived.currentArtifact.files"
         :key="file.path"

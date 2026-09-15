@@ -29,7 +29,7 @@ describe('extractWhy: proposal 第一段摘錄', () => {
       .toBe('See section 2.1 for details. Rest.')
   })
 
-  /** 句末判定移除後，縮寫誤切這個已知代價一併消失（design D1） */
+  /** 句末判定移除後，縮寫誤切這個已知代價一併消失 */
   it('後接空白的英文縮寫不再提早結束', () => {
     expect(extractWhy('## Why\n\nSee e.g. the second section. Rest.'))
       .toBe('See e.g. the second section. Rest.')

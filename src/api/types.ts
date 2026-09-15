@@ -22,7 +22,7 @@ export interface ChangeSummary {
   summary: string
 }
 
-/** 三類錯誤，對應 spec openspec-gateway「錯誤分類」與 UI 的三層呈現 */
+/** 三類錯誤，對應「錯誤分類」與 UI 的三層呈現 */
 export type GatewayErrorKind = 'cli-unavailable' | 'not-openspec-project' | 'call-failed'
 
 export interface GatewayError {
@@ -48,7 +48,7 @@ export interface ArtifactFile {
 export interface ArtifactView {
   id: string
   files: ArtifactFile[]
-  /** 尚無既存檔案——是缺件不是錯誤（spec openspec-gateway） */
+  /** 尚無既存檔案——是缺件不是錯誤 */
   missing: boolean
 }
 
@@ -62,14 +62,14 @@ export type ChangeDetailResult
     | { ok: false, error: GatewayError }
 
 /**
- * 勾選寫入的請求：不帶路徑，只帶目標行號與該行原文（design D1）。
+ * 勾選寫入的請求：不帶路徑，只帶目標行號與該行原文。
  * 一次可指定一或多行，全部落在同一份 tasks 檔案、以單次寫入完成；
  * 單顆 checkbox 的點擊即 `edits` 長度為 1 的情形。
  */
 export interface TaskToggleInput {
   /** 目標行，至少一筆；任一行不符即整批放棄（全有全無） */
   edits: TaskToggleEdit[]
-  /** 整批共用的目標勾選狀態——同一次請求不混合勾與取消（design D1） */
+  /** 整批共用的目標勾選狀態——同一次請求不混合勾與取消 */
   checked: boolean
 }
 
@@ -81,8 +81,8 @@ export interface TaskToggleEdit {
 }
 
 /**
- * 勾選寫入的三分結果（design D1）：成功／目標行已被外部改寫／其他失敗。
- * 衝突自成一類——UI 的提示文案必須與一般失敗可區分（spec artifact-view）。
+ * 勾選寫入的三分結果：成功／目標行已被外部改寫／其他失敗。
+ * 衝突自成一類——UI 的提示文案必須與一般失敗可區分。
  */
 export type ToggleResult
   = { ok: true }
@@ -99,7 +99,7 @@ export type SpecListResult
   = { ok: true, targetPath: string, specs: SpecSummary[] }
     | { ok: false, targetPath: string, error: GatewayError }
 
-/** spec 全文；`content` 是 CLI 原樣吐出的 Markdown，App 不解析（design：薄殼） */
+/** spec 全文；`content` 是 CLI 原樣吐出的 Markdown，App 不解析 */
 export type SpecContentResult
   = { ok: true, id: string, content: string }
     | { ok: false, error: GatewayError }
@@ -111,7 +111,7 @@ export interface ProjectEntry {
   /** 顯示名＝目錄名，與別項同名時帶父層消歧；不另存顯示名，少一個要維護的欄位 */
   name: string
   current: boolean
-  /** 由 env／cwd 決定但不在持久化清單中——顯示為暫時項（spec 覆寫與 fallback 為暫時項） */
+  /** 由 env／cwd 決定但不在持久化清單中——顯示為暫時項 */
   temporary: boolean
   /** 未 archive 的 change 數；取不到就是 null，UI 不顯示徽章、不編數字 */
   badge: number | null
@@ -123,7 +123,7 @@ export interface ProjectsSnapshot {
   currentPath: string | null
   /**
    * 本次回應是否帶徽章數。切換／加入／移除刻意不等徽章（每項一趟 CLI，~1s）——
-   * false 時呼叫端沿用既有數字，另行刷新（spec 徽章弱一致）。
+   * false 時呼叫端沿用既有數字，另行刷新。
    */
   badgesIncluded: boolean
 }
@@ -141,14 +141,14 @@ export type ParkUnavailableReason = 'not-git-repo' | 'git-worktree'
 
 /**
  * parked 卡片所需的摘要。進度與摘錄不經 CLI——parked change 對 openspec 不可見，
- * 一律現場解析 parked 目錄內的檔案（design D4）。
+ * 一律現場解析 parked 目錄內的檔案。
  */
 export interface ParkedSummary {
   name: string
   completedTasks: number
   totalTasks: number
   status: ChangeStatus
-  /** park 時點（epoch ms）；metadata 缺項時為 null，卡片顯示未知（spec fallback） */
+  /** park 時點（epoch ms）；metadata 缺項時為 null，卡片顯示未知 */
   parkedAt: number | null
   /** proposal `## Why` 首句的機械摘錄；抽不到就是空字串 */
   summary: string
@@ -158,13 +158,13 @@ export type ParkedListResult
   = { ok: true, parkAvailable: boolean, reason?: ParkUnavailableReason, items: ParkedSummary[] }
     | { ok: false, error: GatewayError }
 
-/** park／unpark 的結果；失敗一律帶可直接顯示的英文訊息（spec 操作失敗呈現） */
+/** park／unpark 的結果；失敗一律帶可直接顯示的英文訊息 */
 export type ParkActionResult
   = { ok: true }
     | { ok: false, message: string, detail?: string }
 
 /**
- * archived 卡片所需的摘要。archived change 對 openspec CLI 同樣不可見（design D1），
+ * archived 卡片所需的摘要。archived change 對 openspec CLI 同樣不可見，
  * 日期來自目錄名前綴、進度來自現場解析 tasks.md。
  */
 export interface ArchivedSummary {
@@ -172,7 +172,7 @@ export interface ArchivedSummary {
   dir: string
   /** 顯示名＝目錄名去 `YYYY-MM-DD-` 前綴；前綴解析不到就是完整目錄名 */
   name: string
-  /** 歸檔日期（`YYYY-MM-DD`）；解析不到為 null，卡片不顯示日期欄（spec 清單） */
+  /** 歸檔日期（`YYYY-MM-DD`）；解析不到為 null，卡片不顯示日期欄 */
   archivedAt: string | null
   completedTasks: number
   totalTasks: number
@@ -184,7 +184,7 @@ export type ArchivedListResult
     | { ok: false, targetPath: string, error: GatewayError }
 
 /**
- * App 取得規格資料的唯一通道。web 版走 Nitro route，M4 Tauri 版換成 shell plugin
+ * App 取得規格資料的唯一通道。web 版走 Nitro route，日後的 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
  */
 export interface OpenSpecGateway {
@@ -193,7 +193,7 @@ export interface OpenSpecGateway {
   /**
    * 翻轉某 change tasks 檔案中一或多個 task 行的勾選狀態——App 的唯一寫入通道。
    * 多行以單次讀取、單次寫回完成，且為全有全無：任一行的當前內容與呼叫端所見
-   * 不符即整批放棄並回報衝突（spec openspec-gateway）。
+   * 不符即整批放棄並回報衝突。
    * 寫入是檔案層操作、不經 CLI 改寫內容；進度數字仍由引擎於後續讀取時重算。
    * 目標檔案由實作端自 `artifactPaths` 解析，呼叫端無從指定路徑。
    */
@@ -201,7 +201,7 @@ export interface OpenSpecGateway {
   /**
    * 訂閱目標專案 `openspec/changes/` 的變動通知；回傳取消訂閱。
    * 通知粗粒度、不帶 payload，收到就自行重取。斷線由實作靜默重連，不對外拋錯。
-   * web 版走 SSE route，M4 Tauri 版換成 fs plugin 的 watch 事件——呼叫端只認 callback。
+   * web 版走 SSE route，日後的 Tauri 版換成 fs plugin 的 watch 事件——呼叫端只認 callback。
    */
   subscribeToChanges: (onChange: () => void) => () => void
 
@@ -218,7 +218,7 @@ export interface OpenSpecGateway {
   /** 單一 spec 的原始 Markdown 全文；原樣轉交，不解析也不改寫 */
   getSpecContent: (id: string) => Promise<SpecContentResult>
 
-  /** parked 清單；`parkAvailable` 隨清單一併回傳，前端據此禁用 park 按鈕（design D5） */
+  /** parked 清單；`parkAvailable` 隨清單一併回傳，前端據此禁用 park 按鈕 */
   listParked: () => Promise<ParkedListResult>
   /** 把 active change 搬進 `.git/specrun-app/parked/`；撞名與殘留檢查在實作端 */
   parkChange: (name: string) => Promise<ParkActionResult>
@@ -227,20 +227,20 @@ export interface OpenSpecGateway {
   /** parked change 的詳情打包；tabs 依 park 當下的快照，不打 openspec status */
   getParkedDetail: (name: string) => Promise<ChangeDetailResult>
 
-  /** archived 清單；檔案層直讀 `openspec/changes/archive/`，CLI 零參與（design D1） */
+  /** archived 清單；檔案層直讀 `openspec/changes/archive/`，CLI 零參與 */
   listArchived: () => Promise<ArchivedListResult>
-  /** archived change 的唯讀詳情；tabs 為現場列舉（design D4），識別鍵是含日期前綴的目錄名 */
+  /** archived change 的唯讀詳情；tabs 為現場列舉，識別鍵是含日期前綴的目錄名 */
   getArchivedDetail: (dir: string) => Promise<ChangeDetailResult>
 
   /**
-   * 原生選資料夾：能力判定不在前端，一律呼叫後依 status 分流（design D1）。
-   * web 版問本機 server（macOS 走 osascript），M4 Tauri 版走 dialog plugin。
+   * 原生選資料夾：能力判定不在前端，一律呼叫後依 status 分流。
+   * web 版問本機 server（macOS 走 osascript），日後的 Tauri 版走 dialog plugin。
    */
   pickFolder: () => Promise<PickFolderOutcome>
 
   /** 目前的 CLI 模式與解析結果；連不到 server 時以失敗態表達，不拋錯 */
   getCliSettings: () => Promise<CliSettings>
-  /** 驗證並套用一個明示覆寫路徑；失敗不寫入、目前生效者不變（spec app-settings） */
+  /** 驗證並套用一個明示覆寫路徑；失敗不寫入、目前生效者不變 */
   applyCliPath: (path: string) => Promise<CliApplyResult>
   /** 撤掉覆寫並重跑三段降級偵測 */
   redetectCli: () => Promise<CliSettings>
@@ -250,7 +250,7 @@ export interface OpenSpecGateway {
   revealPath: (path: string) => Promise<RevealOutcome>
 }
 
-/** CLI 執行檔的兩種來源：自動偵測／使用者明示覆寫（spec app-settings「CLI 路徑的兩種模式」） */
+/** CLI 執行檔的兩種來源：自動偵測／使用者明示覆寫 */
 export type CliMode = 'auto' | 'override'
 
 /**
@@ -270,7 +270,7 @@ export type CliApplyResult
   = { ok: true, settings: CliSettings }
     | { ok: false, message: string }
 
-/** 唯讀診斷區的四項＋「開啟所在位置」的能力旗標（spec openspec-gateway「環境診斷通道」） */
+/** 唯讀診斷區的四項＋「開啟所在位置」的能力旗標 */
 export interface EnvironmentDiagnostics {
   /** 應用程式設定檔的絕對路徑 */
   configPath: string
@@ -304,7 +304,7 @@ export type PickFolderOutcome
 
 /**
  * `GET /api/changes` 的回傳：一次 CLI 呼叫的原始結果。
- * route 只負責 spawn 與原樣轉送，解析與錯誤分類全在 shared normalize（design D1）。
+ * route 只負責 spawn 與原樣轉送，解析與錯誤分類全在 shared normalize。
  */
 export interface ChangeListProbe {
   /** canonical 化（realpath）後的目標專案路徑 */
@@ -317,7 +317,7 @@ export interface ChangeListProbe {
   failure?: ProbeFailure
   /**
    * change name → 該 change `proposal.md` 的原文，供 normalize 抽 `## Why` 首句摘錄。
-   * 與 `ParkedEntryProbe.proposal` 同構——route 給原文、normalize 抽句（design D3）。
+   * 與 `ParkedEntryProbe.proposal` 同構——route 給原文、normalize 抽句。
    * 只在 CLI 呼叫成功時出現；讀不到的 change 不會出現在表中（缺件不是錯誤，摘錄為空）。
    */
   proposals?: Record<string, string>
@@ -338,7 +338,7 @@ export interface ChangeDetailProbe extends ChangeListProbe {
   changeName: string
   /**
    * artifact id → 該 artifact 各既存檔案的讀取結果，順序沿用 `existingOutputPaths`。
-   * 只在 CLI 呼叫成功時出現；讀檔範圍即 CLI 列出的路徑（design D3 白名單）。
+   * 只在 CLI 呼叫成功時出現；讀檔範圍即 CLI 列出的路徑。
    */
   files?: Record<string, ArtifactFileProbe[]>
 }
@@ -364,7 +364,7 @@ export interface ArtifactFileProbe {
 
 /**
  * `GET /api/parked` 的回傳：目錄列舉結果＋各 parked change 的原始檔案內容。
- * route 一樣只做 IO，勾選計數與首句摘錄的解析在 shared normalize（design D4）。
+ * route 一樣只做 IO，勾選計數與首句摘錄的解析在 shared normalize。
  */
 export interface ParkedListProbe {
   parkAvailable: boolean
@@ -404,7 +404,7 @@ export interface ParkedArtifactProbe {
 
 /**
  * `GET /api/archived` 的回傳：目錄列舉結果＋各 archived change 的 tasks 原文。
- * route 一樣只做 IO，日期前綴拆解、進度計算與排序都在 shared normalize（design D2）。
+ * route 一樣只做 IO，日期前綴拆解、進度計算與排序都在 shared normalize。
  */
 export interface ArchivedListProbe {
   targetPath: string
@@ -413,7 +413,7 @@ export interface ArchivedListProbe {
   failure?: ArchivedProbeFailure
 }
 
-/** 兩類失敗要分開呈現：非 openspec 專案是設定問題，讀取失敗才值得重試（spec 空與錯誤狀態） */
+/** 兩類失敗要分開呈現：非 openspec 專案是設定問題，讀取失敗才值得重試 */
 export interface ArchivedProbeFailure {
   kind: 'not-openspec-project' | 'read-failed'
   message: string
@@ -427,7 +427,7 @@ export interface ArchivedEntryProbe {
 }
 
 /**
- * `GET /api/archived/:name` 的回傳：現場列舉的 tabs 與逐檔內容（design D4）。
+ * `GET /api/archived/:name` 的回傳：現場列舉的 tabs 與逐檔內容。
  * archived change 查不到 CLI、也沒有 park 那樣的快照，tabs 的集合與順序由 route 決定。
  */
 export interface ArchivedDetailProbe {

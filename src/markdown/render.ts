@@ -6,7 +6,7 @@ import { createHighlighterCore } from 'shiki/core'
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript'
 
 /**
- * artifact 的 Markdown → HTML（design D5）。
+ * artifact 的 Markdown → HTML。
  *
  * `html: false` 是刻意保留的預設：內容雖來自本機檔案，仍不開 raw HTML 注入面。
  * shiki 走 fine-grained bundle——語言逐個 import，首包不吞下整包語法定義。
@@ -71,7 +71,7 @@ async function createMarkdownIt(interactive: boolean): Promise<Md> {
 }
 
 export interface RenderOptions {
-  /** tasks 單檔時開啟：checkbox 可點並帶上來源行號（design D6） */
+  /** tasks 單檔時開啟：checkbox 可點並帶上來源行號 */
   interactive?: boolean
 }
 

@@ -43,7 +43,7 @@ function drawAt(t: number): void {
   ctx.clearRect(0, 0, DESIGN_SIZE, DESIGN_SIZE)
   for (const dot of frame.dots) {
     const color = orbDotColor(dot.white, surfaceRgb, accentBrightRgb)
-    // orbDotColor 刻意不四捨五入（design D3、orb-color.test.ts），fillStyle 收到小數時會
+    // orbDotColor 刻意不四捨五入（見 orb-color.test.ts），fillStyle 收到小數時會
     // 靜默沿用前一個顏色而非報錯，四捨五入放在組字串這一步做
     ctx.fillStyle = `rgba(${Math.round(color.r)}, ${Math.round(color.g)}, ${Math.round(color.b)}, ${dot.a ?? 1})`
     ctx.beginPath()
@@ -105,7 +105,7 @@ onMounted(() => {
   surfaceRgb = parseHexColor(styles.getPropertyValue('--sr-surface'))
   accentBrightRgb = parseHexColor(styles.getPropertyValue('--sr-accent-bright'))
 
-  // 無條件先畫一幀，再判斷要不要進迴圈：停止不等於空白（design D5）
+  // 無條件先畫一幀，再判斷要不要進迴圈：停止不等於空白
   drawAt(0)
 
   document.addEventListener('visibilitychange', syncRunState)
@@ -123,7 +123,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 純呈現、對輔助技術隱藏：App 名稱已由旁邊的 wordmark 承擔（spec「記號不可互動」） -->
+  <!-- 純呈現、對輔助技術隱藏：App 名稱已由旁邊的 wordmark 承擔 -->
   <div aria-hidden="true" class="relative h-[50px] w-[50px] shrink-0">
     <canvas ref="canvasEl" class="block h-[50px] w-[50px]" />
     <!-- 中央的終端機提示符號：path data 抄自 @iconify-json/lucide 1.2.123 的 terminal 圖示，

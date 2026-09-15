@@ -6,7 +6,7 @@ import PageHeader from './PageHeader.vue'
 import StateNotice from './StateNotice.vue'
 
 /**
- * Archived 頁：已歸檔 change 的回顧清單（design D3）。
+ * Archived 頁：已歸檔 change 的回顧清單。
  * 進頁載入、離頁清空都綁在這個元件的生命週期上，所以「切頁即關、進頁重載」不需要
  * 額外的 watcher（archive 目錄也不進 watcher 的監看範圍）。
  */
@@ -28,7 +28,7 @@ const showSkeleton = computed(() => archived.firstLoadPending && !noProject.valu
 const notOpenSpecProject = computed(() => archived.listError?.kind === 'not-openspec-project')
 const loadFailed = computed(() => archived.listError?.kind === 'call-failed')
 const isEmpty = computed(() => !archived.listError && archived.count === 0)
-/** 數量掛在麵包屑上（spec page-navigation），出現條件沿用原頁標：載入中與錯誤時不報數字 */
+/** 數量掛在麵包屑上，出現條件沿用原頁標：載入中與錯誤時不報數字 */
 const showCount = computed(() => !showSkeleton.value && !archived.listError)
 
 function toggle(dir: string): void {
@@ -39,7 +39,7 @@ function toggle(dir: string): void {
     void archived.open(dir)
 }
 
-/** 歸檔時沒做完是回顧時的異常訊號，講出數字比只給顏色可靠（spec 未完成即醒目） */
+/** 歸檔時沒做完是回顧時的異常訊號，講出數字比只給顏色可靠 */
 function progressTitle(completed: number, total: number): string {
   return completed >= total
     ? `All ${total} tasks were complete when archived`
@@ -162,7 +162,7 @@ function progressTitle(completed: number, total: number): string {
               aria-hidden="true"
             >·</span>
 
-            <!-- 目錄名前綴解析不到就整欄不出現，不編佔位日期（spec 目錄名無日期前綴） -->
+            <!-- 目錄名前綴解析不到就整欄不出現，不編佔位日期 -->
             <time
               v-if="item.archivedAt"
               class="text-ui-sm text-text-2 tabular-nums"

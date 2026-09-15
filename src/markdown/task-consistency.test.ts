@@ -3,7 +3,7 @@ import { isTaskLine, splitLines } from '../utils/task-line'
 import { renderMarkdown } from './render'
 
 /**
- * spec openspec-gateway「可勾選項的判定一致性」：畫面渲染成可互動 checkbox 的行，
+ * 「可勾選項的判定一致性」：畫面渲染成可互動 checkbox 的行，
  * 伺服端的 regex 必須認得。這裡把同一份樣本同時餵兩邊，plugin 升版導致漂移時先紅。
  */
 
