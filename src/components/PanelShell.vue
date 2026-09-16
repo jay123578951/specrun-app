@@ -105,8 +105,12 @@ onBeforeUnmount(() => {
           <span class="i-lucide-chevrons-right h-4 w-4" aria-hidden="true" />
         </button>
 
-        <!-- ml-auto 之後是動作槽：refresh 等按鈕由各面板自己填 -->
-        <div class="ml-auto flex shrink-0 items-center gap-2">
+        <!-- ml-auto 之後是動作槽：refresh 等按鈕、以及非互動的說明文字（如建立時刻）都由
+             各面板自己填。gap-4 是文字與按鈕群組之間的間距；按鈕彼此的間距由填槽端自行包一層
+             gap-2（ArtifactPanel 的建立時刻＋按鈕群組即一例），非互動文字與按鈕群組的間距
+             才需要明顯大於按鈕彼此的間距——ArchivedPanel 只填一顆按鈕，
+             不受影響 -->
+        <div class="ml-auto flex shrink-0 items-center gap-4">
           <slot name="actions" />
         </div>
       </div>

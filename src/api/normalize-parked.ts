@@ -63,6 +63,8 @@ function toParkedSummary(entry: ParkedEntryProbe): ParkedSummary {
     status: toTaskStatus(completedTasks, totalTasks),
     parkedAt: toEpochMs(entry.parkedAt),
     summary: extractWhy(entry.proposal ?? ''),
+    // 缺席（檔案系統未提供／讀取失敗）就是 null；park 不改寫它，取得規則與 active 一側相同
+    createdAt: typeof entry.createdAt === 'number' ? entry.createdAt : null,
   }
 }
 

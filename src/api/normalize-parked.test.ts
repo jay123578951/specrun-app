@@ -29,6 +29,7 @@ describe('normalizeParkedList: 清單', () => {
         status: 'in-progress',
         parkedAt: Date.parse('2026-07-20T10:00:00.000Z'),
         summary: 'Change 一多就有擱置需求。第二句同段一併帶回。',
+        createdAt: null,
       }],
     })
   })
@@ -48,6 +49,7 @@ describe('normalizeParkedList: 清單', () => {
         status: 'no-tasks',
         parkedAt: null,
         summary: '',
+        createdAt: null,
       }],
     })
   })
@@ -70,6 +72,22 @@ describe('normalizeParkedList: 清單', () => {
     }))
 
     expect(result.ok && result.items.map(item => item.name)).toEqual(['newer', 'older', 'unknown'])
+  })
+
+  it('建立時刻取得成功：轉為 epoch ms', () => {
+    const result = normalizeParkedList(listProbe({
+      entries: [{ name: 'add-old-idea', createdAt: 1_757_954_280_000 }],
+    }))
+
+    expect(result.ok && result.items[0]?.createdAt).toBe(1_757_954_280_000)
+  })
+
+  it('建立時刻取不到（欄位缺席）：回 null，不影響其餘欄位', () => {
+    const result = normalizeParkedList(listProbe({
+      entries: [{ name: 'add-old-idea' }],
+    }))
+
+    expect(result.ok && result.items[0]?.createdAt).toBeNull()
   })
 
   it('park 不可用時帶回原因，清單為空', () => {

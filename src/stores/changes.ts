@@ -20,6 +20,12 @@ export interface MoveCard {
   totalTasks: number
   status: ChangeSummary['status']
   summary: string
+  /**
+   * 建立時刻原樣帶著走，不改寫成 `null`——合成卡仍須滿足 `ChangeSummary`／`ParkedSummary`
+   * 的欄位完整性，帶著搬移前的真實值才不會讓搬移期間的資料自相矛盾（該 change 明明有
+   * 建立時刻，合成卡卻說沒有）。
+   */
+  createdAt: number | null
 }
 
 /**
@@ -327,6 +333,7 @@ export const useChangesStore = defineStore('changes', () => {
         totalTasks: source.totalTasks,
         status: source.status,
         summary: source.summary,
+        createdAt: source.createdAt,
       },
     }
     try {

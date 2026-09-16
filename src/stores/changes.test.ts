@@ -13,17 +13,17 @@ const gateway = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({ gateway }))
 
-function active(name: string): ChangeSummary {
-  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', lastModified: 1, summary: '' }
+function active(name: string, createdAt: number | null = null): ChangeSummary {
+  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', lastModified: 1, summary: '', createdAt }
 }
 
-function parkedItem(name: string): ParkedSummary {
-  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', parkedAt: 1, summary: '' }
+function parkedItem(name: string, createdAt: number | null = null): ParkedSummary {
+  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', parkedAt: 1, summary: '', createdAt }
 }
 
 /** 直接組 moving 用的快照，欄位對齊 active()／parkedItem() 的假資料 */
-function card(name: string): MoveCard {
-  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', summary: '' }
+function card(name: string, createdAt: number | null = null): MoveCard {
+  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', summary: '', createdAt }
 }
 
 function serverSays(changes: ChangeSummary[], items: ParkedSummary[] = []): void {
@@ -133,6 +133,40 @@ describe('樂觀搬移', () => {
     expect(names(store.visibleChanges)).toEqual(['a', 'b'])
     expect(names(store.visibleParked)).toEqual([])
     expect(store.toasts).toHaveLength(1)
+  })
+
+  it('park 樂觀搬移的合成卡帶著來源的建立時刻，滿足欄位完整性而不因搬移變成 null', async () => {
+    const createdAt = 1_757_954_280_000
+    serverSays([active('a', createdAt), active('b')])
+    const store = useChangesStore()
+    await store.load()
+
+    const call = deferred()
+    gateway.parkChange.mockReturnValue(call.promise)
+    const running = store.park('a')
+
+    expect(store.visibleParked.find(item => item.name === 'a')?.createdAt).toBe(createdAt)
+
+    serverSays([active('b')], [parkedItem('a', createdAt)])
+    call.settle({ ok: true })
+    await running
+  })
+
+  it('unpark 樂觀搬移的合成卡帶著來源的建立時刻，滿足欄位完整性而不因搬移變成 null', async () => {
+    const createdAt = 1_757_954_280_000
+    serverSays([active('b')], [parkedItem('a', createdAt)])
+    const store = useChangesStore()
+    await store.load()
+
+    const call = deferred()
+    gateway.unparkChange.mockReturnValue(call.promise)
+    const running = store.unpark('a')
+
+    expect(store.visibleChanges.find(item => item.name === 'a')?.createdAt).toBe(createdAt)
+
+    serverSays([active('a', createdAt), active('b')])
+    call.settle({ ok: true })
+    await running
   })
 
   it('unpark 的樂觀層把卡片放回 Active 之首，且不再帶 parked 欄位', async () => {

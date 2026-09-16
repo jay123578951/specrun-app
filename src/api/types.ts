@@ -15,6 +15,11 @@ export interface ChangeSummary {
   /** 最後修改時間（epoch ms；CLI 給 ISO 字串，normalize 轉換） */
   lastModified: number
   /**
+   * change 目錄的建立時刻（epoch ms）；不經 CLI，檔案層直讀目錄的 `birthtime`。
+   * 取不到（檔案系統未提供、讀取失敗）一律為 `null`，卡片不受影響，僅詳情面板據此顯示。
+   */
+  createdAt: number | null
+  /**
    * proposal `## Why` 首句的機械摘錄，與 `ParkedSummary.summary` 同一套抽取規則。
    * 唯一不來自 CLI 的欄位——CLI 清單不含 proposal 內容，改由 route 直讀檔案補上。
    * 無 proposal、無 `## Why` 段或讀取失敗一律為空字串，不是錯誤（卡片此時不顯示摘錄區塊）。
@@ -152,6 +157,8 @@ export interface ParkedSummary {
   parkedAt: number | null
   /** proposal `## Why` 首句的機械摘錄；抽不到就是空字串 */
   summary: string
+  /** change 目錄的建立時刻（epoch ms）；取得規則與 `ChangeSummary.createdAt` 相同，park 不改寫它 */
+  createdAt: number | null
 }
 
 export type ParkedListResult
@@ -321,6 +328,11 @@ export interface ChangeListProbe {
    * 只在 CLI 呼叫成功時出現；讀不到的 change 不會出現在表中（缺件不是錯誤，摘錄為空）。
    */
   proposals?: Record<string, string>
+  /**
+   * change name → 該 change 目錄的 `birthtimeMs`（epoch ms），供 normalize 填 `ChangeSummary.createdAt`。
+   * 與 `proposals` 同構：只在檔案層直讀成功時才有鍵，`0` 或讀取失敗一律不列入（normalize 端回 `null`）。
+   */
+  createdAt?: Record<string, number>
 }
 
 export interface ProbeFailure {
@@ -382,6 +394,8 @@ export interface ParkedEntryProbe {
   tasks?: string
   /** proposal 原文，用於 `## Why` 首句摘錄 */
   proposal?: string
+  /** parked change 目錄的 `birthtimeMs`（epoch ms）；`0` 或讀取失敗不帶此欄位（normalize 端回 `null`） */
+  createdAt?: number
 }
 
 /**

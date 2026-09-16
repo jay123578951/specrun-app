@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
+import { formatCreatedAt, formatCreatedAtFull } from '../utils/time'
 import ArtifactSkeleton from './ArtifactSkeleton.vue'
 import ArtifactTabs from './ArtifactTabs.vue'
 import CopyNameButton from './CopyNameButton.vue'
@@ -21,6 +22,20 @@ function refresh(): void {
 }
 
 const busy = computed(() => changes.busy || detail.refreshing)
+
+/**
+ * 建立時刻：據目前開啟的 change 名稱回查清單，不打詳情端點。
+ * 查的是原始清單（`changes.changes`／`changes.parked`）而非套過樂觀搬移層的 visible 版本
+ * ——與「檢視中 change 消失自動關閉」（App.vue 的 syncWithChanges）用的是同一份基準，
+ * 保持「面板開著就查得到」這條不變式的來源一致。取不到就是 null，面板整欄不渲染。
+ */
+const createdAt = computed(() => {
+  const name = detail.changeName
+  if (!name)
+    return null
+  const list = detail.isParked ? changes.parked : changes.changes
+  return list.find(item => item.name === name)?.createdAt ?? null
+})
 
 /**
  * 勾選只在單檔 tasks tab 開放：其他 artifact、多檔 tasks（非預設 schema）
@@ -56,24 +71,39 @@ const checkAllTitle = computed(() => {
     :content-key="detail.currentTab ?? ''"
     @collapse="detail.close()"
   >
-    <!-- 動作區：Open in editor 等按鈕之後才填，先有複製名稱與 refresh -->
+    <!-- 動作區：建立時刻（非互動）在最前，Open in editor 等按鈕之後才填，
+         複製名稱與 refresh 包一層自己的 gap-2——PanelShell 的 gap-4 只用來拉開
+         建立時刻與這個按鈕群組的間距 -->
     <template #actions>
-      <CopyNameButton v-if="detail.changeName" :name="detail.changeName" />
-      <button
-        type="button"
-        class="icon-btn"
-        :disabled="busy"
-        :aria-busy="busy"
-        aria-label="Refresh changes"
-        title="Refresh changes"
-        @click="refresh()"
+      <!-- 不可互動：無 tabindex、無 hover／press、無邊框底色；對比明顯低於同列的 icon 按鈕
+           （text-text-3 對 icon-btn 的 text-text-2）。取不到（createdAt 為 null）整個不渲染、
+           不留佔位——沒有建立時刻可顯示時，留白位置沒有意義 -->
+      <time
+        v-if="createdAt !== null"
+        class="shrink-0 font-mono text-ui-xs tabular-nums text-text-3"
+        :datetime="new Date(createdAt).toISOString()"
+        :title="formatCreatedAtFull(createdAt)"
       >
-        <span
-          class="i-lucide-refresh-cw h-4 w-4"
-          :class="{ 'animate-spin': busy }"
-          aria-hidden="true"
-        />
-      </button>
+        Created {{ formatCreatedAt(createdAt) }}
+      </time>
+      <div class="flex shrink-0 items-center gap-2">
+        <CopyNameButton v-if="detail.changeName" :name="detail.changeName" />
+        <button
+          type="button"
+          class="icon-btn"
+          :disabled="busy"
+          :aria-busy="busy"
+          aria-label="Refresh changes"
+          title="Refresh changes"
+          @click="refresh()"
+        >
+          <span
+            class="i-lucide-refresh-cw h-4 w-4"
+            :class="{ 'animate-spin': busy }"
+            aria-hidden="true"
+          />
+        </button>
+      </div>
     </template>
 
     <template #header>

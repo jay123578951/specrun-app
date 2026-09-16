@@ -15,7 +15,7 @@ const gateway = vi.hoisted(() => ({
 vi.mock('../api', () => ({ gateway }))
 
 function active(name: string): ChangeSummary {
-  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', lastModified: 1, summary: '' }
+  return { name, completedTasks: 1, totalTasks: 3, status: 'in-progress', lastModified: 1, summary: '', createdAt: null }
 }
 
 function project(path: string, overrides: Partial<ProjectEntry> = {}): ProjectEntry {

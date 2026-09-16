@@ -1,6 +1,6 @@
 import type { ParkedEntryProbe, ParkedListProbe } from '../../src/api/types'
 import type { ParkedMetadata } from '../utils/parked-store'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { resolveTargetDir } from '../utils/openspec-cli'
 import { listParkedNames, metadataFileOf, parkedDirOf, readMetadata, resolveGitDir } from '../utils/parked-store'
@@ -44,9 +44,10 @@ async function readEntry(
   metadata: ParkedMetadata,
 ): Promise<ParkedEntryProbe> {
   const record = metadata[name]
-  const [tasks, proposal] = await Promise.all([
+  const [tasks, proposal, createdAt] = await Promise.all([
     readOptional(dir, record?.artifacts.tasks?.[0] ?? FALLBACK_TASKS),
     readOptional(dir, record?.artifacts.proposal?.[0] ?? FALLBACK_PROPOSAL),
+    readCreatedAt(dir),
   ])
 
   return {
@@ -54,6 +55,21 @@ async function readEntry(
     ...(record ? { parkedAt: record.parkedAt } : {}),
     ...(tasks === null ? {} : { tasks }),
     ...(proposal === null ? {} : { proposal }),
+    ...(createdAt === null ? {} : { createdAt }),
+  }
+}
+
+/**
+ * change 目錄的建立時刻：park 是整目錄 `rename`，`birthtime` 因此保值，
+ * 不必在 park 當下另存。`0`（檔案系統未提供）或讀取失敗一律視為取不到。
+ */
+async function readCreatedAt(dir: string): Promise<number | null> {
+  try {
+    const { birthtimeMs } = await stat(dir)
+    return birthtimeMs > 0 ? birthtimeMs : null
+  }
+  catch {
+    return null
   }
 }
 

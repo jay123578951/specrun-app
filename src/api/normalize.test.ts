@@ -42,6 +42,7 @@ describe('normalizeChangeList: 正常清單', () => {
           status: 'in-progress',
           lastModified: Date.parse('2026-08-14T07:07:32.915Z'),
           summary: '',
+          createdAt: null,
         },
         {
           name: 'fix-watcher',
@@ -50,6 +51,7 @@ describe('normalizeChangeList: 正常清單', () => {
           status: 'in-progress',
           lastModified: Date.parse('2026-08-14T07:07:32.915Z'),
           summary: '',
+          createdAt: null,
         },
       ],
     })
@@ -110,6 +112,45 @@ describe('normalizeChangeList: Why 摘錄', () => {
 
     expect(result.ok).toBe(true)
     expect(result.ok && result.changes[0]?.summary).toBe('')
+  })
+})
+
+describe('normalizeChangeList: 建立時刻', () => {
+  it('取得成功：`createdAt` 表中有該筆時轉為 epoch ms', () => {
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS]),
+      createdAt: { 'add-change-list': 1_757_954_280_000 },
+    }))
+
+    expect(result.ok && result.changes[0]?.createdAt).toBe(1_757_954_280_000)
+  })
+
+  it('取不到回 null：表中缺席該筆，其餘欄位照常，不回報錯誤', () => {
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS]),
+      createdAt: {},
+    }))
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.changes[0]?.createdAt).toBeNull()
+  })
+
+  it('`createdAt` 欄位整體缺席時同樣回 null，不影響清單成功', () => {
+    const result = normalizeChangeList(probe({ stdout: listStdout([IN_PROGRESS]) }))
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.changes[0]?.createdAt).toBeNull()
+  })
+
+  it('多筆之中僅部分取得：各自獨立為對應值或 null，單筆缺席不拖垮其餘筆', () => {
+    const second = { ...IN_PROGRESS, name: 'fix-watcher' }
+    const result = normalizeChangeList(probe({
+      stdout: listStdout([IN_PROGRESS, second]),
+      createdAt: { 'add-change-list': 1_757_954_280_000 },
+    }))
+
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.changes.map(c => c.createdAt)).toEqual([1_757_954_280_000, null])
   })
 })
 

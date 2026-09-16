@@ -85,7 +85,7 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
 
   const changes: ChangeSummary[] = []
   for (const raw of payload.changes) {
-    const change = toSummary(raw, probe.proposals)
+    const change = toSummary(raw, probe.proposals, probe.createdAt)
     if (!change)
       return fail('call-failed', 'Could not read the change list.', 'The CLI response had an unexpected shape.')
     changes.push(change)
@@ -329,7 +329,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-function toSummary(raw: unknown, proposals: Record<string, string> | undefined): ChangeSummary | null {
+function toSummary(
+  raw: unknown,
+  proposals: Record<string, string> | undefined,
+  createdAt: Record<string, number> | undefined,
+): ChangeSummary | null {
   const item = asRecord(raw)
   if (!item)
     return null
@@ -354,6 +358,8 @@ function toSummary(raw: unknown, proposals: Record<string, string> | undefined):
     lastModified,
     // 讀不到的 change 不在表中（也可能整個欄位缺席）→ 空摘錄，卡片不顯示該區塊，不是錯誤
     summary: extractWhy(proposals?.[name] ?? ''),
+    // 建立時刻同理：不在表中（檔案系統未提供／讀取失敗）就是 null，詳情面板據此整欄不渲染
+    createdAt: toEpochMs(createdAt?.[name]),
   }
 }
 
