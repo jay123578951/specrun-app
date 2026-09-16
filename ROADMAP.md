@@ -94,7 +94,7 @@ Park / unpark 操作與 parked 清單一體（原 C6 併入此處，第一個 ch
 - ~~**前置 spike（半天）：capabilities 權限驗證**~~ ✅ 2026-08-19 完成——四項全數可行，結論記入上方「已知的坑」：spawn 與 scope 授權走薄 Rust 包裝（「不寫 Rust」修正見決策表）、`.git` 需額外顯式 allow、watch 要開 Cargo feature。技術風險解除，可切 change 堆疊。
 - **tauriGateway 移植**：`server/`（約 2300 行）以官方 plugin 在前端 TS 重寫——CLI spawn（shell）、park／archive 檔案操作（fs）、資料夾選擇（dialog）、Finder reveal（opener）、設定持久化、fs watch 事件餵 gateway callback。介面已抽好（`src/api/gateway.ts` 唯一換點、watch 收在 `OpenSpecGateway` 內、normalize 層共用），照表移植即可。收尾順帶：`getHealth` 目前繞過 gateway 直接 fetch，Tauri 版由 diagnostics 取代時一併收斂。
 - ~~**WKWebView 相容驗證**~~ ✅ 2026-08-19 T1 完成——逐頁走查零破版，無 Chrome-only 樣式待修（結論記入上方「已知的坑」）。
-- **App 識別與版本**：logo／icon 設計（C10 收尾時點名移交至此）、名稱、bundle identifier；版本號自 0.0.0 定版起跳。
+- **App 識別與版本**：名稱、bundle identifier；版本號自 0.0.0 定版起跳。logo／icon 已於 2026-09-16 獨立切出為 T1.5（與 gateway 移植零相依，先做先有）。
 - **發佈——免費路線（2026-08-19 定案）**：GitHub Releases＋安裝說明（含 `xattr -d com.apple.quarantine` 一行；macOS 15 起無「右鍵開啟」繞法，另一途徑是系統設定→隱私權與安全性→強制打開）。受眾是已在用 openspec CLI 的開發者，可承受首次安裝儀式。不簽章、不公證、不做自動更新（三者綁定，見觀察項）；僅出 macOS（Windows 見觀察項）。
 
 change 堆疊（2026-08-19 定案。過渡策略：**Tauri dev 併跑 nitro、逐域切換**——T1 套殼後 App 經 webGateway 即可用，每張換一個領域到 Tauri IPC，隨換隨 dogfood，T4 起 nitro 退場）：
@@ -102,10 +102,11 @@ change 堆疊（2026-08-19 定案。過渡策略：**Tauri dev 併跑 nitro、�
 | # | change | 內容 | 狀態 |
 |---|--------|------|------|
 | T1 | add-tauri-shell | src-tauri 殼＋capabilities＋薄 Rust commands（spawn／allow-path）＋dev 通路（tauri dev 併跑 nitro）＋WKWebView 首檢 | ✅ 2026-08-19 archived（新 capability `desktop-shell`；`dev:app` 可用、gateway 仍恆 webGateway） |
-| T2 | add-tauri-gateway-reads | CLI spawn 讀取面：changes 清單／詳情、specs、環境診斷（cli-resolver／openspec-cli 邏輯搬前端） | ⏭️ 下一個 |
+| T1.5 | add-app-icon | APP 圖示：品牌記號定格幀導出、自帶底色與圓角、全平台尺寸產出（`tauri icon`）。只動 `src-tauri/icons/` 與 bundle 設定，與 T2～T4 零相依，2026-09-16 自 T5 切出插隊至此 | ⏭️ 下一個 |
+| T2 | add-tauri-gateway-reads | CLI spawn 讀取面：changes 清單／詳情、specs、環境診斷（cli-resolver／openspec-cli 邏輯搬前端） | |
 | T3 | add-tauri-gateway-files | 檔案操作面：tasks 勾選、park／unpark、archived 直讀（含 `.git` 顯式 allow） | |
 | T4 | add-tauri-gateway-platform | watch、資料夾選擇（dialog）、reveal（opener）、設定持久化；nitro 自此退場 | |
-| T5 | add-app-release | logo／icon、名稱、bundle id、版本定版、`tauri build`、README 安裝說明＋首發 Release | |
+| T5 | add-app-release | 名稱、bundle id、版本定版、`tauri build`、README 安裝說明＋首發 Release（logo／icon 已移至 T1.5） | |
 
 發佈模式參照（2026-08-19 實測 Spectra v2.3.1）：閉源＋純發佈 repo（README／CHANGELOG／Releases，原始碼不公開）、macOS 版 Developer ID 簽章＋公證（Apple Developer 年費 99 美元）、收錄 Homebrew 官方 cask（有星數門檻）、內建自動更新；Windows 版未簽章裸發。它為「零摩擦安裝」付費是因受眾比本專案廣；「公開發佈 repo＋私有原始碼」模式可沿用，發佈層不強迫決定開源與否。
 
