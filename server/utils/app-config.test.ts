@@ -2,11 +2,12 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { emptyConfig, parseConfig, readConfig, resolveConfigDir, writeConfig } from './app-config'
+import { emptyConfig, readConfig, resolveConfigDir, writeConfig } from './app-config'
 
 /**
- * 設定檔的兩個承諾：損毀不 crash（parse／read）、寫入原子（write）。
+ * node 這一側的檔案通道：讀壞不 crash（read）、寫入原子（write），加上設定目錄的平台分支。
  * 用真實暫存檔驗證，不 mock fs——「壞資料進來會怎樣」正是這裡唯一該測的行為。
+ * 內容解析與寫出格式兩形態共用，測在 src/api/app-config.test.ts。
  */
 
 describe('resolveConfigDir', () => {
@@ -29,49 +30,6 @@ describe('resolveConfigDir', () => {
 
     const withoutEnv = resolveConfigDir({ platform: 'linux', env: {}, home: '/home/x' })
     expect(withoutEnv).toBe('/home/x/.config/specrun-app')
-  })
-})
-
-describe('parseConfig', () => {
-  it('讀得懂的內容原樣還原', () => {
-    const raw = JSON.stringify({ projects: ['/a', '/b'], lastActivePath: '/b', openspecBin: '/opt/bin/openspec' })
-    expect(parseConfig(raw)).toEqual({
-      projects: ['/a', '/b'],
-      lastActivePath: '/b',
-      openspecBin: '/opt/bin/openspec',
-    })
-  })
-
-  it('空內容、非 JSON、非物件一律視為空清單', () => {
-    expect(parseConfig(null)).toEqual(emptyConfig())
-    expect(parseConfig('')).toEqual(emptyConfig())
-    expect(parseConfig('{ not json')).toEqual(emptyConfig())
-    expect(parseConfig('[1, 2]')).toEqual(emptyConfig())
-    expect(parseConfig('"a string"')).toEqual(emptyConfig())
-  })
-
-  it('欄位型別不對時逐欄位丟掉，不整份放棄', () => {
-    const raw = JSON.stringify({ projects: ['/a', 42, '', null, '/a', '/b'], lastActivePath: 7 })
-    expect(parseConfig(raw)).toEqual({ projects: ['/a', '/b'], lastActivePath: null, openspecBin: null })
-  })
-
-  // openspecBin 是後加的欄位，舊設定檔一定沒有它——缺失、型別不符、空字串都得降級成
-  // 自動偵測（null），且不能連累同一份檔案裡讀得懂的其他欄位（design D4 的無 migration 前提）
-  it('openspecBin 缺失（舊設定檔）時降級為自動偵測，其餘欄位照常', () => {
-    const raw = JSON.stringify({ projects: ['/a'], lastActivePath: '/a' })
-    expect(parseConfig(raw)).toEqual({ projects: ['/a'], lastActivePath: '/a', openspecBin: null })
-  })
-
-  it('openspecBin 型別不符或為空字串時降級為自動偵測，其餘欄位照常', () => {
-    for (const bin of [42, null, '', {}, ['/x']]) {
-      const raw = JSON.stringify({ projects: ['/a'], lastActivePath: '/a', openspecBin: bin })
-      expect(parseConfig(raw)).toEqual({ projects: ['/a'], lastActivePath: '/a', openspecBin: null })
-    }
-  })
-
-  it('openspecBin 為有效路徑時原樣保留，即使其餘欄位壞掉', () => {
-    const raw = JSON.stringify({ projects: 'nope', lastActivePath: 7, openspecBin: '/opt/bin/openspec' })
-    expect(parseConfig(raw)).toEqual({ projects: [], lastActivePath: null, openspecBin: '/opt/bin/openspec' })
   })
 })
 

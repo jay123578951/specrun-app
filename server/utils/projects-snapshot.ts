@@ -1,5 +1,5 @@
 import type { ProjectEntry, ProjectsSnapshot } from '../../src/api/types'
-import path from 'node:path'
+import { projectDisplayNames } from '../../src/api/project-display-names'
 import { runCli } from './openspec-cli'
 import { currentProjectPath, projectEntries } from './project-state'
 
@@ -16,7 +16,7 @@ const BADGE_CONCURRENCY = 4
 export async function buildSnapshot(options: { badges: boolean }): Promise<ProjectsSnapshot> {
   const entries = await projectEntries()
   const paths = entries.map(entry => entry.path)
-  const names = displayNames(paths)
+  const names = projectDisplayNames(paths)
   const badges = options.badges ? await countAll(paths) : null
 
   const projects: ProjectEntry[] = entries.map((entry, index) => ({
@@ -32,22 +32,6 @@ export async function buildSnapshot(options: { badges: boolean }): Promise<Proje
     currentPath: await currentProjectPath(),
     badgesIncluded: options.badges,
   }
-}
-
-/** 目錄名即顯示名；撞名才帶一層父目錄消歧（design D2：不另存顯示名欄位） */
-function displayNames(paths: string[]): string[] {
-  const bases = paths.map(each => path.basename(each) || each)
-  const counts = new Map<string, number>()
-  for (const base of bases)
-    counts.set(base, (counts.get(base) ?? 0) + 1)
-
-  return paths.map((each, index) => {
-    const base = bases[index]!
-    if ((counts.get(base) ?? 0) < 2)
-      return base
-    const parent = path.basename(path.dirname(each))
-    return parent ? `${parent}/${base}` : base
-  })
 }
 
 async function countAll(paths: string[]): Promise<Array<number | null>> {

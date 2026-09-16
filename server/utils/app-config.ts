@@ -1,33 +1,29 @@
+import type { AppConfig } from '../../src/api/app-config'
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import {
+  APP_FOLDER,
+  emptyConfig,
+  expandHome as expandHomeWith,
+  CONFIG_FILE_NAME as FILE_NAME,
+  parseConfig,
+  serializeConfig,
+} from '../../src/api/app-config'
 
 /**
  * 專案清單的持久化載體（design D2）：平台慣例位置下的單一 JSON。
+ *
+ * 欄位、內容解析與寫出格式住在 `src/api/app-config.ts`——桌面形態讀寫的是同一份
+ * 檔案，格式只能有一個決定處。這裡留的是 node 這一側的檔案通道與平台位置解析。
  *
  * 兩條紀律：讀壞不 crash——無法解析一律降級成空清單重建；寫入走 temp + rename
  * 的整檔原子替換，不做鎖（單 App 單寫者，見 design 風險欄）。
  */
 
-export interface AppConfig {
-  /** canonical 化後的專案路徑，順序即側欄顯示順序 */
-  projects: string[]
-  /** 最後啟用的專案；啟動優先序的第二順位 */
-  lastActivePath: string | null
-  /**
-   * 使用者明示指定的 openspec 執行檔；null＝自動偵測（design D4）。
-   * 只存明示覆寫——偵測結果是機器環境的衍生物，寫回去就成了會過期的假資料。
-   */
-  openspecBin: string | null
-}
-
-const APP_FOLDER = 'specrun-app'
-const FILE_NAME = 'config.json'
-
-export function emptyConfig(): AppConfig {
-  return { projects: [], lastActivePath: null, openspecBin: null }
-}
+export type { AppConfig }
+export { emptyConfig, parseConfig }
 
 export interface ConfigDirInputs {
   platform: NodeJS.Platform
@@ -46,54 +42,12 @@ export function resolveConfigDir({ platform, env, home }: ConfigDirInputs): stri
 
 /** 貼進來的路徑常帶 `~`，展開一下比丟「找不到」有用（專案路徑與 CLI 路徑共用） */
 export function expandHome(target: string): string {
-  if (target === '~')
-    return homedir()
-  if (target.startsWith('~/') || target.startsWith(`~${path.sep}`))
-    return path.join(homedir(), target.slice(2))
-  return target
+  return expandHomeWith(target, homedir())
 }
 
 export function configFilePath(): string {
   const dir = resolveConfigDir({ platform: process.platform, env: process.env, home: homedir() })
   return path.join(dir, FILE_NAME)
-}
-
-/**
- * 逐欄位收斂：認不得的形狀一律丟掉，不讓外部改壞的資料流進執行期狀態。
- * 整份壞掉與部分欄位壞掉是同一種處理——能救幾個算幾個，其餘回預設。
- */
-export function parseConfig(raw: string | null): AppConfig {
-  if (!raw)
-    return emptyConfig()
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  }
-  catch {
-    return emptyConfig()
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-    return emptyConfig()
-
-  const record = parsed as Record<string, unknown>
-  const projects: string[] = []
-  if (Array.isArray(record.projects)) {
-    for (const entry of record.projects) {
-      if (typeof entry === 'string' && entry && !projects.includes(entry))
-        projects.push(entry)
-    }
-  }
-
-  const last = record.lastActivePath
-  // 舊設定檔沒有 openspecBin 欄位——缺失與形狀不符同一種處理，回 null 即自動偵測，無需 migration
-  const bin = record.openspecBin
-  return {
-    projects,
-    lastActivePath: typeof last === 'string' && last ? last : null,
-    openspecBin: typeof bin === 'string' && bin ? bin : null,
-  }
 }
 
 /** 檔案不存在、讀不到、內容壞掉——三者對呼叫端是同一件事：目前沒有可用的清單 */
@@ -112,7 +66,7 @@ export async function writeConfig(config: AppConfig, file: string = configFilePa
   // 同目錄的 temp 才保證 rename 是同一檔案系統內的原子操作
   const temp = `${file}.${process.pid}.tmp`
   try {
-    await writeFile(temp, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
+    await writeFile(temp, serializeConfig(config), 'utf8')
     await rename(temp, file)
   }
   catch (error) {

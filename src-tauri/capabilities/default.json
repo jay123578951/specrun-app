@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "main 視窗權限：fs 各操作，靜態 scope 僅 $APPDATA；專案路徑由 allow_path 於 runtime 授權",
+  "description": "main 視窗權限：fs 各操作，靜態 scope 僅共用設定目錄 $CONFIG/specrun-app；專案路徑由 allow_path 於 runtime 授權",
   "windows": [
     "main"
   ],
@@ -19,8 +19,8 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$APPDATA" },
-        { "path": "$APPDATA/**" }
+        { "path": "$CONFIG/specrun-app" },
+        { "path": "$CONFIG/specrun-app/**" }
       ]
     }
   ]

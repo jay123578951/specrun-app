@@ -51,7 +51,7 @@ const rows = computed(() => {
     {
       key: 'watch',
       label: 'Live refresh',
-      value: env ? (env.watching ? 'Running' : 'Not running') : '—',
+      value: watchValue(env?.watching),
       mono: false,
       revealable: false,
       target: null,
@@ -67,10 +67,47 @@ const rows = computed(() => {
   ]
 })
 
-const revealHint = computed(() =>
-  settings.canReveal
-    ? 'Show in Finder'
-    : 'Showing a file in its folder is not available on this platform.')
+/**
+ * 三態：這個執行形態還問不到（未知）要與明確的「沒在跑」分得出來，
+ * 未知一律落在與「值取不到」同一個佔位符上。
+ */
+function watchValue(watching: boolean | null | undefined): string {
+  if (watching === null || watching === undefined)
+    return '—'
+  return watching ? 'Running' : 'Not running'
+}
+
+/**
+ * 禁用的原因要三條路徑都讀得到：`title` 只給指標，`aria-describedby` 指向的
+ * sr-only 說明給輔助技術，`aria-disabled` 讓按鈕仍可聚焦——原生 `disabled`
+ * 的按鈕不進 tab 序列，鍵盤使用者連停都停不上去。
+ */
+function revealDisabled(target: string | null): boolean {
+  return !settings.canReveal || !target
+}
+
+function onReveal(target: string | null): void {
+  if (revealDisabled(target))
+    return
+  settings.reveal(target)
+}
+
+/** 禁用有三個成因，措辭要各自對得上——說明會被輔助技術當成「為什麼不能按」唸出來 */
+function revealHint(target: string | null): string {
+  // 診斷還沒回來時按鈕已經是禁用態，這一瞬給的理由得是「還在問」——診斷區的
+  // 四行以「—」表達同一件事，不能在這裡改口說成「這個平台辦不到」
+  if (!settings.diagnostics)
+    return 'Checking whether this app can show a file in its folder.'
+  // 「這個平台辦不到」與「這個形態還沒接上」是兩回事，禁用的原因不能混為一談
+  if (!settings.canReveal) {
+    return settings.diagnostics?.canReveal === null
+      ? 'Showing a file in its folder is not available in the desktop app yet.'
+      : 'Showing a file in its folder is not available on this platform.'
+  }
+  if (!target)
+    return 'There is no path to show for this item yet.'
+  return 'Show in Finder'
+}
 
 watch(() => settings.isOpen, async (open) => {
   if (open) {
@@ -303,26 +340,35 @@ function focusable(): HTMLElement[] {
                   <dt class="w-32 shrink-0 text-ui-sm text-text-3">
                     {{ row.label }}
                   </dt>
-                  <dd
-                    class="min-w-0 flex-1 truncate text-ui-sm"
-                    :class="row.mono ? 'text-text-2 font-mono' : 'text-text-2'"
-                    :title="row.value"
-                  >
-                    {{ row.value }}
+                  <!-- 值與按鈕同在 dd 內：dl 的內容只放得下 dt／dd，按鈕與說明是這一項的一部分 -->
+                  <dd class="min-w-0 flex flex-1 items-center gap-3">
+                    <span
+                      class="min-w-0 flex-1 truncate text-ui-sm"
+                      :class="row.mono ? 'text-text-2 font-mono' : 'text-text-2'"
+                      :title="row.value"
+                    >
+                      {{ row.value }}
+                    </span>
+                    <!-- 不支援的平台顯示為禁用＋說明原因，不隱藏：隱藏會讓使用者
+                         既不知道有這個能力、也不知道為何沒有。原因不另闢一行，
+                         它只屬於這兩顆按鈕 -->
+                    <template v-if="row.revealable">
+                      <button
+                        type="button"
+                        class="btn-inline shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:active:bg-transparent aria-disabled:hover:bg-transparent aria-disabled:hover:text-text-2"
+                        :aria-disabled="revealDisabled(row.target)"
+                        :aria-describedby="revealDisabled(row.target) ? `${row.key}-reveal-hint` : undefined"
+                        :title="revealHint(row.target)"
+                        :aria-label="`Show ${row.label.toLowerCase()} in its folder`"
+                        @click="onReveal(row.target)"
+                      >
+                        <span class="i-lucide-folder-open h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <span v-if="revealDisabled(row.target)" :id="`${row.key}-reveal-hint`" class="sr-only">
+                        {{ revealHint(row.target) }}
+                      </span>
+                    </template>
                   </dd>
-                  <!-- 不支援的平台顯示為禁用＋說明原因，不隱藏：隱藏會讓使用者
-                       既不知道有這個能力、也不知道為何沒有 -->
-                  <button
-                    v-if="row.revealable"
-                    type="button"
-                    class="btn-inline shrink-0"
-                    :disabled="!settings.canReveal || !row.target"
-                    :title="revealHint"
-                    :aria-label="`Show ${row.label.toLowerCase()} in its folder`"
-                    @click="settings.reveal(row.target)"
-                  >
-                    <span class="i-lucide-folder-open h-4 w-4" aria-hidden="true" />
-                  </button>
                 </div>
               </dl>
             </section>

@@ -25,3 +25,12 @@ tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
 # watch 是 Cargo feature，預設不含（2026-08-19 spike 定案）
 tauri-plugin-fs = { version = "2", features = ["watch"] }
+# tauri 已間接帶進 tokio，但這幾項 feature 不在它啟用的範圍內：
+# process／time 供行程通道與逾時，io-util 供逐段讀 pipe（AsyncReadExt），
+# macros 供 tokio::join! 同時讀 stdout 與 stderr。
+tokio = { version = "1", features = ["process", "time", "io-util", "macros"] }
+
+[dev-dependencies]
+# 測試自己要一個 runtime 跑 async command；production 端由 tauri 提供，不需要 rt。
+tokio = { version = "1", features = ["rt", "macros"] }
+tauri = { version = "2.11.3", features = ["test"] }

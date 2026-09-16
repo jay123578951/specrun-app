@@ -116,7 +116,7 @@ export async function addProject(input: string): Promise<AddOutcome> {
  */
 export async function removeProject(input: string): Promise<void> {
   const current = await state()
-  const target = await resolveKnownPath(input, current)
+  const target = await resolveKnownPath(input, current.config.projects, current.current)
 
   current.config.projects = current.config.projects.filter(each => each !== target)
   if (current.current === target) {
@@ -132,12 +132,31 @@ export type SwitchOutcome
   = { ok: true, path: string }
     | { ok: false, message: string }
 
-/** 切換到清單中（含暫時項）的專案；路徑已失效照樣切過去，錯誤留給主區呈現 */
-export async function switchProject(input: string): Promise<SwitchOutcome> {
-  const current = await state()
-  const target = await resolveKnownPath(input, current)
+export interface SwitchOptions {
+  /**
+   * 這個行程手上的設定是啟動時讀進去的，整檔寫回會蓋掉外殼那一側之後寫的內容。
+   * 桌面形態由外殼持有寫入權，切換只借這裡更新執行期狀態與 watcher。
+   *
+   * 帶這一欄＝呼叫端已經驗過也寫過設定檔，因此成員資格也要以磁碟上那一份為準：
+   * 見 switchProject 內的重讀。
+   */
+  skipConfigWrite?: boolean
+}
 
-  const persisted = current.config.projects.includes(target)
+/** 切換到清單中（含暫時項）的專案；路徑已失效照樣切過去，錯誤留給主區呈現 */
+export async function switchProject(input: string, options: SwitchOptions = {}): Promise<SwitchOutcome> {
+  const current = await state()
+  // 寫入權在呼叫端時，這裡手上的清單是啟動時讀進去的舊快照：不重讀就會拿舊清單
+  // 否決掉對方剛加入的專案，而這份快照在本行程的生命週期內永遠不會自己對齊。
+  //
+  // 重讀只用來判成員資格，不覆寫 current.config：readConfig 讀不到檔案時回的是
+  // 空設定而不是拋錯，覆寫上去等於把本行程的設定整份換成空的，之後任何一次落盤
+  // （web 那一側的增／刪／切）都會把這份空設定寫回磁碟。
+  const disk = options.skipConfigWrite ? await readConfig() : current.config
+
+  const target = await resolveKnownPath(input, disk.projects, current.current)
+
+  const persisted = disk.projects.includes(target)
   if (!persisted && !(current.temporary && current.current === target))
     return { ok: false, message: 'That project is not in the list.' }
 
@@ -147,7 +166,8 @@ export async function switchProject(input: string): Promise<SwitchOutcome> {
   if (persisted)
     current.config.lastActivePath = target
 
-  await persist(current)
+  if (!options.skipConfigWrite)
+    await persist(current)
   return { ok: true, path: target }
 }
 
@@ -155,9 +175,9 @@ export async function switchProject(input: string): Promise<SwitchOutcome> {
  * 清單裡的路徑已是 canonical；但資料夾若已被搬走 realpath 會失敗，
  * 此時退回原字串才比對得到自己那一項（失效專案仍要可切換、可移除）。
  */
-async function resolveKnownPath(input: string, current: ProjectState): Promise<string> {
+async function resolveKnownPath(input: string, projects: string[], currentPath: string | null): Promise<string> {
   const raw = input.trim()
-  if (current.config.projects.includes(raw) || current.current === raw)
+  if (projects.includes(raw) || currentPath === raw)
     return raw
   return (await canonical(expandHome(raw))) ?? path.resolve(expandHome(raw))
 }
