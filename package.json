@@ -10,9 +10,10 @@
     "dev:api": "nitro dev --port 3210",
     "dev:web": "vite",
     "build": "vite build && nitro build",
+    "build:icon": "node scripts/build-app-icon.ts",
     "lint": "eslint .",
     "test": "vitest run",
-    "typecheck": "nitro prepare && vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json"
+    "typecheck": "nitro prepare && vue-tsc --noEmit -p tsconfig.json && tsc --noEmit -p server/tsconfig.json && tsc --noEmit -p scripts/tsconfig.json"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
