@@ -1,8 +1,8 @@
-import type { ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../types'
+import type { ChangeListProbe, ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../types'
 import { projectDisplayNames } from '../project-display-names'
 import { runCli } from './cli'
 import { config, persist } from './config-store'
-import { allowDirListing, allowPath, readDir, resolveUserPath } from './shell'
+import { allowDirListing, allowPath, canonicalPath, readDir, resolveUserPath, statPath } from './shell'
 
 /**
  * 桌面形態下「目前是哪個專案」的單一持有處：執行期狀態，不是每次重算——
@@ -47,6 +47,74 @@ export async function currentProjectPath(): Promise<string | null> {
   return (await state()).current
 }
 
+/**
+ * 已放行過的 canonical 路徑。fs scope 只能加不能減，同一個路徑再放行一次不會有
+ * 別的結果，只是每次讀取都白跑一趟通道。
+ */
+const granted = new Set<string>()
+
+async function ensureAccess(path: string): Promise<void> {
+  if (granted.has(path))
+    return
+  await allowPath(path)
+  granted.add(path)
+}
+
+/**
+ * 讀取面共用的目標專案解析：canonical 化 → 取得檔案存取授權 → 確認是既存資料夾。
+ *
+ * 授權排在驗證之前是因為驗證本身要讀得到那個路徑；canonical 化排在最前面是因為
+ * 授權與驗證都該落在實際位置上，引擎回報的 root 也是實際位置。
+ *
+ * 三件事任一不成立，回傳與 web 形態同形狀的 target-missing probe 骨架
+ * （server/utils/openspec-cli.ts 的 resolveTargetDir），交給同一份 normalize 分類。
+ * 授權失敗與資料夾不存在落在同一類：使用者的處置一樣——換一個專案，或重新加入。
+ */
+export async function resolveTarget(): Promise<
+  { ok: true, targetPath: string } | { ok: false, probe: ChangeListProbe }
+> {
+  const requested = await currentProjectPath()
+  if (!requested)
+    return { ok: false, probe: targetMissing('', 'No project is selected.') }
+
+  const notAFolder = `${requested} is not an existing folder.`
+
+  let targetPath: string
+  try {
+    targetPath = await canonicalPath(requested)
+  }
+  catch {
+    return { ok: false, probe: targetMissing(requested, notAFolder) }
+  }
+
+  try {
+    await ensureAccess(targetPath)
+  }
+  catch (error) {
+    return { ok: false, probe: targetMissing(targetPath, noAccess(error)) }
+  }
+
+  try {
+    if (!(await statPath(targetPath)).isDirectory)
+      return { ok: false, probe: targetMissing(targetPath, notAFolder) }
+  }
+  catch {
+    return { ok: false, probe: targetMissing(targetPath, notAFolder) }
+  }
+
+  return { ok: true, targetPath }
+}
+
+function targetMissing(targetPath: string, message: string): ChangeListProbe {
+  return {
+    targetPath,
+    exitCode: null,
+    stdout: '',
+    stderr: '',
+    failure: { kind: 'target-missing', message },
+  }
+}
+
 export async function listProjects(): Promise<ProjectActionResult> {
   return { ok: true, snapshot: await buildSnapshot({ badges: true }) }
 }
@@ -56,7 +124,18 @@ export async function addProject(input: string): Promise<ProjectActionResult> {
   if (!raw)
     return { ok: false, message: 'Enter a project folder path.' }
 
-  const resolved = await resolveUserPath(raw)
+  const expanded = await resolveUserPath(raw)
+  // 寫進設定的是解開 symlink 後的實際位置，與瀏覽器那一側（realpath）對齊：
+  // 兩形態才會對同一個專案得出同一個目標，側欄也才顯示同一個名字。
+  // 解不開＝那個路徑不存在，與下一關的「不是資料夾」同一句話。
+  let resolved: string
+  try {
+    resolved = await canonicalPath(expanded)
+  }
+  catch {
+    return { ok: false, message: 'That path is not an existing folder.' }
+  }
+
   // 授權分兩步：驗證得讀到目錄，但驗不過的路徑不該留著整個資料夾的放行，
   // 而 fs scope 只能加不能減。先給最小的單一路徑放行，通過了才放行整棵。
   let listable: boolean
@@ -76,7 +155,7 @@ export async function addProject(input: string): Promise<ProjectActionResult> {
     return { ok: false, message: 'That folder has no openspec/ directory.' }
 
   try {
-    await allowPath(resolved)
+    await ensureAccess(resolved)
   }
   catch (error) {
     return { ok: false, message: noAccess(error) }
@@ -151,8 +230,11 @@ export async function switchProject(input: string): Promise<ProjectActionResult>
  * 的過渡期，且只在開發通路有效（打包形態沒有 server，這趟一定失敗）；另有一個
  * 表達不出來的情形——移除清單裡最後一個專案時，切換掛載點需要一個路徑，講不出
  * 「沒有目標專案」，那一次 server 會停在剛被移除的專案（側欄變空清單引導、主區
- * 仍列著它的 changes）。升級條件：讀取面搬進桌面形態後（下一張 change）整個函式
- * 與三處呼叫一併刪除。
+ * 仍列著它的 changes）。升級條件：本地 API server 不再需要知道目前專案是哪個
+ * ——那時整個函式與三處呼叫一併刪除。
+ *
+ * change 與 spec 的讀取搬進桌面形態之後它仍留著，因為任務勾選與 park 還掛在本地
+ * API server：那兩件事得靠這一趟，才會落在跟畫面同一個目標專案上。
  */
 async function syncLocalServer(path: string | null): Promise<void> {
   if (!path)
@@ -250,13 +332,14 @@ async function countAll(paths: string[]): Promise<Array<number | null>> {
   return counts
 }
 
+/** 徽章只要「數得出來或數不出來」：runCli 的分類在這裡收束回一個是非題 */
 async function countActiveChanges(dir: string): Promise<number | null> {
-  const { ok, stdout } = await runCli(['list', '--json'], dir)
-  if (!ok)
+  const outcome = await runCli(['list', '--json'], dir)
+  if (!outcome.ok || outcome.exitCode !== 0)
     return null
 
   try {
-    const parsed = JSON.parse(stdout) as {
+    const parsed = JSON.parse(outcome.stdout) as {
       changes?: unknown
       root?: { source?: unknown } | null
     }

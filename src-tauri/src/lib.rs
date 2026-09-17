@@ -150,6 +150,19 @@ fn host_platform() -> &'static str {
   std::env::consts::OS
 }
 
+/// 解開路徑中的 symlink，回傳它實際指向的位置。走 Rust `std::fs::canonicalize`：
+/// 它要求路徑既存，不存在或讀不到時回 `Err`，不編一個路徑出來。
+/// 前端只有字串可操作，解不開 symlink，所以這一步只能由外殼做。
+///
+/// 宣告成 async 是因為 tauri 只把 async command 丟到 async runtime，同步的會在主
+/// 執行緒上跑完：這一趟每次讀取都要走一遍，網路磁碟區上的專案會卡住畫面。
+#[tauri::command]
+async fn canonical_path(path: String) -> Result<String, String> {
+  std::fs::canonicalize(&path)
+    .map(|resolved| resolved.to_string_lossy().into_owned())
+    .map_err(|e| format!("could not resolve `{path}`: {e}"))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -158,7 +171,8 @@ pub fn run() {
       spawn_bin,
       allow_path,
       allow_dir_listing,
-      host_platform
+      host_platform,
+      canonical_path
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -447,6 +461,53 @@ mod tests {
       "listing a folder must not hand out its files"
     );
     std::fs::remove_dir_all(&dir).ok();
+  }
+
+  /// 基準路徑先自己 canonicalize 過一次再往下建：macOS 的 `$TMPDIR` 本身就在
+  /// `/private` 底下的 symlink 後面，不先解開的話「原樣回傳」那一條會拿解開後的
+  /// 結果去比對沒解開的字串，測到的不是這個指令的行為。
+  fn canonical_temp_base(name: &str) -> std::path::PathBuf {
+    std::fs::canonicalize(temp_dir_named(name)).unwrap()
+  }
+
+  #[test]
+  fn canonical_path_resolves_a_symlinked_directory_to_the_real_one() {
+    let base = canonical_temp_base("canonical_path_symlink");
+    let real = base.join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = base.join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    let resolved = block_on(canonical_path(link.to_string_lossy().into_owned())).unwrap();
+
+    assert_eq!(resolved, real.to_string_lossy());
+    assert_ne!(resolved, link.to_string_lossy(), "the symlink must not come back as-is");
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  #[test]
+  fn canonical_path_returns_a_plain_directory_at_the_same_location() {
+    let base = canonical_temp_base("canonical_path_plain");
+
+    let resolved = block_on(canonical_path(base.to_string_lossy().into_owned())).unwrap();
+
+    assert_eq!(resolved, base.to_string_lossy());
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  #[test]
+  fn canonical_path_reports_a_missing_path_as_an_error() {
+    let missing = std::env::temp_dir().join(format!("canonical_path_missing_{}", std::process::id()));
+    std::fs::remove_dir_all(&missing).ok();
+
+    let Err(error) = block_on(canonical_path(missing.to_string_lossy().into_owned())) else {
+      panic!("expected an error for a path that does not exist")
+    };
+
+    assert!(
+      error.contains(&*missing.to_string_lossy()),
+      "the error must name the path that could not be resolved: {error}"
+    );
   }
 
   #[test]

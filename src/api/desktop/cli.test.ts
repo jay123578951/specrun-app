@@ -336,21 +336,27 @@ describe('desktop/cli', () => {
     expect(shell.spawnBin).toHaveBeenCalledTimes(1)
   })
 
-  it('runCli：尚未解析出任何可用執行檔時不 spawn 資料請求，直接回失敗', async () => {
+  it('runCli：尚未解析出任何可用執行檔時不 spawn 資料請求，直接歸 CLI 不可用', async () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
     ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
-    const { runCli } = await import('./cli')
+    const { cliSettings, runCli } = await import('./cli')
 
     const result = await runCli(['list', '--json'], '/some/project')
-    expect(result).toEqual({ ok: false, stdout: '' })
+    expect(result.ok).toBe(false)
+    if (result.ok)
+      return
+    expect(result.failure.kind).toBe('cli-unavailable')
+    // 訊息取自解析結果本身，不另編一句——那一句已寫得出「在哪裡找過」
+    expect(result.failure.message).toBe((await cliSettings()).message)
+    expect(result.failure.message).toContain(`Could not find "${CLI_COMMAND}"`)
     expect(shell.spawnBin).toHaveBeenCalledTimes(1)
   })
 
-  it('runCli：spawn 成功時回傳 stdout，且呼叫端傳入的 cwd 原樣送到 spawnBin、帶 15 秒／4MiB 資料上限', async () => {
+  it('runCli：跑完了就交出結束代碼與兩股輸出，且呼叫端傳入的 cwd 原樣送到 spawnBin、帶 15 秒／4MiB 資料上限', async () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
@@ -361,24 +367,11 @@ describe('desktop/cli', () => {
     const { runCli } = await import('./cli')
 
     const result = await runCli(['list', '--json'], '/some/project')
-    expect(result).toEqual({ ok: true, stdout: '{"changes":[]}' })
+    expect(result).toEqual({ ok: true, exitCode: 0, stdout: '{"changes":[]}', stderr: '' })
     expect(shell.spawnBin).toHaveBeenCalledWith('/custom/openspec', ['list', '--json'], '/some/project', DATA_LIMITS)
   })
 
-  it('runCli：資料請求逾時視為失敗', async () => {
-    const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
-    const shell = makeShell([
-      { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
-      { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: timedOut() },
-    ])
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => shell)
-    const { runCli } = await import('./cli')
-
-    expect(await runCli(['list', '--json'], '/some/project')).toEqual({ ok: false, stdout: '' })
-  })
-
-  it('runCli：資料請求非零結束視為失敗', async () => {
+  it('runCli：非零結束算跑完了，結束代碼與兩股輸出原樣交出去（診斷 payload 要靠它分類）', async () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
@@ -388,10 +381,30 @@ describe('desktop/cli', () => {
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
 
-    expect(await runCli(['list', '--json'], '/some/project')).toEqual({ ok: false, stdout: '' })
+    expect(await runCli(['list', '--json'], '/some/project'))
+      .toEqual({ ok: true, exitCode: 1, stdout: '', stderr: 'boom' })
   })
 
-  it('runCli：資料請求輸出爆量（truncated）視為失敗', async () => {
+  it('runCli：資料請求逾時歸呼叫失敗，訊息指出未於上限內結束', async () => {
+    const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
+    const shell = makeShell([
+      { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
+      { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: timedOut() },
+    ])
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    const { runCli } = await import('./cli')
+
+    expect(await runCli(['list', '--json'], '/some/project')).toEqual({
+      ok: false,
+      failure: {
+        kind: 'spawn-failed',
+        message: `"/custom/openspec list --json" did not finish within ${DATA_LIMITS.timeoutMs}ms.`,
+      },
+    })
+  })
+
+  it('runCli：輸出被截斷歸呼叫失敗，半截的 stdout 不交給呼叫端解析', async () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
@@ -401,10 +414,18 @@ describe('desktop/cli', () => {
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
 
-    expect(await runCli(['list', '--json'], '/some/project')).toEqual({ ok: false, stdout: '' })
+    const result = await runCli(['list', '--json'], '/some/project')
+    expect(result).toEqual({
+      ok: false,
+      failure: {
+        kind: 'spawn-failed',
+        message: `"/custom/openspec list --json" printed more than ${DATA_LIMITS.maxOutputBytes} bytes.`,
+      },
+    })
+    expect(JSON.stringify(result)).not.toContain('{"changes":[')
   })
 
-  it('runCli：spawnBin 本身失敗（如 ENOENT）視為失敗', async () => {
+  it('runCli：外殼拒絕（執行檔不存在或不可執行）歸 CLI 不可用，訊息帶得出是哪個執行檔', async () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
@@ -414,6 +435,9 @@ describe('desktop/cli', () => {
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
 
-    expect(await runCli(['list', '--json'], '/some/project')).toEqual({ ok: false, stdout: '' })
+    expect(await runCli(['list', '--json'], '/some/project')).toEqual({
+      ok: false,
+      failure: { kind: 'cli-unavailable', message: 'Could not run "/custom/openspec": spawn ENOENT' },
+    })
   })
 })

@@ -1,5 +1,5 @@
 import type { VerifyResult } from '../cli-resolve'
-import type { CliApplyResult, CliSettings } from '../types'
+import type { CliApplyResult, CliSettings, ProbeFailure } from '../types'
 import type { SpawnLimits } from './shell'
 import { CLI_COMMAND, pickCommandPath, pickVersion, resolveWith } from '../cli-resolve'
 import { config, persist } from './config-store'
@@ -46,10 +46,6 @@ function resolveOnce(): Promise<CliSettings> {
   return pending
 }
 
-async function currentCliBin(): Promise<string | null> {
-  return (await cliSettings()).bin
-}
-
 export async function redetect(): Promise<CliSettings> {
   const current = await config()
   current.openspecBin = null
@@ -78,20 +74,45 @@ export async function applyOverride(input: string): Promise<CliApplyResult> {
   return { ok: true, settings }
 }
 
-interface CliRun {
-  ok: boolean
-  stdout: string
-}
+/**
+ * 指令跑完了（帶結束代碼與兩股輸出），或是沒跑成（帶已分類好的失敗）。
+ * 非零結束不算沒跑成——CLI 以診斷 JSON 失敗時，那份 stdout 正是要解析的東西。
+ */
+export type CliOutcome
+  = { ok: true, exitCode: number | null, stdout: string, stderr: string }
+    | { ok: false, failure: ProbeFailure }
 
-export async function runCli(args: string[], cwd: string): Promise<CliRun> {
-  const bin = await currentCliBin()
-  if (!bin)
-    return { ok: false, stdout: '' }
+/**
+ * 四種沒跑成的情形在這一層分類完，呼叫端不再看見外殼通道的原始形狀：
+ * 解析不出執行檔與外殼拒絕（執行檔不存在或不可執行）歸 CLI 不可用，
+ * 逾時與輸出被截斷歸呼叫失敗——後兩者在外殼那一側是帶旗標的成功回傳，
+ * 不在這裡攔下就會被當成一份空的（或半截的）輸出拿去解析。
+ *
+ * 訊息與 web 形態同一批句子（server/utils/openspec-cli.ts 的 toProbeFailure），
+ * 同一個故障在兩形態下才讀得到同一句話。
+ */
+export async function runCli(args: string[], cwd: string): Promise<CliOutcome> {
+  const settings = await cliSettings()
+  if (!settings.bin) {
+    return {
+      ok: false,
+      failure: { kind: 'cli-unavailable', message: settings.message ?? `Could not find "${CLI_COMMAND}".` },
+    }
+  }
 
+  const bin = settings.bin
   const outcome = await spawnBin(bin, args, cwd, DATA_LIMITS)
-  if (!outcome.ok || outcome.result.timedOut || outcome.result.truncated || outcome.result.status !== 0)
-    return { ok: false, stdout: '' }
-  return { ok: true, stdout: outcome.result.stdout }
+  if (!outcome.ok)
+    return { ok: false, failure: { kind: 'cli-unavailable', message: `Could not run "${bin}": ${outcome.message}` } }
+
+  const { result } = outcome
+  const label = `${bin} ${args.join(' ')}`
+  if (result.timedOut)
+    return { ok: false, failure: { kind: 'spawn-failed', message: `"${label}" did not finish within ${DATA_LIMITS.timeoutMs}ms.` } }
+  if (result.truncated)
+    return { ok: false, failure: { kind: 'spawn-failed', message: `"${label}" printed more than ${DATA_MAX_OUTPUT_BYTES} bytes.` } }
+
+  return { ok: true, exitCode: result.status, stdout: result.stdout, stderr: result.stderr }
 }
 
 async function resolve(): Promise<CliSettings> {

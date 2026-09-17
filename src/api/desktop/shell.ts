@@ -105,6 +105,27 @@ export function readDir(path: string): Promise<DirEntry[]> {
   return invoke<DirEntry[]>('plugin:fs|read_dir', { path })
 }
 
+/**
+ * fs plugin 的 `stat` 回傳形狀（只列用得到的欄位）。它跟隨 symlink，時間戳是
+ * epoch 毫秒、與 JS `Date` 同一刻度；檔案系統給不出建立時刻時該欄位為 null。
+ */
+export interface FileStat {
+  isDirectory: boolean
+  birthtime: number | null
+}
+
+export function statPath(path: string): Promise<FileStat> {
+  return invoke<FileStat>('plugin:fs|stat', { path })
+}
+
+/**
+ * 解開路徑中的 symlink，取得它實際指向的位置。外殼走 Rust `std::fs::canonicalize`，
+ * 路徑必須既存——不存在或讀不到時 reject。
+ */
+export function canonicalPath(path: string): Promise<string> {
+  return invoke<string>('canonical_path', { path })
+}
+
 // 三個答案在一個 process 內不會變，問一次就夠。快取的是「問到的值」而不是那一趟
 // 詢問本身——快取住失敗的詢問等於這個 process 之後每次都拿到同一個失敗，Settings
 // 關掉再開也不會好。

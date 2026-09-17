@@ -219,6 +219,12 @@ export function normalizeSpecList(probe: SpecListProbe): SpecListResult {
   return { ok: true, targetPath: probe.targetPath, specs }
 }
 
+const SPEC_CONTENT_MESSAGES: Record<GatewayErrorKind, string> = {
+  'cli-unavailable': 'The openspec CLI is not available.',
+  'not-openspec-project': 'The target folder is not an OpenSpec project.',
+  'call-failed': 'Could not load this spec.',
+}
+
 /**
  * spec 全文：stdout 不是 JSON 而是 Markdown 原文，所以這裡只判「這趟呼叫成不成立」，
  * 內容一個字都不動。
@@ -229,17 +235,20 @@ export function normalizeSpecContent(probe: SpecContentProbe): SpecContentResult
     ok: false,
     error: {
       kind,
-      message: kind === 'cli-unavailable'
-        ? 'The openspec CLI is not available.'
-        : 'Could not load this spec.',
+      message: SPEC_CONTENT_MESSAGES[kind],
       ...(detail ? { detail } : {}),
     },
   })
 
   if (probe.failure) {
-    return probe.failure.kind === 'cli-unavailable'
-      ? fail('cli-unavailable', probe.failure.message)
-      : fail('call-failed', probe.failure.message)
+    switch (probe.failure.kind) {
+      case 'cli-unavailable':
+        return fail('cli-unavailable', probe.failure.message)
+      case 'target-missing':
+        return fail('not-openspec-project', probe.failure.message)
+      default:
+        return fail('call-failed', probe.failure.message)
+    }
   }
 
   if (probe.exitCode !== 0)

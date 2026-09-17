@@ -34,7 +34,11 @@ function withoutOpenSpec(): DirEntry[] {
   return [{ name: 'README.md', isDirectory: false, isFile: true, isSymlink: false }]
 }
 
-function makeShell(dirs: Record<string, DirEntry[]> = {}) {
+/**
+ * `links` 是假外殼的 symlink 表：不在表裡的路徑原樣回傳（對齊真實行為——
+ * 不含 symlink 的路徑 canonicalize 後指向同一個位置）。
+ */
+function makeShell(dirs: Record<string, DirEntry[]> = {}, links: Record<string, string> = {}) {
   return {
     // 對齊真實外殼：allow_dir_listing 先問 is_dir()，不是既存資料夾就回 false
     // 而且一次都沒放行（src-tauri/src/lib.rs）。假外殼若無條件回 true，「路徑
@@ -42,6 +46,12 @@ function makeShell(dirs: Record<string, DirEntry[]> = {}) {
     allowDirListing: vi.fn(async (path: string) => path in dirs),
     allowPath: vi.fn(async () => {}),
     resolveUserPath: vi.fn(async (input: string) => `/resolved${input}`),
+    canonicalPath: vi.fn(async (path: string) => links[path] ?? path),
+    statPath: vi.fn(async (path: string) => {
+      if (!(path in dirs))
+        throw new Error('ENOENT')
+      return { isDirectory: true, birthtime: null }
+    }),
     readDir: vi.fn(async (path: string) => {
       if (!(path in dirs))
         throw new Error('ENOENT')
@@ -50,9 +60,18 @@ function makeShell(dirs: Record<string, DirEntry[]> = {}) {
   }
 }
 
+/**
+ * 徽章只看 runCli 的是非，所以這裡沿用「跑成了嗎＋stdout」兩個欄位來寫測試資料，
+ * 由這個工廠翻成 runCli 現在的完整形狀（結束代碼、兩股輸出／已分類的失敗）。
+ */
 function makeCli(responses: Record<string, { ok: boolean, stdout: string }> = {}) {
   return {
-    runCli: vi.fn(async (_args: string[], cwd: string) => responses[cwd] ?? { ok: false, stdout: '' }),
+    runCli: vi.fn(async (_args: string[], cwd: string) => {
+      const hit = responses[cwd]
+      return hit?.ok
+        ? { ok: true, exitCode: 0, stdout: hit.stdout, stderr: '' }
+        : { ok: false, failure: { kind: 'cli-unavailable', message: 'Could not find "openspec".' } }
+    }),
   }
 }
 
@@ -114,6 +133,26 @@ describe('desktop/projects', () => {
     const result = await addProject('/nope')
     expect(result).toEqual({ ok: false, message: 'That path is not an existing folder.' })
     // 擋在第一關：外殼答「這不是資料夾」就結束，不會再去讀目錄，也不放行整棵
+    expect(shell.readDir).not.toHaveBeenCalled()
+    expect(shell.allowPath).not.toHaveBeenCalled()
+    expect(store.persist).not.toHaveBeenCalled()
+  })
+
+  it('addProject：canonicalPath 本身解不開（symlink 斷掉／路徑不存在）時直接拒絕，不會再問 allowDirListing', async () => {
+    const store = makeConfigStore(makeConfig())
+    const shell = makeShell({ '/resolved/proj': withOpenSpec() })
+    shell.canonicalPath = vi.fn(async () => {
+      throw new Error('could not resolve `/resolved/proj`: No such file or directory (os error 2)')
+    })
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { addProject } = await import('./projects')
+
+    const result = await addProject('/proj')
+    expect(result).toEqual({ ok: false, message: 'That path is not an existing folder.' })
+    // 這一關比 allowDirListing 更早：解不開路徑就不用再問是不是資料夾
+    expect(shell.allowDirListing).not.toHaveBeenCalled()
     expect(shell.readDir).not.toHaveBeenCalled()
     expect(shell.allowPath).not.toHaveBeenCalled()
     expect(store.persist).not.toHaveBeenCalled()
@@ -526,5 +565,144 @@ describe('desktop/projects', () => {
     const result = await removeProject('/a')
     expect(result.ok).toBe(true)
     expect(store.state.projects).toEqual(['/b'])
+  })
+})
+
+describe('desktop/projects：解析目標專案', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.unstubAllGlobals()
+  })
+
+  it('沒有目標專案時回目標不可用的 probe 骨架，路徑欄位留空', async () => {
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig()))
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    expect(await resolveTarget()).toEqual({
+      ok: false,
+      probe: {
+        targetPath: '',
+        exitCode: null,
+        stdout: '',
+        stderr: '',
+        failure: { kind: 'target-missing', message: 'No project is selected.' },
+      },
+    })
+  })
+
+  it('目標路徑已不是既存資料夾時回目標不可用，且不放行那個路徑', async () => {
+    const shell = makeShell()
+    shell.canonicalPath = vi.fn(async () => {
+      throw new Error('could not resolve `/gone`: No such file or directory (os error 2)')
+    })
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/gone'], lastActivePath: '/gone' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    const result = await resolveTarget()
+    expect(result.ok).toBe(false)
+    if (result.ok)
+      return
+    expect(result.probe.failure).toEqual({ kind: 'target-missing', message: '/gone is not an existing folder.' })
+    expect(result.probe.targetPath).toBe('/gone')
+    expect(shell.allowPath).not.toHaveBeenCalled()
+  })
+
+  it('目標路徑存在但不是資料夾時回目標不可用', async () => {
+    const shell = makeShell({ '/file': [] })
+    shell.statPath = vi.fn(async () => ({ isDirectory: false, birthtime: null }))
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/file'], lastActivePath: '/file' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    const result = await resolveTarget()
+    expect(result.ok).toBe(false)
+    if (result.ok)
+      return
+    expect(result.probe.failure).toEqual({ kind: 'target-missing', message: '/file is not an existing folder.' })
+  })
+
+  it('statPath 本身失敗（授權後的空隙裡資料夾被搬走）時回目標不可用，與 isDirectory:false 走同一句訊息', async () => {
+    const shell = makeShell({ '/proj': withOpenSpec() })
+    shell.statPath = vi.fn(async () => {
+      throw new Error('ENOENT: no such file or directory')
+    })
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/proj'], lastActivePath: '/proj' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    const result = await resolveTarget()
+    expect(result.ok).toBe(false)
+    if (result.ok)
+      return
+    expect(result.probe.failure).toEqual({ kind: 'target-missing', message: '/proj is not an existing folder.' })
+    expect(result.probe.targetPath).toBe('/proj')
+  })
+
+  it('授權被拒時歸目標不可用，細節帶外殼回的原話（不呈現為讀不到檔案）', async () => {
+    const shell = makeShell({ '/proj': withOpenSpec() })
+    shell.allowPath = vi.fn(async () => {
+      throw new Error('Operation not permitted')
+    })
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/proj'], lastActivePath: '/proj' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    const result = await resolveTarget()
+    expect(result.ok).toBe(false)
+    if (result.ok)
+      return
+    expect(result.probe.failure).toEqual({
+      kind: 'target-missing',
+      message: 'Could not get access to that folder: Operation not permitted',
+    })
+    // 驗證那一步在授權之後，授權沒過就不該再往下問
+    expect(shell.statPath).not.toHaveBeenCalled()
+  })
+
+  it('同一個目標路徑只授權一次，之後每一趟讀取都不再重打授權', async () => {
+    const shell = makeShell({ '/proj': withOpenSpec() })
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/proj'], lastActivePath: '/proj' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    expect(await resolveTarget()).toEqual({ ok: true, targetPath: '/proj' })
+    expect(await resolveTarget()).toEqual({ ok: true, targetPath: '/proj' })
+    expect(shell.allowPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('設定裡記的是 symlink 路徑時，目標落在它實際指向的位置（授權與驗證都用實際位置）', async () => {
+    const shell = makeShell({ '/real': withOpenSpec() }, { '/link': '/real' })
+    vi.doMock('./config-store', () => makeConfigStore(makeConfig({ projects: ['/link'], lastActivePath: '/link' })))
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { resolveTarget } = await import('./projects')
+
+    expect(await resolveTarget()).toEqual({ ok: true, targetPath: '/real' })
+    expect(shell.allowPath).toHaveBeenCalledWith('/real')
+    expect(shell.statPath).toHaveBeenCalledWith('/real')
+  })
+
+  it('addProject：經過 symlink 的路徑存進設定的是實際位置', async () => {
+    const store = makeConfigStore(makeConfig())
+    const shell = makeShell({ '/resolved/real': withOpenSpec() }, { '/resolved/link': '/resolved/real' })
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./cli', () => makeCli())
+    const { addProject } = await import('./projects')
+
+    const result = await addProject('/link')
+    expect(result.ok).toBe(true)
+    expect(store.state.projects).toEqual(['/resolved/real'])
+    expect(store.state.lastActivePath).toBe('/resolved/real')
+    expect(shell.allowPath).toHaveBeenCalledWith('/resolved/real')
+    expect(shell.allowDirListing).toHaveBeenCalledWith('/resolved/real')
   })
 })

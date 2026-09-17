@@ -29,6 +29,8 @@ OpenSpec 相容的桌面 spec 管理 App——取代 Spectra，引擎外包給 o
   - fs scope 可由 Rust 端 runtime 擴充（`fs_scope().allow_directory`）：config 驅動的專案路徑授權可行，且不需要 persisted-scope plugin——專案清單 config 本身就是 scope 真值來源，啟動與加入專案時逐一授權即可。
   - **dotfile 坑實測為真**：遞迴 allow repo 目錄**不含** `.git/` 底下——park 機制必須對 `<repo>/.git` 額外顯式 allow（授權專案路徑時兩個一起放行）。
   - fs watch 需啟用 tauri-plugin-fs 的 `watch` Cargo feature（預設不含）；遞迴監看＋`delayMs` debounce 實測可用。
+  - fs 的各項操作是**逐項**權限：讀檔、列目錄、監看之外，查詢檔案基本資訊（建立時刻、是不是目錄）要另外放行 `fs:allow-stat`（2026-09-17 T2 規格階段發現，卡片的今昨時間依賴它）。
+  - 前端沒有解 symlink 的手段：Tauri path API 的 normalize 只做字串運算。目標專案路徑要與 openspec CLI 回報的 root 比對得起來，兩邊都得是解開 symlink 後的實際位置——外殼補一個 `canonicalize` 指令（2026-09-17 T2 定案）。
 
 ## 里程碑與 change 堆疊
 
@@ -103,10 +105,10 @@ change 堆疊（2026-08-19 定案。過渡策略：**Tauri dev 併跑 nitro、�
 |---|--------|------|------|
 | T1 | add-tauri-shell | src-tauri 殼＋capabilities＋薄 Rust commands（spawn／allow-path）＋dev 通路（tauri dev 併跑 nitro）＋WKWebView 首檢 | ✅ 2026-08-19 archived（新 capability `desktop-shell`；`dev:app` 可用、gateway 仍恆 webGateway） |
 | T1.5 | add-app-icon | APP 圖示：品牌記號定格幀導出、自帶底色與圓角、全平台尺寸產出（`tauri icon`）。只動 `src-tauri/icons/` 與 bundle 設定，與 T2～T4 零相依，2026-09-16 自 T5 切出插隊至此 | ✅ 2026-09-16 archived |
-| T1.6 | add-tauri-settings-store | 設定與 CLI 解析改由執行形態自持：app-config／project-state／cli-resolver 搬前端、兩形態共用同一份設定、spawn 通道補逾時。T2 的前置——四條讀取路都要先問過它，且設定檔整檔覆寫不能兩個行程各持一半，2026-09-16 自 T2／T4 切出 | ⏭️ 下一個 |
-| T2 | add-tauri-gateway-reads | CLI spawn 讀取面：changes 清單／詳情、specs、環境診斷（openspec-cli 邏輯搬前端；CLI 解析已移至 T1.6）。收尾刪除 T1.6 的過渡同步呼叫 | |
-| T3 | add-tauri-gateway-files | 檔案操作面：tasks 勾選、park／unpark、archived 直讀（含 `.git` 顯式 allow） | |
-| T4 | add-tauri-gateway-platform | watch、資料夾選擇（dialog）、reveal（opener）；nitro 自此退場（設定持久化已移至 T1.6） | |
+| T1.6 | add-tauri-settings-store | 設定與 CLI 解析改由執行形態自持：app-config／project-state／cli-resolver 搬前端、兩形態共用同一份設定、spawn 通道補逾時。T2 的前置——四條讀取路都要先問過它，且設定檔整檔覆寫不能兩個行程各持一半，2026-09-16 自 T2／T4 切出 | ✅ 2026-09-16 archived |
+| T2 | add-tauri-gateway-reads | CLI spawn 讀取面：changes 清單／詳情、specs 清單／全文（openspec-cli 邏輯搬前端；CLI 解析已移至 T1.6）。桌面形態第一次讀專案資料夾底下的檔案，因此一併補齊啟動時的路徑授權、查詢檔案基本資訊的權限、外殼的 symlink 解析。環境診斷已由 T1.6 完成、不在此列；T1.6 的過渡同步呼叫改留到 T4（勾選與 park 仍靠它對齊目標專案） | ✅ 2026-09-17 archived |
+| T3 | add-tauri-gateway-files | 檔案操作面：tasks 勾選、park／unpark、archived 直讀（含 `.git` 顯式 allow） |⏭️ 下一個 |
+| T4 | add-tauri-gateway-platform | watch、資料夾選擇（dialog）、reveal（opener）；nitro 自此退場（設定持久化已移至 T1.6）。收尾刪除 T1.6 的過渡同步呼叫——本地 API server 到此不再需要知道目前專案是哪個。**一併收掉 T2 留下的重複**：`src/api/desktop/reads.ts` 的 `changeNames` 與 `readArtifactFiles` 跟 `server/api/changes.get.ts`、`server/api/changes/[name].get.ts` 逐字元相同（2026-09-17 T2 審出，當時決定不抽共用——web 那側到這張就收掉，為它做抽象划不來）；刪 route 時桌面那份自動成為唯一一份，不必另外處理 | |
 | T5 | add-app-release | 名稱、bundle id、版本定版、`tauri build`、README 安裝說明＋首發 Release（logo／icon 已移至 T1.5） | |
 
 發佈模式參照（2026-08-19 實測 Spectra v2.3.1）：閉源＋純發佈 repo（README／CHANGELOG／Releases，原始碼不公開）、macOS 版 Developer ID 簽章＋公證（Apple Developer 年費 99 美元）、收錄 Homebrew 官方 cask（有星數門檻）、內建自動更新；Windows 版未簽章裸發。它為「零摩擦安裝」付費是因受眾比本專案廣；「公開發佈 repo＋私有原始碼」模式可沿用，發佈層不強迫決定開源與否。
