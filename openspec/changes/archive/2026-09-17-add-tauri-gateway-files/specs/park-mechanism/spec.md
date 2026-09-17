@@ -1,57 +1,4 @@
-# park-mechanism Specification
-
-## Purpose
-
-Park 機制：把暫時擱置的 change 暫移出 `openspec/changes/`（存放於 repo 的 `.git/` 內部），使其脫離進行中視野但可隨時檢視與還原；openspec 引擎與 git 狀態均無感。
-
-## Requirements
-
-### Requirement: Park 操作
-使用者 SHALL 可對 active change 執行 park：change 目錄自 `openspec/changes/<name>/` 搬移至 `<repo>/.git/specrun-app/parked/<name>/`，並記錄 metadata（park 時間、當下的 artifact 路徑快照）。操作 MUST NOT 跳確認（操作可逆）。操作成功後清單 SHALL 即時反映群組搬移。parked 內容與 metadata MUST NOT 被 git 追蹤，工作區 MUST NOT 因此出現任何新增項目。
-
-#### Scenario: 成功 park
-- **WHEN** 使用者對 active 卡片觸發 park
-- **THEN** 該 change 自 Active 群組消失、出現於 Parked 群組，且 `openspec list` 不再回報該 change
-
-#### Scenario: parked 內容不被 git 追蹤
-- **WHEN** 工作區乾淨時 park 一個未被 git 追蹤的 change
-- **THEN** `git status` 仍為乾淨——parked 內容與 metadata 位於 `.git/` 內部，git 不追蹤
-
-#### Scenario: park 已被追蹤的 change
-- **WHEN** park 一個已 commit 進版控的 change
-- **THEN** git 如常把原路徑顯示為刪除（把追蹤中的檔案移出工作區的必然結果），且 `.git/` 內的 parked 內容與 metadata 不產生任何新增的未追蹤項目
-
-#### Scenario: park 目標已有殘留
-- **WHEN** `.git/specrun-app/parked/<name>/` 已存在同名目錄（先前異常殘留）
-- **THEN** 操作拒絕並顯示提示，active 端目錄不受影響
-
-### Requirement: Unpark 操作
-使用者 SHALL 可對 parked change 執行 unpark：目錄搬回 `openspec/changes/<name>/` 並移除對應 metadata。`openspec/changes/<name>/` 已存在同名 change 時 SHALL 拒絕並提示，MUST NOT 覆蓋或自動改名。
-
-#### Scenario: 成功 unpark
-- **WHEN** 使用者對 parked 卡片觸發 unpark
-- **THEN** 該 change 回到 Active 群組並重新出現於 `openspec list`，Parked 群組中消失
-
-#### Scenario: unpark 撞名拒絕
-- **WHEN** park 期間 `openspec/changes/` 又建立了同名 change，使用者觸發 unpark
-- **THEN** 操作拒絕並顯示提示，兩邊目錄均不受影響
-
-### Requirement: Parked 清單資料以目錄列舉為準
-Parked 清單 SHALL 以 `.git/specrun-app/parked/` 的目錄列舉為唯一真實來源；卡片顯示資訊（任務進度、摘要）SHALL 現場解析 parked 目錄內的檔案。metadata 與目錄不一致時 SHALL 以目錄為準：有目錄無 metadata 的項目照常列出，park 時間以 fallback 呈現。
-
-清單為取得卡片顯示資訊而依 metadata 快照讀取檔案時，快照路徑 SHALL 同樣限於該 parked change 目錄之內；落在目錄之外者 SHALL 視同該檔案不存在，該卡片以缺少該項資訊的樣貌呈現，MUST NOT 使整份清單失敗。
-
-#### Scenario: metadata 缺項 fallback
-- **WHEN** 某 parked 目錄存在但 metadata 中無對應紀錄
-- **THEN** 該 change 仍出現在 Parked 群組，park 時間顯示為未知（不顯示錯誤）
-
-#### Scenario: metadata 孤兒不列出
-- **WHEN** metadata 中存在紀錄但對應目錄已不存在
-- **THEN** Parked 群組不列出該項
-
-#### Scenario: 清單的快照路徑逸出
-- **WHEN** 某筆 metadata 快照所記路徑指向該 parked change 目錄之外
-- **THEN** 該路徑不被讀取，該卡片照常列出（缺少該項資訊），清單其餘項目不受影響
+## MODIFIED Requirements
 
 ### Requirement: Parked 詳情唯讀
 parked 卡片 SHALL 可點擊開啟詳情檢視；artifact tabs SHALL 依 park 時記錄的 artifact 路徑快照列出（custom schema 的 tab 集合與順序保持 park 當下樣貌）；tasks 的 checkbox SHALL 為禁用狀態（parked 為唯讀，全 App 寫入點僅限 active change 的 tasks）。
@@ -112,6 +59,23 @@ parked 卡片 SHALL 可點擊開啟詳情檢視；artifact tabs SHALL 依 park �
 #### Scenario: 專案資料夾內容取得不到
 - **WHEN** 判定 park 可用性時連專案資料夾的內容都列不出來（存取被拒或資料夾已被搬走）
 - **THEN** park 呈禁用狀態，提示陳述為非 git repository，MUST NOT 出現第三種說法
+
+### Requirement: Parked 清單資料以目錄列舉為準
+Parked 清單 SHALL 以 `.git/specrun-app/parked/` 的目錄列舉為唯一真實來源；卡片顯示資訊（任務進度、摘要）SHALL 現場解析 parked 目錄內的檔案。metadata 與目錄不一致時 SHALL 以目錄為準：有目錄無 metadata 的項目照常列出，park 時間以 fallback 呈現。
+
+清單為取得卡片顯示資訊而依 metadata 快照讀取檔案時，快照路徑 SHALL 同樣限於該 parked change 目錄之內；落在目錄之外者 SHALL 視同該檔案不存在，該卡片以缺少該項資訊的樣貌呈現，MUST NOT 使整份清單失敗。
+
+#### Scenario: metadata 缺項 fallback
+- **WHEN** 某 parked 目錄存在但 metadata 中無對應紀錄
+- **THEN** 該 change 仍出現在 Parked 群組，park 時間顯示為未知（不顯示錯誤）
+
+#### Scenario: metadata 孤兒不列出
+- **WHEN** metadata 中存在紀錄但對應目錄已不存在
+- **THEN** Parked 群組不列出該項
+
+#### Scenario: 清單的快照路徑逸出
+- **WHEN** 某筆 metadata 快照所記路徑指向該 parked change 目錄之外
+- **THEN** 該路徑不被讀取，該卡片照常列出（缺少該項資訊），清單其餘項目不受影響
 
 ### Requirement: 操作失敗呈現
 park／unpark 因檔案系統錯誤失敗時 SHALL 顯示自動消失的 toast。

@@ -226,15 +226,15 @@ export async function switchProject(input: string): Promise<ProjectActionResult>
  * CLI 路徑與專案清單蓋成舊值。
  *
  * TODO(debt): 桌面形態的「目前專案」目前有兩份執行期狀態（桌面端一份、本地 API
- * server 記憶體一份），只是寫入權在桌面端。上限：撐到讀取面仍掛在本地 API server
- * 的過渡期，且只在開發通路有效（打包形態沒有 server，這趟一定失敗）；另有一個
+ * server 記憶體一份），只是寫入權在桌面端。上限：撐到檔案變動通知仍掛在本地 API
+ * server 的過渡期，且只在開發通路有效（打包形態沒有 server，這趟一定失敗）；另有一個
  * 表達不出來的情形——移除清單裡最後一個專案時，切換掛載點需要一個路徑，講不出
  * 「沒有目標專案」，那一次 server 會停在剛被移除的專案（側欄變空清單引導、主區
  * 仍列著它的 changes）。升級條件：本地 API server 不再需要知道目前專案是哪個
  * ——那時整個函式與三處呼叫一併刪除。
  *
- * change 與 spec 的讀取搬進桌面形態之後它仍留著，因為任務勾選與 park 還掛在本地
- * API server：那兩件事得靠這一趟，才會落在跟畫面同一個目標專案上。
+ * 讀取面與檔案操作面都搬進桌面形態之後它仍留著，因為檔案變動通知（即時刷新）還掛在
+ * 本地 API server：那條訂閱得靠這一趟，才會監看跟畫面同一個目標專案。
  */
 async function syncLocalServer(path: string | null): Promise<void> {
   if (!path)

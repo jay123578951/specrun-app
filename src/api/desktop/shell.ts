@@ -94,6 +94,14 @@ export function removePath(path: string): Promise<void> {
   return invoke('plugin:fs|remove', { path })
 }
 
+/**
+ * fs plugin 的 `exists` 走 Rust `Path::exists`：跟隨 symlink，路徑存在但讀不到時
+ * 回 `false` 而不是 reject；被權限清單擋下才 reject。
+ */
+export function pathExists(path: string): Promise<boolean> {
+  return invoke<boolean>('plugin:fs|exists', { path })
+}
+
 export interface DirEntry {
   name: string
   isDirectory: boolean
