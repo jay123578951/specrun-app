@@ -67,14 +67,11 @@ const rows = computed(() => {
   ]
 })
 
-/**
- * 三態：這個執行形態還問不到（未知）要與明確的「沒在跑」分得出來，
- * 未知一律落在與「值取不到」同一個佔位符上。
- */
-function watchValue(watching: boolean | null | undefined): string {
-  if (watching === null || watching === undefined)
+/** 診斷尚未回來時（env 本身不存在）先佔位；watching 一旦有值就只剩已接上／未接上兩態 */
+function watchValue(watching: boolean | undefined): string {
+  if (watching === undefined)
     return '—'
-  return watching ? 'Running' : 'Not running'
+  return watching ? 'Connected' : 'Not connected'
 }
 
 /**

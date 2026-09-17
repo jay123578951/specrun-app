@@ -31,6 +31,7 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     const park = { parkChange: vi.fn(), unparkChange: vi.fn() }
     const parked = { listParked: vi.fn(), getParkedDetail: vi.fn() }
     const archived = { listArchived: vi.fn(), getArchivedDetail: vi.fn() }
+    const watch = { subscribeToChanges: vi.fn() }
     const webSubscribe = vi.fn()
     vi.doMock('./desktop/cli', () => cli)
     vi.doMock('./desktop/diagnostics', () => ({ diagnostics: diagnosticsFn }))
@@ -40,6 +41,8 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     vi.doMock('./desktop/park', () => park)
     vi.doMock('./desktop/parked', () => parked)
     vi.doMock('./desktop/archived', () => archived)
+    // watch.ts 一 import 就會接線 projects.ts 的訂閱出口，這裡整支模組替換掉，不連真的
+    vi.doMock('./desktop/watch', () => watch)
     vi.doMock('./web-gateway', () => ({
       webGateway: { subscribeToChanges: webSubscribe, getDiagnostics: vi.fn() },
     }))
@@ -65,7 +68,8 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     expect(desktopGateway.getParkedDetail).toBe(parked.getParkedDetail)
     expect(desktopGateway.listArchived).toBe(archived.listArchived)
     expect(desktopGateway.getArchivedDetail).toBe(archived.getArchivedDetail)
-    // 尚未搬遷的方法：原樣沿用 web 實作，不是另一份桌面版本
-    expect(desktopGateway.subscribeToChanges).toBe(webSubscribe)
+    // 已搬遷：不再落到 web 形態的實作
+    expect(desktopGateway.subscribeToChanges).toBe(watch.subscribeToChanges)
+    expect(desktopGateway.subscribeToChanges).not.toBe(webSubscribe)
   })
 })

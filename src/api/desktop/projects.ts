@@ -22,9 +22,6 @@ interface ProjectState {
 /** 並行取數的上限：清單通常個位數，開太寬只是同時壓 N 個 openspec 行程 */
 const BADGE_CONCURRENCY = 4
 
-/** 過渡同步的等待上限：本地 API server 卡住不回時，側欄的忙碌態不能跟著卡住 */
-const SYNC_TIMEOUT_MS = 2_000
-
 let statePromise: Promise<ProjectState> | null = null
 
 function state(): Promise<ProjectState> {
@@ -45,6 +42,47 @@ async function initState(): Promise<ProjectState> {
 
 export async function currentProjectPath(): Promise<string | null> {
   return (await state()).current
+}
+
+type ProjectChangeListener = () => void
+
+const projectChangeListeners = new Set<ProjectChangeListener>()
+
+/**
+ * 「目前專案變了」的訂閱出口：加入、移除、切換三個動作改完執行期狀態、設定
+ * 持久化之後各自送出一次；三個動作結束時目前專案與呼叫前相同則不送——監看
+ * 模組（T3）拿它決定要不要重接，沒有實際換目標就不必重接。
+ */
+export function subscribeToCurrentProjectChange(onChange: ProjectChangeListener): () => void {
+  projectChangeListeners.add(onChange)
+  return () => projectChangeListeners.delete(onChange)
+}
+
+function notifyCurrentProjectChanged(): void {
+  for (const listener of [...projectChangeListeners]) {
+    try {
+      listener()
+    }
+    catch {
+      // 單一訂閱者失敗不能影響其他人，也不能讓呼叫端的 switchProject／addProject／removeProject 跟著 reject
+    }
+  }
+}
+
+/**
+ * 持久化與通知的共用收尾：persist() 已在內部吞掉寫入失敗（見 config-store.ts），
+ * 這裡再包一層純防禦——就算哪天它的失敗語意改成會丟出，通知仍要送出去，
+ * 「目前專案變了」講的是執行期狀態，不是設定檔寫成功了沒。
+ */
+async function persistAndNotify(previous: string | null, next: string | null): Promise<void> {
+  try {
+    await persist()
+  }
+  catch {
+    // 設定寫不進去不影響「目前專案變了」的通知
+  }
+  if (next !== previous)
+    notifyCurrentProjectChanged()
 }
 
 /**
@@ -168,10 +206,10 @@ export async function addProject(input: string): Promise<ProjectActionResult> {
   current.lastActivePath = resolved
 
   const live = await state()
+  const previousCurrent = live.current
   live.current = resolved
   live.temporary = false
-  await persist()
-  await syncLocalServer(live.current)
+  await persistAndNotify(previousCurrent, live.current)
 
   return { ok: true, snapshot: await buildSnapshot({ badges: false }), alreadyExisted }
 }
@@ -182,13 +220,13 @@ export async function removeProject(input: string): Promise<ProjectActionResult>
   const target = await resolveKnownPath(input, current.projects, live.current)
 
   current.projects = current.projects.filter(each => each !== target)
+  const previousCurrent = live.current
   if (live.current === target) {
     live.current = current.projects[0] ?? null
     live.temporary = false
     current.lastActivePath = live.current
   }
-  await persist()
-  await syncLocalServer(live.current)
+  await persistAndNotify(previousCurrent, live.current)
 
   return { ok: true, snapshot: await buildSnapshot({ badges: false }) }
 }
@@ -202,56 +240,15 @@ export async function switchProject(input: string): Promise<ProjectActionResult>
   if (!persisted && !(live.temporary && live.current === target))
     return { ok: false, message: 'That project is not in the list.' }
 
+  const previousCurrent = live.current
   live.current = target
   live.temporary = !persisted
   // 暫時項不寫回最後啟用專案——它不該汙染下次啟動的優先序
   if (persisted)
     current.lastActivePath = target
-  await persist()
-  await syncLocalServer(live.current)
+  await persistAndNotify(previousCurrent, live.current)
 
   return { ok: true, snapshot: await buildSnapshot({ badges: false }) }
-}
-
-/**
- * 過渡程式：change 清單與詳情等讀取面仍由本地 API server 服務，而它在自己的
- * 記憶體裡另有一份「目前是哪個專案」。切換／加入／移除後補打它既有的切換掛載點，
- * 那一趟順帶把檔案變動監看換掛到新專案。
- *
- * 等它回來再回報成功，主區的清單重載才會落在新專案上；失敗不讓操作失敗——
- * 只是這一次主區清單會落後，再切一次即可對齊。
- *
- * 設定檔的寫入權整趟都留在這一側：`skipConfigWrite` 讓那個掛載點只更新它自己的
- * 執行期狀態。它手上那份設定是啟動時讀進去的，讓它整檔寫回會把桌面端剛寫的
- * CLI 路徑與專案清單蓋成舊值。
- *
- * TODO(debt): 桌面形態的「目前專案」目前有兩份執行期狀態（桌面端一份、本地 API
- * server 記憶體一份），只是寫入權在桌面端。上限：撐到檔案變動通知仍掛在本地 API
- * server 的過渡期，且只在開發通路有效（打包形態沒有 server，這趟一定失敗）；另有一個
- * 表達不出來的情形——移除清單裡最後一個專案時，切換掛載點需要一個路徑，講不出
- * 「沒有目標專案」，那一次 server 會停在剛被移除的專案（側欄變空清單引導、主區
- * 仍列著它的 changes）。升級條件：本地 API server 不再需要知道目前專案是哪個
- * ——那時整個函式與三處呼叫一併刪除。
- *
- * 讀取面與檔案操作面都搬進桌面形態之後它仍留著，因為檔案變動通知（即時刷新）還掛在
- * 本地 API server：那條訂閱得靠這一趟，才會監看跟畫面同一個目標專案。
- */
-async function syncLocalServer(path: string | null): Promise<void> {
-  if (!path)
-    return
-
-  try {
-    await fetch('/api/project/switch', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path, skipConfigWrite: true }),
-      // AbortSignal.timeout 是平台內建的逾時訊號：呼叫端是 await 的，沒有上限就一直等
-      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
-    })
-  }
-  catch {
-    // server 沒在跑、逾時或呼叫失敗：這一次主區清單落後，本次操作照樣成立
-  }
 }
 
 /** 授權失敗與「這不是一個專案資料夾」是兩回事，錯誤訊息不能指向錯的原因 */

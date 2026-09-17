@@ -409,162 +409,150 @@ describe('desktop/projects', () => {
     expect(cli.runCli).not.toHaveBeenCalled()
   })
 
-  it('過渡：切換成功後通知本地 API server 的切換掛載點', async () => {
-    const store = makeConfigStore(makeConfig({ projects: ['/resolved/proj'], lastActivePath: '/other' }))
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}'))
-    vi.stubGlobal('fetch', fetchSpy)
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell())
-    vi.doMock('./cli', () => makeCli())
-    const { switchProject } = await import('./projects')
-
-    expect((await switchProject('/resolved/proj')).ok).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchSpy.mock.calls[0]!
-    expect(url).toBe('/api/project/switch')
-    expect(init?.body).toBe(JSON.stringify({ path: '/resolved/proj', skipConfigWrite: true }))
-  })
-
-  it('過渡：通知失敗不讓切換失敗', async () => {
-    const store = makeConfigStore(makeConfig({ projects: ['/resolved/proj'], lastActivePath: '/other' }))
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('server not running')
-    }))
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell())
-    vi.doMock('./cli', () => makeCli())
-    const { switchProject } = await import('./projects')
-
-    const result = await switchProject('/resolved/proj')
-    expect(result.ok).toBe(true)
-    expect(store.state.lastActivePath).toBe('/resolved/proj')
-  })
-
-  it('過渡：加入成功後通知本地 API server（不只切換要驗，加入也要）', async () => {
-    const store = makeConfigStore(makeConfig())
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}'))
-    vi.stubGlobal('fetch', fetchSpy)
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
-    vi.doMock('./cli', () => makeCli())
-    const { addProject } = await import('./projects')
-
-    expect((await addProject('/proj')).ok).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchSpy.mock.calls[0]!
-    expect(url).toBe('/api/project/switch')
-    expect(init?.body).toBe(JSON.stringify({ path: '/resolved/proj', skipConfigWrite: true }))
-  })
-
-  it('過渡：加入時已在清單中一樣切過去，也要通知本地 API server', async () => {
-    const store = makeConfigStore(makeConfig({ projects: ['/resolved/proj'], lastActivePath: '/other' }))
-    const fetchSpy = vi.fn(async () => new Response('{}'))
-    vi.stubGlobal('fetch', fetchSpy)
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
-    vi.doMock('./cli', () => makeCli())
-    const { addProject } = await import('./projects')
-
-    const result = await addProject('/proj')
-    expect(result.ok && result.alreadyExisted).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-  })
-
-  it('過渡：加入時通知失敗不讓加入失敗', async () => {
-    const store = makeConfigStore(makeConfig())
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('server not running')
-    }))
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
-    vi.doMock('./cli', () => makeCli())
-    const { addProject } = await import('./projects')
-
-    const result = await addProject('/proj')
-    expect(result.ok).toBe(true)
-    expect(store.state.projects).toEqual(['/resolved/proj'])
-  })
-
-  it('過渡：移除後仍有目前專案時通知本地 API server，帶新的目前專案路徑', async () => {
+  it('刪除過渡同步呼叫後三個動作都不對本地 API server 發出請求', async () => {
     const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}'))
-    vi.stubGlobal('fetch', fetchSpy)
-    vi.doMock('./config-store', () => store)
-    vi.doMock('./shell', () => makeShell())
-    vi.doMock('./cli', () => makeCli())
-    const { removeProject } = await import('./projects')
-
-    expect((await removeProject('/a')).ok).toBe(true)
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchSpy.mock.calls[0]!
-    expect(url).toBe('/api/project/switch')
-    expect(init?.body).toBe(JSON.stringify({ path: '/b', skipConfigWrite: true }))
-  })
-
-  it('過渡：移除到清空清單時，目前專案為 null，不呼叫本地 API server', async () => {
-    const store = makeConfigStore(makeConfig({ projects: ['/a'], lastActivePath: '/a' }))
     const fetchSpy = vi.fn(async () => new Response('{}'))
     vi.stubGlobal('fetch', fetchSpy)
     vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
+    vi.doMock('./cli', () => makeCli())
+    const { addProject, removeProject, switchProject } = await import('./projects')
+
+    await addProject('/proj')
+    await switchProject('/a')
+    await removeProject('/b')
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('移除清單裡最後一個專案後目前專案為無，不殘留任何目標路徑（T5.2）', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => makeShell())
     vi.doMock('./cli', () => makeCli())
-    const { removeProject } = await import('./projects')
+    const { removeProject, currentProjectPath } = await import('./projects')
 
     const result = await removeProject('/a')
     expect(result.ok).toBe(true)
     if (result.ok)
       expect(result.snapshot.currentPath).toBeNull()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(await currentProjectPath()).toBeNull()
   })
 
-  it('過渡：加入／切換／移除三個掛載點都獨立帶上 skipConfigWrite: true（不是照抄 production 字面、而是各自解析 body 驗證這一個欄位本身），伺服端才不會把桌面端剛寫的設定蓋掉', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response('{}'))
-    vi.stubGlobal('fetch', fetchSpy)
-
-    const addStore = makeConfigStore(makeConfig())
-    vi.doMock('./config-store', () => addStore)
+  it('「目前專案變了」訂閱：加入、移除、切換三個動作改變目前專案時各觸發一次通知', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
     vi.doMock('./cli', () => makeCli())
-    const { addProject } = await import('./projects')
-    await addProject('/proj')
+    const { addProject, removeProject, switchProject, subscribeToCurrentProjectChange } = await import('./projects')
 
-    vi.resetModules()
-    const switchStore = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
-    vi.doMock('./config-store', () => switchStore)
-    vi.doMock('./shell', () => makeShell())
-    vi.doMock('./cli', () => makeCli())
-    const { switchProject } = await import('./projects')
+    const listener = vi.fn()
+    subscribeToCurrentProjectChange(listener)
+
     await switchProject('/b')
+    expect(listener).toHaveBeenCalledTimes(1)
 
-    vi.resetModules()
-    const removeStore = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
-    vi.doMock('./config-store', () => removeStore)
-    vi.doMock('./shell', () => makeShell())
-    vi.doMock('./cli', () => makeCli())
-    const { removeProject } = await import('./projects')
-    await removeProject('/a')
+    await addProject('/proj')
+    expect(listener).toHaveBeenCalledTimes(2)
 
-    expect(fetchSpy).toHaveBeenCalledTimes(3)
-    for (const call of fetchSpy.mock.calls) {
-      const init = call[1] as RequestInit
-      const body = JSON.parse(init.body as string) as { skipConfigWrite?: unknown }
-      expect(body.skipConfigWrite).toBe(true)
-    }
+    await removeProject('/resolved/proj')
+    expect(listener).toHaveBeenCalledTimes(3)
   })
 
-  it('過渡：移除時通知失敗不讓移除失敗', async () => {
+  it('「目前專案變了」訂閱：切換到本來就是目前的專案時不觸發通知', async () => {
     const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
-    vi.stubGlobal('fetch', vi.fn(async () => {
-      throw new Error('server not running')
-    }))
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => makeShell())
     vi.doMock('./cli', () => makeCli())
-    const { removeProject } = await import('./projects')
+    const { switchProject, subscribeToCurrentProjectChange } = await import('./projects')
 
-    const result = await removeProject('/a')
+    const listener = vi.fn()
+    subscribeToCurrentProjectChange(listener)
+
+    const result = await switchProject('/a')
     expect(result.ok).toBe(true)
-    expect(store.state.projects).toEqual(['/b'])
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('「目前專案變了」訂閱：移除的不是目前專案時目前專案不變，不觸發通知', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { removeProject, subscribeToCurrentProjectChange } = await import('./projects')
+
+    const listener = vi.fn()
+    subscribeToCurrentProjectChange(listener)
+
+    const result = await removeProject('/b')
+    expect(result.ok).toBe(true)
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('「目前專案變了」訂閱：加入的路徑本來就是目前專案時不觸發通知', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/resolved/proj'], lastActivePath: '/resolved/proj' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell({ '/resolved/proj': withOpenSpec() }))
+    vi.doMock('./cli', () => makeCli())
+    const { addProject, subscribeToCurrentProjectChange } = await import('./projects')
+
+    const listener = vi.fn()
+    subscribeToCurrentProjectChange(listener)
+
+    const result = await addProject('/proj')
+    expect(result.ok && result.alreadyExisted).toBe(true)
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('「目前專案變了」訂閱：多個訂閱者同時存在時每個都各收到一次通知', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { switchProject, subscribeToCurrentProjectChange } = await import('./projects')
+
+    const first = vi.fn()
+    const second = vi.fn()
+    subscribeToCurrentProjectChange(first)
+    subscribeToCurrentProjectChange(second)
+
+    await switchProject('/b')
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('「目前專案變了」訂閱：取消訂閱後不再收到通知', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { switchProject, subscribeToCurrentProjectChange } = await import('./projects')
+
+    const listener = vi.fn()
+    const unsubscribe = subscribeToCurrentProjectChange(listener)
+    unsubscribe()
+
+    await switchProject('/b')
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('「目前專案變了」訂閱：設定寫入失敗時仍送出通知（送出時機不受持久化成敗影響）', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    store.persist = vi.fn(async () => {
+      throw new Error('disk full')
+    })
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { switchProject, subscribeToCurrentProjectChange } = await import('./projects')
+
+    const listener = vi.fn()
+    subscribeToCurrentProjectChange(listener)
+
+    const result = await switchProject('/b')
+    expect(result.ok).toBe(true)
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 })
 

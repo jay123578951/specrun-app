@@ -283,11 +283,8 @@ export interface EnvironmentDiagnostics {
   configPath: string
   /** 目前目標專案；null＝沒有選定的專案（UI 明確標示為無，MUST NOT 顯示空白） */
   projectPath: string | null
-  /**
-   * 檔案變動通知（即時刷新）目前是否運作；
-   * null＝當前執行形態尚無通道可問，畫面呈現為未知（與明確的「沒在跑」不同一回事）
-   */
-  watching: boolean | null
+  /** 檔案變動通知（即時刷新）目前是否已接上；每個執行形態都問得到，不回未知 */
+  watching: boolean
   appVersion: string
   /** 執行環境是否支援開啟檔案所在位置；能力判定在當前執行形態，null＝尚無通道可問 */
   canReveal: boolean | null

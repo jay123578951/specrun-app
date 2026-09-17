@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import { configDir, homeDir, join, normalize } from '@tauri-apps/api/path'
 import { expandHome } from '../app-config'
 
@@ -132,6 +132,35 @@ export function statPath(path: string): Promise<FileStat> {
  */
 export function canonicalPath(path: string): Promise<string> {
   return invoke<string>('canonical_path', { path })
+}
+
+export interface WatchOptions {
+  recursive: boolean
+  delayMs: number
+}
+
+/**
+ * fs plugin 的延遲合併監看（`plugin:fs|watch`）：事件內容只暴露路徑陣列——種類
+ * （新增／修改／刪除）與 attrs 是上層做粗粒度合併通知時用不到的細節，收在這裡
+ * 就不外洩給呼叫端。回傳的監看編號是外殼配的 Resource id，取消監看時原樣交回。
+ */
+export async function watchPaths(
+  paths: string[],
+  options: WatchOptions,
+  onEvent: (paths: string[]) => void,
+): Promise<number> {
+  const channel = new Channel<{ paths: string[] }>()
+  channel.onmessage = event => onEvent(event.paths)
+  return invoke<number>('plugin:fs|watch', {
+    paths,
+    options: { recursive: options.recursive, delayMs: options.delayMs },
+    onEvent: channel,
+  })
+}
+
+/** 監看編號即 fs plugin 配出的 Resource id，取消監看走它通用的資源釋放指令 */
+export function unwatchPaths(rid: number): Promise<void> {
+  return invoke('plugin:resources|close', { rid })
 }
 
 // 三個答案在一個 process 內不會變，問一次就夠。快取的是「問到的值」而不是那一趟
