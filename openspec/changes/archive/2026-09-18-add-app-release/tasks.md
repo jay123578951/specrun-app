@@ -37,4 +37,4 @@
 - [x] 5.2 提交本張所有改動並推上 `origin/main`；驗證方式：`git status` 乾淨、`git log --oneline -1` 為本張的 commit
 - [x] 5.3 repo 由私有轉公開並填上一句簡介；驗證方式：`gh repo view --json isPrivate,description` 回報 `isPrivate: false` 且 `description` 非空
 - [x] 5.4 建立 `v0.1.0` tag 與首發 Release，附上 `specrun_0.1.0_aarch64.dmg`，Release 說明的開頭寫明需要 Apple 晶片的 Mac 並複述第一次開啟被擋的處理方式；驗證方式：`gh release view v0.1.0` 列出該 dmg 為資產
-- [ ] 5.5 走一次別人會走的完整路徑收尾；驗證方式：以未登入的瀏覽器開啟 Release 頁、下載 dmg、掛載、把 App 拖進應用程式資料夾、從 Finder 點開，**確認 README 寫的「已損毀，應將其丟到垃圾桶」原句真的出現**（措辭若與 README 不符就改 README），再依 README 的繞法解除、重新開啟，確認 Settings 的 CLI 狀態為自動偵測成功且 Changes 頁有資料。若手邊有另一台沒裝過這個 App 的 Mac，優先在那台走這一趟——本機已被 macOS 記住，攔阻可能不再出現
+- [x] 5.5 走一次別人會走的完整路徑收尾；驗證方式：以未登入的瀏覽器開啟 Release 頁、下載 dmg、掛載、把 App 拖進應用程式資料夾、從 Finder 點開，**確認 README 寫的「已損毀，應將其丟到垃圾桶」原句真的出現**（措辭若與 README 不符就改 README），再依 README 的繞法解除、重新開啟，確認 Settings 的 CLI 狀態為自動偵測成功且 Changes 頁有資料。若手邊有另一台沒裝過這個 App 的 Mac，優先在那台走這一趟——本機已被 macOS 記住，攔阻可能不再出現
