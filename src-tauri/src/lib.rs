@@ -1,6 +1,8 @@
 use std::process::Stdio;
 use std::time::Duration;
 
+use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_fs::FsExt;
 use tokio::io::AsyncReadExt;
 
@@ -163,16 +165,57 @@ async fn canonical_path(path: String) -> Result<String, String> {
     .map_err(|e| format!("could not resolve `{path}`: {e}"))
 }
 
+/// 加入專案的原生資料夾選擇。自有指令包對話框外掛的 **Rust API**
+/// （`FileDialogBuilder`），不讓 webview 直接呼叫外掛自己的 JS 指令——外掛的
+/// JS 指令在 `directory: true` 時會對選定路徑自動呼叫 `allow_directory`，
+/// 把該資料夾第一層的檔案在 `openspec/` 驗證之前就放進 fs scope，且撤不回來。
+/// Rust API 不碰 fs scope，兩階段授權（見 `allow_dir_listing`／`allow_path`）
+/// 因此仍然成立。
+///
+/// `set_parent()` 指定 main 視窗：macOS 呈現為附屬的 sheet，其餘平台為以主視窗為
+/// 擁有者的強制回應視窗，兩者的共同保證是開啟期間主視窗不接受輸入。取不到
+/// main 視窗時仍照開，只是失去附屬關係——不因此讓整個功能不可用。
+///
+/// 宣告成 async、以一次性通道等待外掛的回呼：理由同 `canonical_path`——tauri
+/// 只把 async command 丟到 async runtime，同步的會卡在主執行緒上，選資料夾的
+/// 等待長度由使用者決定。外掛的回呼版本自己把開視窗那一步送回主執行緒。
+///
+/// 回傳 `Ok(Some(path))`＝選定、`Ok(None)`＝取消、`Err`＝開不起來，三者由
+/// 前端薄殼映射成既有的 `PickFolderOutcome`。不設起始目錄、標題沿用現行文案。
+#[tauri::command]
+async fn pick_folder<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<Option<String>, String> {
+  let (tx, rx) = tokio::sync::oneshot::channel();
+
+  let mut dialog = app.dialog().file().set_title("Select a project folder");
+  if let Some(window) = app.get_webview_window("main") {
+    dialog = dialog.set_parent(&window);
+  }
+  dialog.pick_folder(move |result| {
+    let _ = tx.send(result);
+  });
+
+  match rx.await {
+    Ok(Some(file_path)) => file_path
+      .into_path()
+      .map(|path| Some(path.to_string_lossy().into_owned()))
+      .map_err(|e| format!("could not resolve the picked folder: {e}")),
+    Ok(None) => Ok(None),
+    Err(e) => Err(format!("folder picker channel closed unexpectedly: {e}")),
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_fs::init())
+    .plugin(tauri_plugin_dialog::init())
     .invoke_handler(tauri::generate_handler![
       spawn_bin,
       allow_path,
       allow_dir_listing,
       host_platform,
-      canonical_path
+      canonical_path,
+      pick_folder
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {

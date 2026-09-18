@@ -157,7 +157,7 @@ async function confirmRemove(path: string): Promise<void> {
       {{ showAll ? 'Show less' : `Show all (${projects.projects.length})` }}
     </button>
 
-    <button type="button" class="side-action mt-1" :disabled="projects.busy" @click="startAdd()">
+    <button type="button" class="side-action mt-1" :disabled="projects.busy || projects.picking" @click="startAdd()">
       <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
       Add project
     </button>

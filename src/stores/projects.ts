@@ -1,4 +1,4 @@
-import type { ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../api'
+import type { PickFolderOutcome, ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { gateway } from '../api'
@@ -17,6 +17,16 @@ export const useProjectsStore = defineStore('projects', () => {
   const loaded = ref(false)
   /** 切換／加入／移除進行中：清單項據此進入 pending */
   const busy = ref(false)
+  /**
+   * 原生資料夾選擇進行中：四個「加入專案」入口據此呈現為不可點。
+   * 只在 `gateway.pickFolder()` 這段等待期間為真，只驅動按鈕能不能點——
+   * 不是系統維護「已有 dialog 開著」的全域狀態（那一種在第二次呼叫進來時
+   * 會攔下並回一個結果，規格明文禁止；這裡的狀態不改變 `startAdd` 的控制流，
+   * 重疊呼叫兩次一樣各自真的呼叫 `gateway.pickFolder()`）。與 `busy` 是兩回事：
+   * `busy` 專屬 `mutate()`（切換／加入落地／移除），這個狀態涵蓋的是點擊入口
+   * 到選擇流程結束（選定、取消或失敗）之間那一段，兩段時間不重疊。
+   */
+  const picking = ref(false)
   /** 每次切換 +1，讓背景的徽章刷新認得出自己已過期 */
   const generation = ref(0)
 
@@ -68,7 +78,14 @@ export const useProjectsStore = defineStore('projects', () => {
    * 免得四個按鈕各養一份。沒有可貼訊息的輸入列，所有失敗一律走 toast。
    */
   async function startAdd(): Promise<void> {
-    const outcome = await gateway.pickFolder()
+    picking.value = true
+    let outcome: PickFolderOutcome
+    try {
+      outcome = await gateway.pickFolder()
+    }
+    finally {
+      picking.value = false
+    }
     // 取消與「已有 dialog 開著」都不留痕跡：那一刻使用者的注意力在 dialog 上，補提示是雜訊
     if (outcome.status === 'canceled' || outcome.status === 'busy')
       return
@@ -183,6 +200,7 @@ export const useProjectsStore = defineStore('projects', () => {
     currentPath,
     loaded,
     busy,
+    picking,
     hasProject,
     currentProject,
     load,

@@ -134,6 +134,24 @@ export function canonicalPath(path: string): Promise<string> {
   return invoke<string>('canonical_path', { path })
 }
 
+/**
+ * 原生資料夾選擇：外殼回「選定路徑／取消／開不起來」三選一，這裡只收束成
+ * 一個聯集，映射成 `PickFolderOutcome` 是上一層（folder-picker.ts）的事。
+ */
+export type PickFolderShellOutcome
+  = { ok: true, path: string | null }
+    | { ok: false, message: string }
+
+export async function pickFolder(): Promise<PickFolderShellOutcome> {
+  try {
+    const path = await invoke<string | null>('pick_folder')
+    return { ok: true, path }
+  }
+  catch (error) {
+    return { ok: false, message: describe(error) }
+  }
+}
+
 export interface WatchOptions {
   recursive: boolean
   delayMs: number

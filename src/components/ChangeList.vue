@@ -180,7 +180,7 @@ function onDragEnd(payload: { x: number, y: number } | null): void {
             title="No project yet"
             body="Add a folder that contains an openspec/ directory and its changes show up here."
           >
-            <button type="button" class="btn" @click="projects.startAdd()">
+            <button type="button" class="btn" :disabled="projects.picking" @click="projects.startAdd()">
               <span class="i-lucide-plus h-4 w-4" aria-hidden="true" />
               Add project
             </button>

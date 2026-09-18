@@ -32,7 +32,10 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     const parked = { listParked: vi.fn(), getParkedDetail: vi.fn() }
     const archived = { listArchived: vi.fn(), getArchivedDetail: vi.fn() }
     const watch = { subscribeToChanges: vi.fn() }
+    const folderPicker = { pickFolder: vi.fn() }
     const webSubscribe = vi.fn()
+    const webRevealPath = vi.fn()
+    const webGatewayPickFolder = vi.fn()
     vi.doMock('./desktop/cli', () => cli)
     vi.doMock('./desktop/diagnostics', () => ({ diagnostics: diagnosticsFn }))
     vi.doMock('./desktop/projects', () => projects)
@@ -41,10 +44,11 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     vi.doMock('./desktop/park', () => park)
     vi.doMock('./desktop/parked', () => parked)
     vi.doMock('./desktop/archived', () => archived)
+    vi.doMock('./desktop/folder-picker', () => folderPicker)
     // watch.ts 一 import 就會接線 projects.ts 的訂閱出口，這裡整支模組替換掉，不連真的
     vi.doMock('./desktop/watch', () => watch)
     vi.doMock('./web-gateway', () => ({
-      webGateway: { subscribeToChanges: webSubscribe, getDiagnostics: vi.fn() },
+      webGateway: { subscribeToChanges: webSubscribe, getDiagnostics: vi.fn(), revealPath: webRevealPath, pickFolder: webGatewayPickFolder },
     }))
 
     const { desktopGateway } = await import('./desktop-gateway')
@@ -71,5 +75,9 @@ describe('api/desktop-gateway: 桌面實作接線', () => {
     // 已搬遷：不再落到 web 形態的實作
     expect(desktopGateway.subscribeToChanges).toBe(watch.subscribeToChanges)
     expect(desktopGateway.subscribeToChanges).not.toBe(webSubscribe)
+    expect(desktopGateway.pickFolder).toBe(folderPicker.pickFolder)
+    expect(desktopGateway.pickFolder).not.toBe(webGatewayPickFolder)
+    // 尚未搬遷：revealPath 仍落回 web 形態的實作
+    expect(desktopGateway.revealPath).toBe(webRevealPath)
   })
 })

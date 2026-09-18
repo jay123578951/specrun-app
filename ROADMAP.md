@@ -108,8 +108,12 @@ change 堆疊（2026-08-19 定案。過渡策略：**Tauri dev 併跑 nitro、�
 | T1.6 | add-tauri-settings-store | 設定與 CLI 解析改由執行形態自持：app-config／project-state／cli-resolver 搬前端、兩形態共用同一份設定、spawn 通道補逾時。T2 的前置——四條讀取路都要先問過它，且設定檔整檔覆寫不能兩個行程各持一半，2026-09-16 自 T2／T4 切出 | ✅ 2026-09-16 archived |
 | T2 | add-tauri-gateway-reads | CLI spawn 讀取面：changes 清單／詳情、specs 清單／全文（openspec-cli 邏輯搬前端；CLI 解析已移至 T1.6）。桌面形態第一次讀專案資料夾底下的檔案，因此一併補齊啟動時的路徑授權、查詢檔案基本資訊的權限、外殼的 symlink 解析。環境診斷已由 T1.6 完成、不在此列；T1.6 的過渡同步呼叫改留到 T4（勾選與 park 仍靠它對齊目標專案） | ✅ 2026-09-17 archived |
 | T3 | add-tauri-gateway-files | 檔案操作面：tasks 勾選、park／unpark、archived 直讀（含 `.git` 顯式 allow） | ✅ 2026-09-17 archived |
-| T4 | add-tauri-gateway-platform | watch、資料夾選擇（dialog）、reveal（opener）；nitro 自此退場（設定持久化已移至 T1.6）。收尾刪除 T1.6 的過渡同步呼叫——本地 API server 到此不再需要知道目前專案是哪個。**一併收掉 T2 留下的重複**：`src/api/desktop/reads.ts` 的 `changeNames` 與 `readArtifactFiles` 跟 `server/api/changes.get.ts`、`server/api/changes/[name].get.ts` 逐字元相同（2026-09-17 T2 審出，當時決定不抽共用——web 那側到這張就收掉，為它做抽象划不來）；刪 route 時桌面那份自動成為唯一一份，不必另外處理 |⏭️ 下一個 |
+| T4a | add-tauri-gateway-watch | 檔案變動通知改由執行形態自持：桌面形態走外殼的檔案監看通道，連環變動合併為一則由 gateway 實作端自己保證、不靠底層機制，監看目標取解開 symlink 後的實際位置；環境診斷改答「是否已接上」。順帶刪掉 T1.6 留下的過渡同步呼叫——本地 API server 到此不再需要知道目前專案是哪個。2026-09-17 自 T4 切出 | ✅ 2026-09-17 archived |
+| T4b | add-tauri-gateway-folder-picker | 加入專案的原生資料夾選擇改由執行形態自持：外殼自有指令包對話框外掛的 Rust API，不讓 webview 直呼外掛的 JS 指令——那會在 `openspec/` 驗證之前就把選定資料夾的第一層放進可讀範圍，而放行只能加不能減。授權因此分兩階段：驗證期只放行列出該資料夾，通過後才放行整棵樹。打包形態下加得了專案自此成立 | ✅ 2026-09-18 archived |
+| T4c | （未提） | T4b 的後半：開啟檔案所在位置、artifact 內容裡的外部連結，兩者共用同一個外殼通道。目前桌面形態下前者為禁用並說明原因、後者點下去沒反應，兩者都誠實、不算缺陷 |⏭️ 下一個 |
 | T5 | add-app-release | 名稱、bundle id、版本定版、`tauri build`、README 安裝說明＋首發 Release（logo／icon 已移至 T1.5） | |
+
+原 T4 還掛著兩件事，都綁在「web 形態與本地 API server 整批下線」上：nitro 退場，以及收掉 T2 留下的重複（`src/api/desktop/reads.ts` 的 `changeNames` 與 `readArtifactFiles` 跟 `server/api/changes.get.ts`、`server/api/changes/[name].get.ts` 逐字元相同，2026-09-17 T2 審出，當時決定不抽共用、等 web 那側收掉就自動只剩一份）。2026-09-18 T4b 明確不做整批下線、也不預設它一定會發生，桌面開發通路仍併跑本地 API server，那份重複因此仍在。堆疊開頭那句「T4 起 nitro 退場」到此不再成立；要不要下線是獨立的題目，痛感真實再開 change。
 
 發佈模式參照（2026-08-19 實測 Spectra v2.3.1）：閉源＋純發佈 repo（README／CHANGELOG／Releases，原始碼不公開）、macOS 版 Developer ID 簽章＋公證（Apple Developer 年費 99 美元）、收錄 Homebrew 官方 cask（有星數門檻）、內建自動更新；Windows 版未簽章裸發。它為「零摩擦安裝」付費是因受眾比本專案廣；「公開發佈 repo＋私有原始碼」模式可沿用，發佈層不強迫決定開源與否。
 

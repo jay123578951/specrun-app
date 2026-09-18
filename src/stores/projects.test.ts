@@ -10,6 +10,7 @@ const gateway = vi.hoisted(() => ({
   listParked: vi.fn(),
   parkChange: vi.fn(),
   unparkChange: vi.fn(),
+  pickFolder: vi.fn(),
 }))
 
 vi.mock('../api', () => ({ gateway }))
@@ -121,5 +122,40 @@ describe('projects store：目前專案徽章的即時更新', () => {
     await changes.loadSilently()
 
     expect(projects.projects.find(each => each.path === '/other')?.badge).toBe(5)
+  })
+})
+
+describe('projects store：startAdd 的「選擇進行中」狀態', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('等待 gateway.pickFolder 期間 picking 為真，選擇流程結束後恢復為假', async () => {
+    let resolvePick: (outcome: { status: 'canceled' }) => void = () => {}
+    const pending = new Promise<{ status: 'canceled' }>((resolve) => {
+      resolvePick = resolve
+    })
+    gateway.pickFolder.mockReturnValue(pending)
+
+    const projects = useProjectsStore()
+    expect(projects.picking).toBe(false)
+
+    const started = projects.startAdd()
+    expect(projects.picking).toBe(true)
+
+    resolvePick({ status: 'canceled' })
+    await started
+
+    expect(projects.picking).toBe(false)
+  })
+
+  it('重疊呼叫 startAdd 兩次，picking 不擋下任何一次——各自真的呼叫 gateway.pickFolder', async () => {
+    gateway.pickFolder.mockResolvedValue({ status: 'canceled' })
+    const projects = useProjectsStore()
+
+    await Promise.all([projects.startAdd(), projects.startAdd()])
+
+    expect(gateway.pickFolder).toHaveBeenCalledTimes(2)
   })
 })
