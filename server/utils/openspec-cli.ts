@@ -3,6 +3,7 @@ import type { ChangeListProbe, ProbeFailure } from '../../src/api/types'
 import { execFile } from 'node:child_process'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
+import process from 'node:process'
 import { CLI_COMMAND, cliSnapshot, currentCliBin } from './cli-resolver'
 import { currentProjectPath } from './project-state'
 
@@ -71,11 +72,14 @@ export async function runCli(args: string[], cwd: string): Promise<ExecOutcome> 
   if (!bin)
     return { error: unresolvedError(), stdout: '', stderr: '' }
 
+  // bin 可能是需要搜尋路徑才找得到 node 的轉接殼——解析結果帶著 env 時，每一次
+  // 執行都要帶著它，不只驗證那一次（見 cli-resolve.ts 的 ResolveEnv）。
+  const env = cliSnapshot()?.env
   return new Promise((resolve) => {
     execFile(
       bin,
       args,
-      { cwd, timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true },
+      { cwd, timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true, env: env ? { ...process.env, ...env } : undefined },
       (error, stdout, stderr) => resolve({ error, stdout, stderr }),
     )
   })

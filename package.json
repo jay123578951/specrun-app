@@ -1,15 +1,17 @@
 {
   "name": "specrun-app",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.32.1",
+  "license": "MIT",
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"pnpm run dev:api\" \"pnpm run dev:web\"",
     "dev:app": "tauri dev",
     "dev:api": "nitro dev --port 3210",
     "dev:web": "vite",
     "build": "vite build && nitro build",
+    "build:web": "vite build",
     "build:icon": "node scripts/build-app-icon.ts",
     "lint": "eslint .",
     "test": "vitest run",

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -49,6 +50,10 @@ async fn read_capped<R: tokio::io::AsyncRead + Unpin>(
 ///
 /// stdout 與 stderr 必須同時讀：只讀完一邊，另一邊的 pipe 滿了行程就會停在
 /// write 上，變成等到逾時才結束。
+///
+/// `env` 疊加在子行程繼承到的環境之上（不是取代整份環境）：只給要補的變數，
+/// 例如借登入 shell 問回來的搜尋路徑（`PATH`）——執行檔可能是一層需要其他
+/// 執行環境（如 node）才跑得動的轉接殼，找得到它與跑得動它是兩件事。
 #[tauri::command]
 async fn spawn_bin(
   program: String,
@@ -56,14 +61,20 @@ async fn spawn_bin(
   cwd: String,
   timeout_ms: u64,
   max_output_bytes: usize,
+  env: Option<HashMap<String, String>>,
 ) -> Result<SpawnResult, String> {
-  let mut child = tokio::process::Command::new(&program)
+  let mut command = tokio::process::Command::new(&program);
+  command
     .args(&args)
     .current_dir(&cwd)
     .stdin(Stdio::null())
     .stdout(Stdio::piped())
     .stderr(Stdio::piped())
-    .kill_on_drop(true)
+    .kill_on_drop(true);
+  if let Some(vars) = &env {
+    command.envs(vars);
+  }
+  let mut child = command
     .spawn()
     .map_err(|e| format!("failed to spawn `{program}`: {e}"))?;
 
@@ -360,6 +371,7 @@ mod tests {
       "/".into(),
       5_000,
       MAX,
+      None,
     ))
     .unwrap();
     assert_eq!(result.status, Some(0));
@@ -376,6 +388,7 @@ mod tests {
       "/".into(),
       1_000,
       MAX,
+      None,
     ))
     .unwrap();
     assert!(result.timed_out);
@@ -391,6 +404,7 @@ mod tests {
       "/".into(),
       1_000,
       MAX,
+      None,
     ))
     else {
       panic!("expected a spawn error")
@@ -413,6 +427,7 @@ mod tests {
       "/".into(),
       1_000,
       MAX,
+      None,
     ));
 
     std::fs::remove_file(&file).ok();
@@ -434,6 +449,7 @@ mod tests {
       "/".into(),
       200,
       MAX,
+      None,
     ))
     .unwrap();
     assert!(result.timed_out);
@@ -444,6 +460,26 @@ mod tests {
     let survived = marker.exists();
     let _ = std::fs::remove_file(&marker);
     assert!(!survived, "process kept running after timeout instead of being killed");
+  }
+
+  /// `env` 疊加在既有環境之上，不是取代整份環境：`/bin/sh` 本身跑得動子行程
+  /// 靠的是繼承來的環境，這裡只驗補進去的那一個變數確實傳到了子行程。
+  #[test]
+  fn spawn_bin_adds_the_given_env_vars_on_top_of_the_inherited_environment() {
+    let mut env = HashMap::new();
+    env.insert("SPECRUN_TEST_VAR".to_string(), "hello".to_string());
+
+    let result = block_on(spawn_bin(
+      "/bin/sh".into(),
+      vec!["-c".into(), "printf %s \"$SPECRUN_TEST_VAR\"".into()],
+      "/".into(),
+      5_000,
+      MAX,
+      Some(env),
+    ))
+    .unwrap();
+
+    assert_eq!(result.stdout, "hello");
   }
 
   #[test]
@@ -458,6 +494,7 @@ mod tests {
       canonical.to_string_lossy().into_owned(),
       5_000,
       MAX,
+      None,
     ))
     .unwrap();
 
@@ -468,7 +505,7 @@ mod tests {
   #[test]
   fn spawn_bin_does_not_block_other_work_while_waiting_for_timeout() {
     block_on(async {
-      let slow = spawn_bin("/bin/sleep".into(), vec!["5".into()], "/".into(), 300, MAX);
+      let slow = spawn_bin("/bin/sleep".into(), vec!["5".into()], "/".into(), 300, MAX, None);
       let fast = async {
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         42
@@ -492,6 +529,7 @@ mod tests {
       "/".into(),
       3_000,
       10_000,
+      None,
     ))
     .unwrap();
 

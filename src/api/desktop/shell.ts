@@ -37,11 +37,16 @@ export type SpawnOutcome
   = { ok: true, result: SpawnResult }
     | { ok: false, message: string }
 
+/**
+ * `env` 只用來疊加少數幾個變數（目前僅 `PATH`）在子行程既有環境之上，不是取代
+ * 整份環境——呼叫端決定要帶哪些變數，這裡只管轉傳（cli.ts 的搜尋路徑即一例）。
+ */
 export async function spawnBin(
   program: string,
   args: string[],
   cwd: string,
   limits: SpawnLimits,
+  env?: Record<string, string>,
 ): Promise<SpawnOutcome> {
   try {
     const result = await invoke<SpawnResult>('spawn_bin', {
@@ -50,6 +55,7 @@ export async function spawnBin(
       cwd,
       timeoutMs: limits.timeoutMs,
       maxOutputBytes: limits.maxOutputBytes,
+      env: env ?? null,
     })
     return { ok: true, result }
   }

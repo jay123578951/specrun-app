@@ -1,17 +1,18 @@
 [package]
-name = "app"
+name = "specrun"
+# 這裡的 version 不被 tauri.conf.json 讀取（那邊指向 package.json）；改版時兩份一起改，避免再度分岔。
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "OpenSpec 相容的桌面 spec 管理 App，引擎外包 openspec CLI"
+authors = ["jay123578951"]
+license = "MIT"
+repository = "https://github.com/jay123578951/specrun-app"
 edition = "2021"
 rust-version = "1.77.2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
-name = "app_lib"
+name = "specrun_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

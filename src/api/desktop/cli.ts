@@ -1,7 +1,7 @@
-import type { VerifyResult } from '../cli-resolve'
+import type { LoginShellHit, ResolveEnv, VerifyResult } from '../cli-resolve'
 import type { CliApplyResult, CliSettings, ProbeFailure } from '../types'
 import type { SpawnLimits } from './shell'
-import { CLI_COMMAND, pickCommandPath, pickVersion, resolveWith } from '../cli-resolve'
+import { CLI_COMMAND, LOGIN_SHELL_PATH_MARKER, pickCommandPath, pickCommandPathAndSearchPath, pickVersion, resolveWith } from '../cli-resolve'
 import { config, persist } from './config-store'
 import { homePath, isMacOS, isWindows, resolveUserPath, spawnBin } from './shell'
 
@@ -61,7 +61,11 @@ export async function applyOverride(input: string): Promise<CliApplyResult> {
     return { ok: false, message: 'Enter the path to the openspec executable.' }
 
   const target = await resolveUserPath(raw)
-  const result = await verifyBin(target)
+  // 手動指定的執行檔同樣可能是需要其他執行環境才跑得動的轉接殼；第②段（借
+  // login shell 找 openspec 的位置）不會在這裡被呼叫，所以另外只問一次搜尋路徑。
+  const searchPath = (await isMacOS()) ? await overrideSearchPath() : null
+  const env: ResolveEnv | undefined = searchPath ? { PATH: searchPath } : undefined
+  const result = await verifyBin(target, env)
   if (!result.ok)
     return { ok: false, message: result.message }
 
@@ -69,7 +73,7 @@ export async function applyOverride(input: string): Promise<CliApplyResult> {
   current.openspecBin = target
   await persist()
 
-  const settings: CliSettings = { mode: 'override', bin: target, version: result.version, message: null }
+  const settings: CliSettings = { mode: 'override', bin: target, version: result.version, message: null, env }
   resolutionPromise = Promise.resolve(settings)
   return { ok: true, settings }
 }
@@ -101,7 +105,11 @@ export async function runCli(args: string[], cwd: string): Promise<CliOutcome> {
   }
 
   const bin = settings.bin
-  const outcome = await spawnBin(bin, args, cwd, DATA_LIMITS)
+  // bin 可能是需要搜尋路徑才找得到 node 的轉接殼——settings.env 有值時每一次
+  // 執行都要帶著它，不只驗證那一次（見 cli-resolve.ts 的 ResolveEnv）。
+  const outcome = settings.env
+    ? await spawnBin(bin, args, cwd, DATA_LIMITS, settings.env)
+    : await spawnBin(bin, args, cwd, DATA_LIMITS)
   if (!outcome.ok)
     return { ok: false, failure: { kind: 'cli-unavailable', message: `Could not run "${bin}": ${outcome.message}` } }
 
@@ -126,12 +134,15 @@ async function resolve(): Promise<CliSettings> {
     viaLoginShell: macOS ? viaLoginShell : null,
     // Windows 沒有 /bin/sh，spawn 必定失敗；跳過省一趟白花的等待
     locate: windows ? async () => null : locate,
+    overrideSearchPath: macOS ? overrideSearchPath : null,
   })
 }
 
 /** 失敗訊息要能據以排除問題：逾時、非零結束、連 spawn 都不成立各有各的說法 */
-async function verifyBin(bin: string): Promise<VerifyResult> {
-  const outcome = await spawnBin(bin, ['--version'], await homePath(), VERIFY_LIMITS)
+async function verifyBin(bin: string, env?: ResolveEnv): Promise<VerifyResult> {
+  const outcome = env
+    ? await spawnBin(bin, ['--version'], await homePath(), VERIFY_LIMITS, env)
+    : await spawnBin(bin, ['--version'], await homePath(), VERIFY_LIMITS)
   if (!outcome.ok)
     return { ok: false, message: `Could not run "${bin} --version": ${outcome.message}` }
 
@@ -155,21 +166,57 @@ function locate(): Promise<string | null> {
   return askShell(['-c', `command -v ${CLI_COMMAND}`], LOCATE_LIMITS)
 }
 
-/**
- * 第二段：借使用者 login shell 的真實 PATH。`-ilc` 會執行使用者自己的 rc 檔，
- * 所以才需要上限；任何失敗（逾時被終止、rc 出錯、命令不存在的非零結束）一律視同未命中。
- * 外層包一層 `/bin/sh -c` 是為了讀得到 `$SHELL`——前端沒有行程環境變數可讀；
- * `exec` 讓 login shell 接管同一個行程，逾時終止時終止到的就是它本身。
- */
-function viaLoginShell(): Promise<string | null> {
-  return askShell(['-c', `exec "\${SHELL:-/bin/zsh}" -ilc "command -v ${CLI_COMMAND}"`], LOGIN_SHELL_LIMITS)
-}
-
 async function askShell(args: string[], limits: SpawnLimits): Promise<string | null> {
   const outcome = await spawnBin('/bin/sh', args, await homePath(), limits)
   if (!outcome.ok || outcome.result.timedOut || outcome.result.truncated || outcome.result.status !== 0)
     return null
   return pickCommandPath(outcome.result.stdout)
+}
+
+/**
+ * 在使用者的 login shell（`-ilc`）裡跑一段腳本，回傳它的 stdout；任何失敗
+ * （逾時被終止、輸出爆量）一律回 null。腳本以位置參數 `$1` 傳給外層 `/bin/sh`，
+ * 不必為了塞進雙引號字串而跳脫腳本裡的 `$`——`$1` 的值原樣交給 login shell，
+ * 腳本裡的 `$PATH`／`||` 都由 login shell 自己解讀，外層 `/bin/sh` 不會提前展開它們。
+ * 外層仍是為了讀得到 `$SHELL`（前端沒有行程環境變數可讀）；`exec` 讓 login
+ * shell 接管同一個行程，逾時終止時終止到的就是它本身。
+ */
+async function runLoginShell(script: string, limits: SpawnLimits): Promise<string | null> {
+  const outcome = await spawnBin(
+    '/bin/sh',
+    // eslint-disable-next-line no-template-curly-in-string -- 這是純字串，`${SHELL:-/bin/zsh}` 是要給外層 /bin/sh 展開的字面文字，不是 JS 樣板
+    ['-c', 'exec "${SHELL:-/bin/zsh}" -ilc "$1"', 'sh', script],
+    await homePath(),
+    limits,
+  )
+  if (!outcome.ok || outcome.result.timedOut || outcome.result.truncated)
+    return null
+  return outcome.result.stdout
+}
+
+/**
+ * 第二段：借使用者 login shell 一次問回 openspec 的位置與當下的搜尋路徑
+ * （design「借登入 shell 解析路徑時，把它的搜尋路徑一併帶回來」）——這趟 login
+ * shell 的成本本來就要付，同一趟裡多問一次搜尋路徑，之後每一次執行都帶著它，
+ * 轉接殼才找得到 node。`|| true` 是防使用者 rc 檔設了 `set -e` 時，`command -v`
+ * 找不到就讓後面兩句沒機會印。
+ */
+function viaLoginShell(): Promise<LoginShellHit | null> {
+  const script = `command -v ${CLI_COMMAND} || true; printf '%s' '${LOGIN_SHELL_PATH_MARKER}'; printf %s "$PATH"`
+  return runLoginShell(script, LOGIN_SHELL_LIMITS).then((stdout) => {
+    if (stdout === null)
+      return null
+    const { bin, searchPath } = pickCommandPathAndSearchPath(stdout)
+    return bin && searchPath ? { bin, searchPath } : null
+  })
+}
+
+/**
+ * 手動指定模式驗證與後續執行所需的搜尋路徑：第②段不會在覆寫分支被呼叫，這裡
+ * 另外借一次 login shell，只問 `PATH`——同一份能力，只是不順便找 openspec 的位置。
+ */
+function overrideSearchPath(): Promise<string | null> {
+  return runLoginShell('printf %s "$PATH"', LOGIN_SHELL_LIMITS).then(stdout => stdout?.trim() || null)
 }
 
 function firstLine(text: string): string {

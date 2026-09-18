@@ -275,6 +275,12 @@ export interface CliSettings {
   version: string | null
   /** 可據以排除問題的失敗訊息 */
   message: string | null
+  /**
+   * 解析時借登入 shell 一併問回的搜尋路徑（僅 `PATH`），後續每一次執行 `bin`
+   * 都要帶著它——`bin` 可能是需要其他執行環境（如 node）才跑得動的轉接殼，
+   * 而找到它的位置與跑得動它是兩件事。不需要額外環境時省略此欄。
+   */
+  env?: Record<string, string>
 }
 
 export type CliApplyResult

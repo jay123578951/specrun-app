@@ -1,6 +1,6 @@
 import type { ResolveDeps, VerifyResult } from './cli-resolve'
 import { describe, expect, it, vi } from 'vitest'
-import { CLI_COMMAND, pickCommandPath, pickVersion, resolveWith } from './cli-resolve'
+import { CLI_COMMAND, LOGIN_SHELL_PATH_MARKER, pickCommandPath, pickCommandPathAndSearchPath, pickVersion, resolveWith } from './cli-resolve'
 
 /**
  * 只測解析的決策層（降級順序、覆寫優先、輸出取值）——spawn 全部注入。
@@ -22,12 +22,13 @@ function verifier(table: Record<string, VerifyResult>): ResolveDeps['verify'] {
 
 describe('resolveWith', () => {
   it('第一段（行程 PATH）命中就不進 login shell', async () => {
-    const viaLoginShell = vi.fn(async () => '/opt/homebrew/bin/openspec')
+    const viaLoginShell = vi.fn(async () => ({ bin: '/opt/homebrew/bin/openspec', searchPath: '/usr/bin:/bin' }))
     const settings = await resolveWith({
       override: null,
       verify: verifier({ [CLI_COMMAND]: ok('1.2.3') }),
       viaLoginShell,
       locate: async () => '/opt/homebrew/bin/openspec',
+      overrideSearchPath: null,
     })
 
     // 第一段命中時 bin 是還原後的絕對路徑——命令名跑得動不代表使用者知道跑的是哪一個檔案
@@ -40,12 +41,18 @@ describe('resolveWith', () => {
     expect(viaLoginShell).not.toHaveBeenCalled()
   })
 
-  it('第一段未命中時借 login shell 取絕對路徑', async () => {
+  it('第一段未命中時借 login shell 取絕對路徑，且後續 verify 收到它一併帶回的搜尋路徑', async () => {
+    const verify = vi.fn(async (bin: string, env?: Record<string, string>) => {
+      if (bin === '/Users/me/Library/pnpm/openspec' && env?.PATH === '/usr/bin:/opt/homebrew/bin')
+        return ok('1.2.3')
+      return fail(`unexpected call: ${bin} ${JSON.stringify(env)}`)
+    })
     const settings = await resolveWith({
       override: null,
-      verify: verifier({ '/Users/me/Library/pnpm/openspec': ok('1.2.3') }),
-      viaLoginShell: async () => '/Users/me/Library/pnpm/openspec',
+      verify,
+      viaLoginShell: async () => ({ bin: '/Users/me/Library/pnpm/openspec', searchPath: '/usr/bin:/opt/homebrew/bin' }),
       locate: async () => null,
+      overrideSearchPath: null,
     })
 
     expect(settings).toEqual({
@@ -53,6 +60,7 @@ describe('resolveWith', () => {
       bin: '/Users/me/Library/pnpm/openspec',
       version: '1.2.3',
       message: null,
+      env: { PATH: '/usr/bin:/opt/homebrew/bin' },
     })
   })
 
@@ -62,6 +70,7 @@ describe('resolveWith', () => {
       verify: verifier({}),
       viaLoginShell: async () => null,
       locate: async () => null,
+      overrideSearchPath: null,
     })
 
     expect(settings.bin).toBeNull()
@@ -69,15 +78,19 @@ describe('resolveWith', () => {
     expect(settings.message).toContain('login shell')
   })
 
-  it('login shell 找到的路徑仍要通過 --version 才採用', async () => {
+  it('login shell 找到了路徑，但拿它去驗證失敗——訊息要指得出是這一段執行失敗，不能沿用「找不到」那句', async () => {
     const settings = await resolveWith({
       override: null,
-      verify: verifier({}),
-      viaLoginShell: async () => 'some rc noise',
+      verify: verifier({}), // 表外一律失敗，模擬「找到了但跑不動」（如轉接殼缺 node）
+      viaLoginShell: async () => ({ bin: 'some rc noise', searchPath: '/usr/bin' }),
       locate: async () => null,
+      overrideSearchPath: null,
     })
 
     expect(settings.bin).toBeNull()
+    // 訊息要含實際的執行錯誤，且不是「找不到」那句
+    expect(settings.message).toContain('"some rc noise" does not exist.')
+    expect(settings.message).not.toContain('Could not find')
   })
 
   it('此環境不具備 login shell 能力時整段跳過（非 darwin）', async () => {
@@ -86,6 +99,7 @@ describe('resolveWith', () => {
       verify: verifier({}),
       viaLoginShell: null,
       locate: async () => null,
+      overrideSearchPath: null,
     })
 
     expect(settings.bin).toBeNull()
@@ -97,10 +111,10 @@ describe('resolveWith', () => {
       '/custom/openspec': ok('9.9.9'),
       [CLI_COMMAND]: ok('1.2.3'),
     })
-    const viaLoginShell = vi.fn(async () => '/opt/homebrew/bin/openspec')
+    const viaLoginShell = vi.fn(async () => ({ bin: '/opt/homebrew/bin/openspec', searchPath: '/usr/bin' }))
 
     const locate = vi.fn(async () => '/opt/homebrew/bin/openspec')
-    const settings = await resolveWith({ override: '/custom/openspec', verify, viaLoginShell, locate })
+    const settings = await resolveWith({ override: '/custom/openspec', verify, viaLoginShell, locate, overrideSearchPath: null })
 
     expect(settings).toEqual({
       mode: 'override',
@@ -117,14 +131,58 @@ describe('resolveWith', () => {
     const settings = await resolveWith({
       override: '/gone/openspec',
       verify: verifier({ [CLI_COMMAND]: ok('1.2.3') }),
-      viaLoginShell: async () => '/opt/homebrew/bin/openspec',
+      viaLoginShell: async () => ({ bin: '/opt/homebrew/bin/openspec', searchPath: '/usr/bin' }),
       locate: async () => '/opt/homebrew/bin/openspec',
+      overrideSearchPath: null,
     })
 
     expect(settings.mode).toBe('override')
     expect(settings.bin).toBe('/gone/openspec')
     expect(settings.version).toBeNull()
     expect(settings.message).toContain('/gone/openspec')
+  })
+
+  it('手動指定模式下，驗證與最終結果都帶著登入 shell 一併問回的搜尋路徑', async () => {
+    const verify = vi.fn(async (bin: string, env?: Record<string, string>) => {
+      if (bin === '/custom/openspec' && env?.PATH === '/usr/bin:/opt/homebrew/bin')
+        return ok('1.0.0')
+      return fail(`unexpected call: ${bin} ${JSON.stringify(env)}`)
+    })
+    const overrideSearchPath = vi.fn(async () => '/usr/bin:/opt/homebrew/bin')
+
+    const settings = await resolveWith({
+      override: '/custom/openspec',
+      verify,
+      viaLoginShell: null,
+      locate: async () => null,
+      overrideSearchPath,
+    })
+
+    expect(settings).toEqual({
+      mode: 'override',
+      bin: '/custom/openspec',
+      version: '1.0.0',
+      message: null,
+      env: { PATH: '/usr/bin:/opt/homebrew/bin' },
+    })
+    expect(overrideSearchPath).toHaveBeenCalledTimes(1)
+  })
+
+  it('手動指定模式下，此環境沒有搜尋路徑來源時不帶任何額外環境執行', async () => {
+    const settings = await resolveWith({
+      override: '/custom/openspec',
+      verify: verifier({ '/custom/openspec': ok('1.0.0') }),
+      viaLoginShell: null,
+      locate: async () => null,
+      overrideSearchPath: null,
+    })
+
+    expect(settings).toEqual({
+      mode: 'override',
+      bin: '/custom/openspec',
+      version: '1.0.0',
+      message: null,
+    })
   })
 })
 
@@ -147,5 +205,25 @@ describe('pickVersion', () => {
 
   it('空輸出不編假版本，給一個可辨識的佔位', () => {
     expect(pickVersion('   ')).toBe('unknown version')
+  })
+})
+
+describe('pickCommandPathAndSearchPath', () => {
+  it('分隔字串之前套用 pickCommandPath 的規則，之後原樣 trim 當搜尋路徑', () => {
+    const stdout = `nvm: version manager loaded\n\n/Users/me/Library/pnpm/openspec\n${LOGIN_SHELL_PATH_MARKER}/usr/bin:/opt/homebrew/bin`
+    expect(pickCommandPathAndSearchPath(stdout)).toEqual({
+      bin: '/Users/me/Library/pnpm/openspec',
+      searchPath: '/usr/bin:/opt/homebrew/bin',
+    })
+  })
+
+  it('command -v 找不到東西時，分隔字串前只有雜訊，bin 回 null，searchPath 仍問得到', () => {
+    const stdout = `${LOGIN_SHELL_PATH_MARKER}/usr/bin:/bin`
+    expect(pickCommandPathAndSearchPath(stdout)).toEqual({ bin: null, searchPath: '/usr/bin:/bin' })
+  })
+
+  it('分隔字串沒出現（例如輸出被截斷）視同兩者都沒問到，仍退回 pickCommandPath 的規則找 bin', () => {
+    const stdout = '/Users/me/Library/pnpm/openspec\n'
+    expect(pickCommandPathAndSearchPath(stdout)).toEqual({ bin: '/Users/me/Library/pnpm/openspec', searchPath: null })
   })
 })

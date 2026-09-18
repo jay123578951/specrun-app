@@ -1,6 +1,6 @@
 import type { AppConfig } from '../app-config'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { CLI_COMMAND } from '../cli-resolve'
+import { CLI_COMMAND, LOGIN_SHELL_PATH_MARKER } from '../cli-resolve'
 
 /**
  * 桌面 CLI 解析的接線層。決策層（優先序、三段降級）已在 ../cli-resolve.test.ts
@@ -82,8 +82,25 @@ const isVersionCall = (_program: string, args: string[]) => args[0] === '--versi
 function isLocate(program: string, args: string[]) {
   return program === '/bin/sh' && args.join(' ').includes(`command -v ${CLI_COMMAND}`) && !args.join(' ').includes('exec')
 }
-function isLoginShell(program: string, args: string[]) {
-  return program === '/bin/sh' && args.join(' ').includes('exec')
+
+/**
+ * 第②段合併問路徑與搜尋路徑、以及手動指定模式問搜尋路徑，兩者都借同一個
+ * `runLoginShell` 外殼（`-c 'exec "${SHELL:-/bin/zsh}" -ilc "$1"' sh <script>`），
+ * 差別只在最後一個位置參數的腳本內容，故用它來分辨兩種呼叫。
+ */
+const STAGE2_SCRIPT = `command -v ${CLI_COMMAND} || true; printf '%s' '${LOGIN_SHELL_PATH_MARKER}'; printf %s "$PATH"`
+const OVERRIDE_SEARCH_PATH_SCRIPT = 'printf %s "$PATH"'
+
+function isStage2Script(program: string, args: string[]) {
+  return program === '/bin/sh' && args.at(-1) === STAGE2_SCRIPT
+}
+function isOverrideSearchPathScript(program: string, args: string[]) {
+  return program === '/bin/sh' && args.at(-1) === OVERRIDE_SEARCH_PATH_SCRIPT
+}
+
+/** 第②段合併輸出的組法：`command -v` 的結果、分隔字串、當下的搜尋路徑 */
+function loginShellOutput(bin: string, searchPath: string): string {
+  return `${bin}\n${LOGIN_SHELL_PATH_MARKER}${searchPath}`
 }
 
 describe('desktop/cli', () => {
@@ -93,9 +110,10 @@ describe('desktop/cli', () => {
 
   it('覆寫有效時直接採用，不嘗試任何偵測；--version 帶 5 秒／1MiB 上限與 homePath 當 cwd', async () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
+    // windows: true 讓 isMacOS() 為 false，此案例不關心搜尋路徑，圖個不必為它另起路由
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('9.9.9') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { cliSettings } = await import('./cli')
@@ -109,7 +127,7 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/gone/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/gone/openspec' && isVersionCall(p, a), outcome: fail('spawn ENOENT') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { cliSettings } = await import('./cli')
@@ -139,32 +157,47 @@ describe('desktop/cli', () => {
     expect(shell.spawnBin).toHaveBeenCalledWith('/bin/sh', ['-c', `command -v ${CLI_COMMAND}`], '/home/x', SHELL_LIMITS)
   })
 
-  it('無覆寫、行程 PATH 未命中、login shell 命中：採用其絕對路徑；login shell 那一趟帶 3 秒／1MiB 上限', async () => {
+  it('無覆寫、行程 PATH 未命中、login shell 命中：採用其絕對路徑，且一併帶回的搜尋路徑落在最終 settings.env 與 --version 驗證裡；login shell 那一趟帶 3 秒／1MiB 上限', async () => {
     const store = makeConfigStore(makeConfig())
+    const searchPath = '/usr/bin:/opt/homebrew/bin'
     const shell = makeShell([
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
-      { match: isLoginShell, outcome: ok('/Users/me/Library/pnpm/openspec') },
+      { match: isStage2Script, outcome: ok(loginShellOutput('/Users/me/Library/pnpm/openspec', searchPath)) },
       { match: (p, a) => p === '/Users/me/Library/pnpm/openspec' && isVersionCall(p, a), outcome: ok('1.2.3') },
     ])
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { cliSettings } = await import('./cli')
 
-    expect(await cliSettings()).toEqual({ mode: 'auto', bin: '/Users/me/Library/pnpm/openspec', version: '1.2.3', message: null })
+    expect(await cliSettings()).toEqual({
+      mode: 'auto',
+      bin: '/Users/me/Library/pnpm/openspec',
+      version: '1.2.3',
+      message: null,
+      env: { PATH: searchPath },
+    })
     expect(shell.spawnBin).toHaveBeenCalledWith(
       '/bin/sh',
-      ['-c', `exec "\${SHELL:-/bin/zsh}" -ilc "command -v ${CLI_COMMAND}"`],
+      // eslint-disable-next-line no-template-curly-in-string -- 純字串，`${SHELL:-/bin/zsh}` 是給外層 /bin/sh 展開的字面文字
+      ['-c', 'exec "${SHELL:-/bin/zsh}" -ilc "$1"', 'sh', STAGE2_SCRIPT],
       '/home/x',
       SHELL_LIMITS,
     )
-    expect(shell.spawnBin).toHaveBeenCalledWith('/Users/me/Library/pnpm/openspec', ['--version'], '/home/x', VERIFY_LIMITS)
+    // 轉接殼需要的環境（此處只有 PATH）要帶到 --version 驗證那一趟，不只是問到路徑而已
+    expect(shell.spawnBin).toHaveBeenCalledWith(
+      '/Users/me/Library/pnpm/openspec',
+      ['--version'],
+      '/home/x',
+      VERIFY_LIMITS,
+      { PATH: searchPath },
+    )
   })
 
   it('login shell 逾時視同未命中，不掛住，回報全數未命中', async () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
-      { match: isLoginShell, outcome: timedOut() },
+      { match: isStage2Script, outcome: timedOut() },
     ])
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
@@ -181,7 +214,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
       { match: isLocate, outcome: truncated('/opt/homebrew/bin/open') },
-      { match: isLoginShell, outcome: ok('/Users/me/Library/pnpm/openspec') },
+      { match: isStage2Script, outcome: ok(loginShellOutput('/Users/me/Library/pnpm/openspec', '/usr/bin')) },
       { match: (p, a) => p === '/Users/me/Library/pnpm/openspec' && isVersionCall(p, a), outcome: ok('1.2.3') },
     ])
     vi.doMock('./config-store', () => store)
@@ -213,6 +246,8 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig({ openspecBin: '/gone/openspec' }))
     const shell = makeShell([
       { match: (p, a) => p === '/gone/openspec' && isVersionCall(p, a), outcome: fail('nope') },
+      // 清空前那一次解析走覆寫分支，一樣要借 login shell 問一次搜尋路徑
+      { match: isOverrideSearchPathScript, outcome: ok('/usr/bin:/bin') },
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: ok('1.2.3') },
       { match: isLocate, outcome: ok('/opt/homebrew/bin/openspec') },
     ])
@@ -245,11 +280,12 @@ describe('desktop/cli', () => {
 
   it('applyOverride：驗證失敗時不寫入，目前生效者不變；驗證呼叫帶 5 秒／1MiB 上限', async () => {
     const store = makeConfigStore(makeConfig())
+    // windows: true 讓 applyOverride 內部的 isMacOS() 為 false，跳過搜尋路徑，本案例不關心它
     const shell = makeShell([
       { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: isLocate, outcome: ok('/usr/bin/openspec') },
       { match: (p, a) => p === '/resolved/bad/path' && isVersionCall(p, a), outcome: fail('does not exist') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { applyOverride, cliSettings } = await import('./cli')
@@ -268,7 +304,7 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === '/resolved/slow/path' && isVersionCall(p, a), outcome: timedOut() },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { applyOverride } = await import('./cli')
@@ -284,7 +320,7 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === '/resolved/noisy/path' && isVersionCall(p, a), outcome: truncated('x'.repeat(10)) },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { applyOverride } = await import('./cli')
@@ -300,7 +336,7 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === '/resolved/broken/path' && isVersionCall(p, a), outcome: nonZero('  permission denied  \nsome trace') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { applyOverride } = await import('./cli')
@@ -316,7 +352,7 @@ describe('desktop/cli', () => {
     const store = makeConfigStore(makeConfig())
     const shell = makeShell([
       { match: (p, a) => p === '/resolved/good/path' && isVersionCall(p, a), outcome: ok('2.0.0') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { applyOverride, cliSettings } = await import('./cli')
@@ -334,6 +370,38 @@ describe('desktop/cli', () => {
     const after = await cliSettings()
     expect(result.ok && after).toEqual(result.ok ? result.settings : undefined)
     expect(shell.spawnBin).toHaveBeenCalledTimes(1)
+  })
+
+  it('applyOverride：macOS 上借 login shell 問一次搜尋路徑，驗證與最終 settings 都帶著它', async () => {
+    const store = makeConfigStore(makeConfig())
+    const searchPath = '/usr/bin:/opt/homebrew/bin'
+    const shell = makeShell([
+      { match: isOverrideSearchPathScript, outcome: ok(searchPath) },
+      { match: (p, a) => p === '/resolved/pnpm/openspec' && isVersionCall(p, a), outcome: ok('3.0.0') },
+    ])
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    const { applyOverride } = await import('./cli')
+
+    const result = await applyOverride('/pnpm/openspec')
+    expect(result).toEqual({
+      ok: true,
+      settings: { mode: 'override', bin: '/resolved/pnpm/openspec', version: '3.0.0', message: null, env: { PATH: searchPath } },
+    })
+    expect(shell.spawnBin).toHaveBeenCalledWith(
+      '/bin/sh',
+      // eslint-disable-next-line no-template-curly-in-string -- 純字串，`${SHELL:-/bin/zsh}` 是給外層 /bin/sh 展開的字面文字
+      ['-c', 'exec "${SHELL:-/bin/zsh}" -ilc "$1"', 'sh', OVERRIDE_SEARCH_PATH_SCRIPT],
+      '/home/x',
+      SHELL_LIMITS,
+    )
+    expect(shell.spawnBin).toHaveBeenCalledWith(
+      '/resolved/pnpm/openspec',
+      ['--version'],
+      '/home/x',
+      VERIFY_LIMITS,
+      { PATH: searchPath },
+    )
   })
 
   it('runCli：尚未解析出任何可用執行檔時不 spawn 資料請求，直接歸 CLI 不可用', async () => {
@@ -361,7 +429,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: ok('{"changes":[]}') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
@@ -376,7 +444,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: nonZero('boom') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
@@ -390,7 +458,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: timedOut() },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
@@ -409,7 +477,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: truncated('{"changes":[') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
@@ -430,7 +498,7 @@ describe('desktop/cli', () => {
     const shell = makeShell([
       { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.0.0') },
       { match: (p, a) => p === '/custom/openspec' && a[0] === 'list', outcome: fail('spawn ENOENT') },
-    ])
+    ], { windows: true })
     vi.doMock('./config-store', () => store)
     vi.doMock('./shell', () => shell)
     const { runCli } = await import('./cli')
@@ -439,5 +507,48 @@ describe('desktop/cli', () => {
       ok: false,
       failure: { kind: 'cli-unavailable', message: 'Could not run "/custom/openspec": spawn ENOENT' },
     })
+  })
+
+  it('runCli：解析結果帶著搜尋路徑（第②段命中）時，資料請求也帶著它——不只驗證那一次', async () => {
+    const store = makeConfigStore(makeConfig())
+    const searchPath = '/usr/bin:/opt/homebrew/bin'
+    const shell = makeShell([
+      { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
+      { match: isStage2Script, outcome: ok(loginShellOutput('/Users/me/Library/pnpm/openspec', searchPath)) },
+      { match: (p, a) => p === '/Users/me/Library/pnpm/openspec' && isVersionCall(p, a), outcome: ok('1.2.3') },
+      { match: (p, a) => p === '/Users/me/Library/pnpm/openspec' && a[0] === 'list', outcome: ok('{"changes":[]}') },
+    ])
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    const { runCli } = await import('./cli')
+
+    const result = await runCli(['list', '--json'], '/some/project')
+    expect(result).toEqual({ ok: true, exitCode: 0, stdout: '{"changes":[]}', stderr: '' })
+    expect(shell.spawnBin).toHaveBeenCalledWith(
+      '/Users/me/Library/pnpm/openspec',
+      ['list', '--json'],
+      '/some/project',
+      DATA_LIMITS,
+      { PATH: searchPath },
+    )
+  })
+
+  it('第②段找到路徑但驗證失敗：訊息指出是執行失敗且含實際錯誤，與「找不到」不同句', async () => {
+    const store = makeConfigStore(makeConfig())
+    const shell = makeShell([
+      { match: (p, a) => p === CLI_COMMAND && isVersionCall(p, a), outcome: fail('not found') },
+      { match: isStage2Script, outcome: ok(loginShellOutput('/Users/me/Library/pnpm/openspec', '/usr/bin:/bin')) },
+      // 轉接殼缺 node 時的真實現象：exit 127、stderr 印 "exec: node: not found"
+      { match: (p, a) => p === '/Users/me/Library/pnpm/openspec' && isVersionCall(p, a), outcome: nonZero('exec: node: not found') },
+    ])
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => shell)
+    const { cliSettings } = await import('./cli')
+
+    const settings = await cliSettings()
+    expect(settings.bin).toBeNull()
+    expect(settings.message).toContain('exec: node: not found')
+    expect(settings.message).toContain('/Users/me/Library/pnpm/openspec')
+    expect(settings.message).not.toContain('Could not find')
   })
 })

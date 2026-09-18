@@ -1,12 +1,16 @@
 import type { ExecFileException } from 'node:child_process'
-import type { VerifyResult } from '../../src/api/cli-resolve'
+import type { LoginShellHit, ResolveEnv, VerifyResult } from '../../src/api/cli-resolve'
 import type { CliSettings } from '../../src/api/types'
 import { execFile } from 'node:child_process'
 import { access, constants } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { CLI_COMMAND, pickCommandPath, pickVersion, resolveWith } from '../../src/api/cli-resolve'
+import { CLI_COMMAND, LOGIN_SHELL_PATH_MARKER, pickCommandPathAndSearchPath, pickVersion, resolveWith } from '../../src/api/cli-resolve'
 import { expandHome, readConfig, writeConfig } from './app-config'
+
+/** 第②段合併問路徑與搜尋路徑、以及手動指定模式問搜尋路徑用的腳本（見 cli-resolve.ts 的 LOGIN_SHELL_PATH_MARKER） */
+const STAGE2_SCRIPT = `command -v ${CLI_COMMAND} || true; printf '%s' '${LOGIN_SHELL_PATH_MARKER}'; printf %s "$PATH"`
+const OVERRIDE_SEARCH_PATH_SCRIPT = 'printf %s "$PATH"'
 
 /**
  * openspec 執行檔的單一解析處（design D3／D4）：伺服端持有、可於執行期更換，
@@ -17,7 +21,7 @@ import { expandHome, readConfig, writeConfig } from './app-config'
  */
 
 export type { ResolveDeps, VerifyResult } from '../../src/api/cli-resolve'
-export { CLI_COMMAND, pickCommandPath, pickVersion, resolveWith }
+export { CLI_COMMAND, pickVersion, resolveWith }
 
 /** `--version` 只是探一下活著沒有，不該跟資料請求一樣寬容 */
 const VERIFY_TIMEOUT_MS = 5_000
@@ -95,7 +99,11 @@ export async function applyOverride(input: string): Promise<ApplyResult> {
   if (!target)
     return { ok: false, message: 'Enter the path to the openspec executable.' }
 
-  const result = await verifyBin(target)
+  // 手動指定的執行檔同樣可能是需要其他執行環境才跑得動的轉接殼；第②段（借
+  // login shell 找 openspec 的位置）不會在這裡被呼叫，所以另外只問一次搜尋路徑。
+  const searchPath = canUseLoginShell() ? await overrideSearchPath() : null
+  const env: ResolveEnv | undefined = searchPath ? { PATH: searchPath } : undefined
+  const result = await verifyBin(target, env)
   if (!result.ok)
     return { ok: false, message: result.message }
 
@@ -105,19 +113,24 @@ export async function applyOverride(input: string): Promise<ApplyResult> {
     bin: target,
     version: result.version,
     message: null,
+    env,
   }
   resolutionPromise = Promise.resolve(settings)
   snapshot = settings
   return { ok: true, settings }
 }
 
-/** 驗證通道（spec openspec-gateway「CLI 執行檔的驗證通道」）；不改變目前生效的解析結果 */
-export function verifyBin(bin: string): Promise<VerifyResult> {
+/**
+ * 驗證通道（spec openspec-gateway「CLI 執行檔的驗證通道」）；不改變目前生效的解析結果。
+ * `env` 有值時疊加在子行程繼承到的環境之上（execFile 的 `env` 選項會整份取代，
+ * 故顯式併回 `process.env`）——執行檔可能是需要搜尋路徑才找得到 node 的轉接殼。
+ */
+export function verifyBin(bin: string, env?: ResolveEnv): Promise<VerifyResult> {
   return new Promise((resolve) => {
     execFile(
       bin,
       ['--version'],
-      { timeout: VERIFY_TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true },
+      { timeout: VERIFY_TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true, env: env ? { ...process.env, ...env } : undefined },
       (error, stdout, stderr) => {
         if (!error) {
           resolve({ ok: true, version: pickVersion(stdout) })
@@ -136,6 +149,7 @@ async function resolve(): Promise<CliSettings> {
     verify: verifyBin,
     viaLoginShell: canUseLoginShell() ? viaLoginShell : null,
     locate: () => resolveOnPath(CLI_COMMAND, process.env.PATH, isExecutable),
+    overrideSearchPath: canUseLoginShell() ? overrideSearchPath : null,
   })
   snapshot = settings
   return settings
@@ -145,15 +159,38 @@ async function resolve(): Promise<CliSettings> {
  * `-ilc` 會執行使用者自己的 shell 設定檔——與 folder-picker spawn osascript 同級的
  * 本機操作，但只在第一段未命中時才付這個成本（開發期第一段就命中）。
  * 任何失敗（逾時被 kill、rc 檔出錯、命令不存在的 exit 1）一律視同未命中。
+ *
+ * 一併問回當下的搜尋路徑（design「借登入 shell 解析路徑時，把它的搜尋路徑一併
+ * 帶回來」）：這趟 login shell 的成本本來就要付，之後每一次執行都帶著它，轉接殼
+ * 才找得到 node。`|| true` 防使用者 rc 檔設了 `set -e` 時，`command -v` 找不到就讓
+ * 後面兩句沒機會印。
  */
-function viaLoginShell(): Promise<string | null> {
+function viaLoginShell(): Promise<LoginShellHit | null> {
+  return runLoginShellScript(STAGE2_SCRIPT).then((stdout) => {
+    if (stdout === null)
+      return null
+    const { bin, searchPath } = pickCommandPathAndSearchPath(stdout)
+    return bin && searchPath ? { bin, searchPath } : null
+  })
+}
+
+/**
+ * 手動指定模式驗證與後續執行所需的搜尋路徑：第②段不會在覆寫分支被呼叫，這裡
+ * 另外借一次 login shell，只問 `PATH`——同一份能力，只是不順便找 openspec 的位置。
+ */
+async function overrideSearchPath(): Promise<string | null> {
+  const stdout = await runLoginShellScript(OVERRIDE_SEARCH_PATH_SCRIPT)
+  return stdout?.trim() || null
+}
+
+function runLoginShellScript(script: string): Promise<string | null> {
   const shell = process.env.SHELL?.trim() || '/bin/zsh'
   return new Promise((resolve) => {
     execFile(
       shell,
-      ['-ilc', `command -v ${CLI_COMMAND}`],
+      ['-ilc', script],
       { timeout: LOGIN_SHELL_TIMEOUT_MS, maxBuffer: MAX_BUFFER, windowsHide: true },
-      (error, stdout) => resolve(error ? null : pickCommandPath(stdout)),
+      (error, stdout) => resolve(error ? null : stdout),
     )
   })
 }

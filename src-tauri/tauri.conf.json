@@ -1,18 +1,18 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "specrun-app",
-  "version": "0.1.0",
+  "productName": "specrun",
+  "version": "../package.json",
   "identifier": "dev.specrun.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build:web"
   },
   "app": {
     "windows": [
       {
-        "title": "specrun-app",
+        "title": "specrun",
         "width": 1280,
         "height": 800,
         "resizable": true,

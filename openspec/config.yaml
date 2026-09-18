@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  OpenSpec 相容的桌面 spec 管理 App（詳見 ROADMAP.md）。
+  OpenSpec 相容的桌面 spec 管理 App。
   技術棧：Vue 3 + Vite + UnoCSS + Pinia，本地 Nitro server，之後套 Tauri v2 外殼。
   引擎完全外包 openspec CLI（spawn + --json），不重新實作任何規格語意。
   慣例：change 一律切小、功能逐步堆疊，一次只開一個進行中的 change；
