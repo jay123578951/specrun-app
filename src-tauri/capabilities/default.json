@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "main 視窗權限：fs 各操作，靜態 scope 僅共用設定目錄 $CONFIG/specrun-app；專案路徑由 allow_path 於 runtime 授權",
+  "description": "main 視窗權限：fs 各操作，靜態 scope 僅共用設定目錄 $CONFIG/specrun-app；專案路徑由 allow_path 於 runtime 授權；opener 外掛負責在檔案管理器中選取項目與開啟外部網址",
   "windows": [
     "main"
   ],
@@ -17,6 +17,9 @@
     "fs:allow-read-dir",
     "fs:allow-watch",
     "fs:allow-unwatch",
+    "opener:allow-reveal-item-in-dir",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
     {
       "identifier": "fs:scope",
       "allow": [

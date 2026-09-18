@@ -8,7 +8,9 @@ import { expandHome } from '../app-config'
  *
  * 檔案通道走 Tauri 官方的 fs plugin（Rust 端已註冊），這裡直接 invoke 它的指令
  * 而不另外裝 JS binding 套件——`@tauri-apps/api` 的 invoke 已足夠，指令名與參數
- * 形狀由 plugin 版本決定（見 Cargo.toml 的 tauri-plugin-fs）。
+ * 形狀由 plugin 版本決定（見 Cargo.toml 的 tauri-plugin-fs）。「在檔案管理器中
+ * 選取項目」與「開啟外部網址」比照同一做法，走 Tauri 官方的 opener plugin，
+ * 同樣直接 invoke 指令、不裝它的 JS binding 套件（見 design D5、D8）。
  */
 
 export interface SpawnLimits {
@@ -146,6 +148,49 @@ export async function pickFolder(): Promise<PickFolderShellOutcome> {
   try {
     const path = await invoke<string | null>('pick_folder')
     return { ok: true, path }
+  }
+  catch (error) {
+    return { ok: false, message: describe(error) }
+  }
+}
+
+/**
+ * opener plugin 的兩個指令都只回 `Result<(), Error>`，成功沒有回傳值——這裡
+ * 收束成與 `pickFolder` 同一套「ok／失敗訊息」姿態，映射成商業結果是上一層
+ * （`desktop/opener.ts`）的事。
+ */
+export type RevealItemInDirShellOutcome
+  = { ok: true }
+    | { ok: false, message: string }
+
+/**
+ * `reveal_item_in_dir` 指令簽章為 `paths: PathBuf[]`（複數陣列），即使一次只開
+ * 一個路徑也要包成陣列（見 design D5 對指令簽章的查證）。
+ */
+export async function revealItemInDir(path: string): Promise<RevealItemInDirShellOutcome> {
+  try {
+    await invoke('plugin:opener|reveal_item_in_dir', { paths: [path] })
+    return { ok: true }
+  }
+  catch (error) {
+    return { ok: false, message: describe(error) }
+  }
+}
+
+export type OpenUrlShellOutcome
+  = { ok: true }
+    | { ok: false, message: string }
+
+/**
+ * `open_url` 指令簽章為 `url: String, with: Option<String>`；`with` 指定的是
+ * 用哪個外部程式開（例如特定瀏覽器），本張不需要，明確傳 `null` 對應 Rust 端的
+ * `None`（不省略此欄——`Option` 欄位省略與否是否等價於 `null` 屬 Tauri 巨集內部
+ * 行為，不假設）。
+ */
+export async function openUrl(url: string): Promise<OpenUrlShellOutcome> {
+  try {
+    await invoke('plugin:opener|open_url', { url, with: null })
+    return { ok: true }
   }
   catch (error) {
     return { ok: false, message: describe(error) }

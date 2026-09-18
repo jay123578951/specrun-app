@@ -86,3 +86,46 @@ describe('webGateway.subscribeToChanges: 重連補償', () => {
     expect(source.closed).toBe(true)
   })
 })
+
+describe('webGateway.openUrl: 開新分頁的時序與失敗收束', () => {
+  // 測試環境為 node，沒有真的 `window`（見 vitest.config.ts 的說明：元件測試
+  // 進來才談 jsdom）——比照上面 EventSource 的做法，以 vi.stubGlobal 整個換掉。
+  const openMock = vi.fn()
+
+  beforeEach(() => {
+    vi.stubGlobal('window', { open: openMock })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    openMock.mockReset()
+  })
+
+  it('開新分頁是同步呼叫，發生在回傳的 promise 尚未 settle 之前', () => {
+    const fakeWindow = {} as Window
+    openMock.mockReturnValue(fakeWindow)
+
+    const pending = webGateway.openUrl('https://example.com')
+
+    // 斷言發生在 await 之前、與 openUrl() 呼叫同一個同步區段內——
+    // 若 window.open 被排到任何等待之後，這裡讀到的會是尚未呼叫。
+    expect(openMock).toHaveBeenCalledTimes(1)
+    expect(openMock).toHaveBeenCalledWith('https://example.com', '_blank', 'noopener,noreferrer')
+
+    return expect(pending).resolves.toEqual({ status: 'opened' })
+  })
+
+  it('window.open 回傳 null（例如被瀏覽器擋下）時回報失敗，不拋出例外', async () => {
+    openMock.mockReturnValue(null)
+
+    await expect(webGateway.openUrl('https://example.com')).resolves.toEqual({ status: 'failed' })
+  })
+
+  it('window.open 拋出例外時同樣收束成失敗，不外洩例外', async () => {
+    openMock.mockImplementation(() => {
+      throw new Error('blocked')
+    })
+
+    await expect(webGateway.openUrl('https://example.com')).resolves.toEqual({ status: 'failed' })
+  })
+})

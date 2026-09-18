@@ -95,12 +95,9 @@ function revealHint(target: string | null): string {
   // 四行以「—」表達同一件事，不能在這裡改口說成「這個平台辦不到」
   if (!settings.diagnostics)
     return 'Checking whether this app can show a file in its folder.'
-  // 「這個平台辦不到」與「這個形態還沒接上」是兩回事，禁用的原因不能混為一談
-  if (!settings.canReveal) {
-    return settings.diagnostics?.canReveal === null
-      ? 'Showing a file in its folder is not available in the desktop app yet.'
-      : 'Showing a file in its folder is not available on this platform.'
-  }
+  // 每個執行形態都持有自己的開啟通道、答得出可不可用，禁用只剩這一種平台成因
+  if (!settings.canReveal)
+    return 'Showing a file in its folder is not available on this platform.'
   if (!target)
     return 'There is no path to show for this item yet.'
   return 'Show in Finder'

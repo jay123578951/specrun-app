@@ -10,7 +10,9 @@ App 的桌面外殼形態：桌面視窗的啟動與開發通路、外殼提供�
 
 App SHALL 可以桌面視窗形態啟動並載入完整既有 UI。既有各 capability 的行為 SHALL 不因執行形態改變——改變的只有資料取得的路徑，不是使用者看到的結果。
 
-桌面形態的設定讀寫、CLI 執行檔解析、change 與 spec 的讀取（清單與詳情）、檔案操作面（tasks 勾選寫入、park／unpark、parked 與 archived 的清單與詳情）、檔案變動通知，以及加入專案的原生資料夾選擇 SHALL 由外殼自持，MUST NOT 經由本地 API server。尚未移轉的資料路徑在過渡期間 MAY 仍經本地 API server；移轉完成前，桌面開發通路 SHALL 併跑它。
+桌面形態的設定讀寫、CLI 執行檔解析、change 與 spec 的讀取（清單與詳情）、檔案操作面（tasks 勾選寫入、park／unpark、parked 與 archived 的清單與詳情）、檔案變動通知、加入專案的原生資料夾選擇、開啟檔案所在位置，以及把外部網址交給系統開啟 SHALL 由外殼自持，MUST NOT 經由本地 API server。
+
+桌面形態的資料取得路徑 SHALL 全數由外殼自持，MUST NOT 有任何一條仍經本地 API server。桌面開發通路仍併跑本地 API server，但它此時只服務在瀏覽器中執行的那一份；桌面形態 MUST NOT 依賴它是否在跑。
 
 桌面形態 MUST NOT 為了讓本地 API server 跟上目前目標專案而回頭呼叫它——需要知道目標專案的路徑已全數由這個形態自持，而打包形態下那一趟呼叫必定失敗。
 
@@ -50,6 +52,16 @@ App SHALL 可以桌面視窗形態啟動並載入完整既有 UI。既有各 cap
 
 - **WHEN** 以打包後的桌面 App 啟動，本地 API server 未執行，使用者切到 Archived 頁並點開一張卡片
 - **THEN** 頁面列出已歸檔的 change（含歸檔日期與進度），詳情 slideover 開得出各 artifact 內容（含 delta spec）
+
+#### Scenario: 不經本地 API server 也開得了檔案所在位置
+
+- **WHEN** 以打包後的桌面 App 啟動，本地 API server 未執行，使用者開啟 Settings 並按下設定檔位置或目前專案的開啟動作
+- **THEN** 該動作可按（不呈現為禁用），按下後該路徑的所在位置於系統的檔案管理器中開啟並選取該項
+
+#### Scenario: 不經本地 API server 也點得動外部連結
+
+- **WHEN** 以打包後的桌面 App 啟動，本地 API server 未執行，使用者在某 artifact 內容中點擊一個 https 連結
+- **THEN** 該網址於系統的預設瀏覽器開啟，App 視窗維持在原本的檢視狀態
 
 #### Scenario: 不經本地 API server 也會自己刷新
 

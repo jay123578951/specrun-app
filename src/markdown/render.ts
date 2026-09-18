@@ -125,8 +125,10 @@ function normalizeLang(lang: string): string | null {
 }
 
 /**
- * 外部 URL 一律開新分頁；桌面版現在也是開在 App 內建的 webview 裡。等桌面版接上「請系統
- * 用預設瀏覽器開這個網址」這個能力，才會改成把外部 URL 丟給使用者的預設瀏覽器開。
+ * 外部 URL 一律標記 `target="_blank"`、`rel="noopener noreferrer"`：畫面端
+ * （`MarkdownView.vue` 的點擊委派）會擋掉這裡的預設行為、改交給執行形態自己的
+ * 資料入口開啟（桌面形態丟給系統預設瀏覽器，web 形態開新分頁），這兩個屬性是
+ * 接住那段若失效時的後備行為（design D4）——這裡只負責標記，不負責開啟。
  * 相對路徑連結降級為非互動文字——artifact 互跳與編輯器開啟整組延後，留一個點了沒反應的
  * `<a>` 只會讓人一直點。
  */

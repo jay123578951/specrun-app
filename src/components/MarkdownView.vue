@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { shallowRef, useTemplateRef, watch } from 'vue'
+import { gateway } from '../api'
 import { renderMarkdown } from '../markdown/render'
+import { useChangesStore } from '../stores/changes'
 
 const props = defineProps<{
   source: string
@@ -39,13 +41,36 @@ watch([html, () => props.pendingLines], () => {
     box.toggleAttribute('data-pending', pending.includes(Number(box.dataset.line)))
 }, { flush: 'post' })
 
-/** 整片 md-body 一個委派接住點擊，不逐顆 checkbox 綁 listener——每次重渲染整片都被換掉 */
+/**
+ * 整片 md-body 一個委派接住點擊，不逐顆 checkbox／連結綁 listener——每次重渲染整片都被換掉。
+ * 連結這一段不受 `interactive` 限制：唯讀模式（Specs 全文、已歸檔詳情）也要點得動外部連結，
+ * 只有 tasks 勾選才是可勾選模式的專屬行為（design 的 Risks 第三項）。
+ */
 function onClick(event: MouseEvent): void {
+  const target = event.target as Element | null
+
+  // render.ts 的 `applyLinkPolicy` 已經是通道的入口守衛：不可點的連結（相對路徑、
+  // 允許範圍以外的 scheme）一律渲染成 `<span class="md-link-inert">`，不會是 `<a>`——
+  // 這裡撞到的 `<a>` 保證是 http／https／mailto。不看 metaKey／ctrlKey（design D2）。
+  const link = target?.closest<HTMLAnchorElement>('a[href]')
+  if (link) {
+    // `a[href]` 選擇器已保證屬性存在，理論上不會拿到 null；取不到就直接放棄，
+    // 不要把空字串交給資料入口（web 形態的 `window.open('')` 會開出一個 about:blank）
+    const href = link.getAttribute('href')
+    if (href === null)
+      return
+
+    event.preventDefault()
+    const normalized = normalizeAllowedUrl(href)
+    if (normalized)
+      void openLink(normalized)
+    return
+  }
+
   if (!props.interactive)
     return
 
-  const box = (event.target as Element | null)
-    ?.closest<HTMLInputElement>('.task-list-item-checkbox[data-line]')
+  const box = target?.closest<HTMLInputElement>('.task-list-item-checkbox[data-line]')
   if (!box)
     return
 
@@ -58,6 +83,34 @@ function onClick(event: MouseEvent): void {
   const line = Number(box.dataset.line)
   if (Number.isInteger(line))
     emit('toggle', line)
+}
+
+const ALLOWED_SCHEMES = ['http:', 'https:', 'mailto:']
+
+/**
+ * render.ts 的 `^(?:https?:|mailto:)/i` 帶 `/i`，`HTTPS://…` 這種大寫 scheme 一樣會
+ * 被畫成可點的 `<a>`。但桌面形態送進 `plugin:opener|open_url` 之後，Rust 端拿
+ * `glob::Pattern` 比對允許的網址集，`Pattern::matches` 是大小寫敏感的（glob crate
+ * 的 `MatchOptions::new()` 預設 `case_sensitive: true`），大寫 scheme 會直接被判定
+ * 不在允許清單內、開不起來。這裡在交給資料入口之前把 scheme 正規化成小寫，並用同一份
+ * 允許清單重新比對一次；缺 scheme 或不在清單內就不呼叫資料入口，等於補上畫面端
+ * 只看 `a[href]`、不看 scheme 的守衛缺口。
+ */
+function normalizeAllowedUrl(href: string): string | null {
+  const match = /^[a-z][a-z\d+.-]*:/i.exec(href)
+  if (!match)
+    return null
+  const scheme = match[0].toLowerCase()
+  if (!ALLOWED_SCHEMES.includes(scheme))
+    return null
+  return scheme + href.slice(match[0].length)
+}
+
+/** 開啟失敗沒有專屬位置可貼，走全 App 共用的 toast（比照 settings store 的 reveal） */
+async function openLink(url: string): Promise<void> {
+  const outcome = await gateway.openUrl(url)
+  if (outcome.status === 'failed')
+    useChangesStore().notify('Could not open this link.')
 }
 </script>
 

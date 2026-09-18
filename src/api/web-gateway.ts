@@ -10,6 +10,7 @@ import type {
   CliSettings,
   EnvironmentDiagnostics,
   OpenSpecGateway,
+  OpenUrlOutcome,
   ParkActionResult,
   ParkedDetailProbe,
   ParkedListProbe,
@@ -327,6 +328,24 @@ export const webGateway: OpenSpecGateway = {
     catch {
       return { status: 'failed' }
     }
+  },
+
+  /**
+   * 開新分頁必須是這個方法內的第一件事、且是同步呼叫，不能排在任何 `await`
+   * 之後——瀏覽器只把「使用者點擊觸發的同步呼叫」當成使用者手勢，插進任何
+   * 等待都會被彈窗攔截擋下（design 的 Risks 第二項）。`window.open` 開不起來
+   * 時回傳 `null`，不會拋錯；仍包一層 try/catch，收住萬一拋出的例外，兩者
+   * 都收成失敗而不是未處理的例外。
+   */
+  openUrl(url: string): Promise<OpenUrlOutcome> {
+    let opened: Window | null = null
+    try {
+      opened = window.open(url, '_blank', 'noopener,noreferrer')
+    }
+    catch {
+      opened = null
+    }
+    return Promise.resolve(opened ? { status: 'opened' } : { status: 'failed' })
   },
 }
 

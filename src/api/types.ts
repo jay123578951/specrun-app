@@ -1,8 +1,3 @@
-export interface HealthResponse {
-  status: string
-  timestamp: number
-}
-
 /** CLI `status` 的三值；進度語意由引擎（schema-aware）決定，App 不自行推導 */
 export type ChangeStatus = 'no-tasks' | 'in-progress' | 'complete'
 
@@ -255,6 +250,11 @@ export interface OpenSpecGateway {
   getDiagnostics: () => Promise<EnvironmentDiagnostics | null>
   /** 開啟某路徑的所在位置；能力判定在伺服端，一律依 status 分流（比照 pickFolder） */
   revealPath: (path: string) => Promise<RevealOutcome>
+  /**
+   * 把外部網址交給當前執行形態開啟；結果只有成功／失敗兩態，沒有「此環境不
+   * 支援」——每個執行形態都具備開啟外部網址的能力（design D3）。
+   */
+  openUrl: (url: string) => Promise<OpenUrlOutcome>
 }
 
 /** CLI 執行檔的兩種來源：自動偵測／使用者明示覆寫 */
@@ -286,14 +286,19 @@ export interface EnvironmentDiagnostics {
   /** 檔案變動通知（即時刷新）目前是否已接上；每個執行形態都問得到，不回未知 */
   watching: boolean
   appVersion: string
-  /** 執行環境是否支援開啟檔案所在位置；能力判定在當前執行形態，null＝尚無通道可問 */
-  canReveal: boolean | null
+  /** 執行環境是否支援開啟檔案所在位置；能力判定在當前執行形態，每個形態都答得出來，不回未知 */
+  canReveal: boolean
 }
 
 /** 開啟所在位置的結果；與 PickFolderOutcome 同一套姿態——能力與失敗都收在回傳裡 */
 export type RevealOutcome
   = { status: 'revealed' }
     | { status: 'unsupported' }
+    | { status: 'failed' }
+
+/** 開啟外部網址的結果；只有成功／失敗兩態，不設「此環境不支援」（design D3） */
+export type OpenUrlOutcome
+  = { status: 'opened' }
     | { status: 'failed' }
 
 /**
