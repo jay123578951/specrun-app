@@ -3,7 +3,7 @@ import type { VueWrapper } from '@vue/test-utils'
 import type { EnvironmentDiagnostics } from '../api'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSettingsStore } from '../stores/settings'
 import SettingsModal from './SettingsModal.vue'
 
@@ -13,7 +13,7 @@ import SettingsModal from './SettingsModal.vue'
  */
 
 const CONFIG_LABEL = 'Show config file in its folder'
-const PROJECT_LABEL = 'Show current project in its folder'
+const PROJECT_LABEL = 'Open current project folder'
 
 const READY: EnvironmentDiagnostics = {
   configPath: '/config.json',
@@ -90,6 +90,39 @@ describe('settingsModal', () => {
     expect(config.disabled).toBe('false')
     expect(project.disabled).toBe('false')
     expect(config.title).toBe('Show in Finder')
+    expect(project.title).toBe('Open in Finder')
+  })
+
+  it('兩列的動作說明分得出來：title 與 aria-label 兩者皆彼此不同（design D6）', () => {
+    openModal(READY)
+
+    const config = document.querySelector<HTMLElement>(`[aria-label="${CONFIG_LABEL}"]`)!
+    const project = document.querySelector<HTMLElement>(`[aria-label="${PROJECT_LABEL}"]`)!
+
+    expect(config.getAttribute('aria-label')).not.toBe(project.getAttribute('aria-label'))
+    expect(config.getAttribute('title')).not.toBe(project.getAttribute('title'))
+    expect(config.getAttribute('title')).toBe('Show in Finder')
+    expect(project.getAttribute('title')).toBe('Open in Finder')
+  })
+
+  it('按下設定檔那一列呼叫 reveal 帶入設定檔路徑，不是專案路徑——目標與型別標示不能對錯行', async () => {
+    const { store } = openModal(READY)
+    const revealSpy = vi.spyOn(store, 'reveal').mockResolvedValue()
+
+    document.querySelector<HTMLButtonElement>(`[aria-label="${CONFIG_LABEL}"]`)!.click()
+
+    expect(revealSpy).toHaveBeenCalledWith(READY.configPath)
+    expect(revealSpy).not.toHaveBeenCalledWith(READY.projectPath)
+  })
+
+  it('按下目前專案那一列呼叫 reveal 帶入專案路徑，不是設定檔路徑——目標與型別標示不能對錯行', async () => {
+    const { store } = openModal(READY)
+    const revealSpy = vi.spyOn(store, 'reveal').mockResolvedValue()
+
+    document.querySelector<HTMLButtonElement>(`[aria-label="${PROJECT_LABEL}"]`)!.click()
+
+    expect(revealSpy).toHaveBeenCalledWith(READY.projectPath)
+    expect(revealSpy).not.toHaveBeenCalledWith(READY.configPath)
   })
 
   it('禁用的開啟位置動作仍可被鍵盤聚焦——不是原生 disabled，MUST NOT 被踢出 tab 序列', () => {

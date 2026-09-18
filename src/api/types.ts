@@ -248,7 +248,11 @@ export interface OpenSpecGateway {
   redetectCli: () => Promise<CliSettings>
   /** 環境診斷；連不到 server 時為 null（畫面以佔位表達，不編假值） */
   getDiagnostics: () => Promise<EnvironmentDiagnostics | null>
-  /** 開啟某路徑的所在位置；能力判定在伺服端，一律依 status 分流（比照 pickFolder） */
+  /**
+   * 開啟某路徑；能力判定在伺服端，一律依 status 分流（比照 pickFolder）。結果
+   * 依該路徑指向的是檔案還是資料夾而分岔：檔案開啟其所在資料夾並選取該檔，
+   * 資料夾則直接開啟資料夾本身（`open-project-folder-directly` design D1）。
+   */
   revealPath: (path: string) => Promise<RevealOutcome>
   /**
    * 把外部網址交給當前執行形態開啟；結果只有成功／失敗兩態，沒有「此環境不
@@ -290,7 +294,11 @@ export interface EnvironmentDiagnostics {
   canReveal: boolean
 }
 
-/** 開啟所在位置的結果；與 PickFolderOutcome 同一套姿態——能力與失敗都收在回傳裡 */
+/**
+ * 開啟所在位置的結果；與 PickFolderOutcome 同一套姿態——能力與失敗都收在回傳裡。
+ * `revealed` 現在涵蓋兩種成功：開啟了該檔所在的資料夾並選取該檔，或直接開啟
+ * 了該資料夾本身，兩者由通道依路徑型別自行判定（design D1、D5）。
+ */
 export type RevealOutcome
   = { status: 'revealed' }
     | { status: 'unsupported' }

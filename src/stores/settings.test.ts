@@ -2,6 +2,7 @@ import type { CliSettings } from '../api'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useArchivedStore } from './archived'
+import { useChangesStore } from './changes'
 import { useSettingsStore } from './settings'
 import { useSpecsStore } from './specs'
 import { useViewStore } from './view'
@@ -165,6 +166,37 @@ describe('settings store', () => {
     expect(store.mode).toBe('auto')
     expect(gateway.listChanges).toHaveBeenCalledTimes(1)
     expect(gateway.listArchived).not.toHaveBeenCalled()
+  })
+
+  it('reveal 成功時不顯示任何提示', async () => {
+    const store = await opened()
+    gateway.revealPath.mockResolvedValue({ status: 'revealed' })
+
+    await store.reveal('/p')
+
+    expect(useChangesStore().toasts).toHaveLength(0)
+  })
+
+  it('reveal 失敗顯示「Could not open that location.」，不再提 enclosing folder', async () => {
+    const store = await opened()
+    gateway.revealPath.mockResolvedValue({ status: 'failed' })
+
+    await store.reveal('/p')
+
+    const toasts = useChangesStore().toasts
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]!.message).toBe('Could not open that location.')
+  })
+
+  it('reveal 在此平台不支援時顯示不提 enclosing folder 的說明', async () => {
+    const store = await opened()
+    gateway.revealPath.mockResolvedValue({ status: 'unsupported' })
+
+    await store.reveal('/p')
+
+    const toasts = useChangesStore().toasts
+    expect(toasts).toHaveLength(1)
+    expect(toasts[0]!.message).toBe('Opening that location is not available on this platform.')
   })
 
   it('晚到的舊回應不得寫回狀態', async () => {

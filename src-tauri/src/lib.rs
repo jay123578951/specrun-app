@@ -204,6 +204,111 @@ async fn pick_folder<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<Opti
   }
 }
 
+/// 一個路徑摸起來是資料夾、不是資料夾，還是完全摸不到——不碰任何外掛，只問
+/// 檔案系統本身。`std::fs::metadata` 跟隨 symlink（`symlink_metadata` 才是不
+/// 跟隨的那個），指向資料夾的 symlink 因此被當成資料夾：使用者按開啟位置那顆
+/// 按鈕要看的是那個東西本身，不是指過去的那張便條（design D3）。
+#[derive(Debug, PartialEq, Eq)]
+enum PathKind {
+  Directory,
+  NotDirectory,
+  Missing,
+}
+
+fn path_kind(path: &str) -> PathKind {
+  match std::fs::metadata(path) {
+    Ok(meta) if meta.is_dir() => PathKind::Directory,
+    Ok(_) => PathKind::NotDirectory,
+    Err(_) => PathKind::Missing,
+  }
+}
+
+/// 一個已經解過 symlink 的路徑是不是 macOS 的應用程式包。macOS 的 LaunchServices
+/// 只憑 `.app` 這個副檔名認定它，與包內結構無關：本機實測，一個裡面只有純文字檔、
+/// 連 `Contents/` 都沒有的 `Foo.app` 目錄，`mdls` 仍報 `com.apple.application-bundle`；
+/// 反過來，一個 `Contents/MacOS/` 俱全卻不以 `.app` 結尾的目錄報的是 `public.folder`，
+/// 交給 `open` 只會被當成一般資料夾瀏覽。所以判定只看副檔名，不看包內是否有
+/// `Contents/Info.plist`。副檔名比對忽略大小寫：實測 `Foo.APP` 一樣被當成應用
+/// 程式啟動。
+///
+/// 收的必須是解過 symlink 的路徑：實測一個指向 `Foo.app`、自己不以 `.app` 結尾的
+/// symlink，交給 `open` 一樣會啟動該應用程式。
+fn is_application_bundle(resolved: &std::path::Path) -> bool {
+  resolved
+    .extension()
+    .is_some_and(|extension| extension.eq_ignore_ascii_case("app"))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum FileManagerAction {
+  /// 帶著解過 symlink 的路徑：判定與開啟用同一個答案，不各自解一次
+  Open(std::path::PathBuf),
+  Reveal,
+  NotFound,
+}
+
+/// 摸一次檔案系統、解一次 symlink，回答這個路徑要開起來、要選取，還是根本不在。
+/// `std::fs::canonicalize` 解不開時回 `Reveal`，讓不確定的路徑走選取那一條——
+/// 選取不執行任何東西。
+fn file_manager_action(path: &str) -> FileManagerAction {
+  match path_kind(path) {
+    PathKind::Directory => match std::fs::canonicalize(path) {
+      Ok(resolved) if is_application_bundle(&resolved) => FileManagerAction::Reveal,
+      Ok(resolved) => FileManagerAction::Open(resolved),
+      Err(_) => FileManagerAction::Reveal,
+    },
+    PathKind::NotDirectory => FileManagerAction::Reveal,
+    PathKind::Missing => FileManagerAction::NotFound,
+  }
+}
+
+/// 診斷區「開啟檔案所在位置」的桌面實作：判定型別與開啟落在同一趟裡，前端
+/// 交出的只是一個路徑字串，不需先講明它是檔案還是資料夾（design D1）。
+///
+/// 自寫指令包 opener 外掛的 **Rust API**（`open_path`／`reveal_item_in_dir`，
+/// 兩者皆為 crate 的公開自由函式），不讓 webview 直接呼叫外掛自己的 JS 指令
+/// `open_path`——那條指令對應的 `opener:allow-open-path` 權限本身不帶路徑
+/// 範圍，但指令本體要求路徑範圍非空才放行（`tauri-plugin-opener` 2.5.5，
+/// `src/commands.rs`、`src/scope.rs`），要配置得能用，範圍必須涵蓋任意專案
+/// 路徑，等於把「叫作業系統開啟任何路徑」整個開給 webview。走 Rust API 則連
+/// 這道 IPC 門都不開，`capabilities/default.json` 因此一個字都不用動（比照
+/// `pick_folder` 對話框外掛的既定做法；design D2 已查證細節）。
+///
+/// 一般資料夾呼叫 `open_path(…, None::<&str>)`，其餘（摸得到的檔案，以及
+/// macOS 的應用程式包——`is_application_bundle` 認定的那些）呼叫
+/// `reveal_item_in_dir`：開啟該項所在的資料夾並選取它，不交給任何程式開啟。
+/// 摸不到則回 `Err`。只有 `.app` 被擋下來——文件型的套件（`.rtfd`、`.xcodeproj`
+/// 等）在檔案系統上也是資料夾，走開起那一條時 macOS 會把它交給對應的程式開啟
+/// （本機實測 `open -- Doc.rtfd` 會啟動 TextEdit）；已知並接受，理由記在 design
+/// 的 D3 與 Risks。
+///
+/// 交給 `open_path` 的是判定當下解過 symlink 的那個路徑，不是前端交來的原字串：
+/// 否則判定看的是解過的、開啟看的是沒解的，中間被換成一個指向 `.app` 的 symlink
+/// 就會啟動它。選取那條不必這樣做——`reveal_item_in_dir` 自己第一件事就是
+/// `canonicalize`（`tauri-plugin-opener` 2.5.5，`src/reveal_item_in_dir.rs:13`），
+/// 解不開就回 `Err`，不會退成開啟。
+///
+/// 應用程式包走選取而不走開啟，是因為 macOS 的 `open_path` 對它就是啟動它：
+/// `open_path` 內部走 `open` crate，在 macOS 上執行 `/usr/bin/open`，而
+/// LaunchServices 收到「開啟一個 `.app`」等同在 Finder 裡按兩下。本機實測過
+/// `open -- Foo.app`、`open -a Finder -- Foo.app`、`open -b com.apple.finder
+/// -- Foo.app` 三種形態，一律啟動該應用程式——指名 Finder 只換了由誰來開，沒
+/// 換「開」這個動作的語意，買不到任何保護。`reveal_item_in_dir` 則走
+/// `NSWorkspace::activateFileViewerSelectingURLs`（`tauri-plugin-opener` 2.5.5，
+/// `src/reveal_item_in_dir.rs`），只選取、不執行，實測對 `.app` 不會啟動它。
+///
+/// 宣告成 async 的理由同 `canonical_path`：tauri 只把 async command 丟到
+/// async runtime，同步的會在主執行緒上跑完，而 `metadata()` 在網路磁碟區上
+/// 的專案會卡住畫面。
+#[tauri::command]
+async fn open_in_file_manager(path: String) -> Result<(), String> {
+  match file_manager_action(&path) {
+    FileManagerAction::Open(resolved) => tauri_plugin_opener::open_path(&resolved, None::<&str>).map_err(|e| e.to_string()),
+    FileManagerAction::Reveal => tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string()),
+    FileManagerAction::NotFound => Err(format!("path not found: {path}")),
+  }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -216,7 +321,8 @@ pub fn run() {
       allow_dir_listing,
       host_platform,
       canonical_path,
-      pick_folder
+      pick_folder,
+      open_in_file_manager
     ])
     .setup(|app| {
       if cfg!(debug_assertions) {
@@ -552,6 +658,141 @@ mod tests {
       error.contains(&*missing.to_string_lossy()),
       "the error must name the path that could not be resolved: {error}"
     );
+  }
+
+  #[test]
+  fn path_kind_reports_a_directory() {
+    let dir = temp_dir_named("path_kind_dir");
+    assert_eq!(path_kind(&dir.to_string_lossy()), PathKind::Directory);
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
+  fn path_kind_reports_a_file_as_not_a_directory() {
+    let dir = temp_dir_named("path_kind_file");
+    let file = dir.join("config.json");
+    std::fs::write(&file, b"{}").unwrap();
+    assert_eq!(path_kind(&file.to_string_lossy()), PathKind::NotDirectory);
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
+  fn path_kind_reports_a_missing_path() {
+    let missing = std::env::temp_dir().join(format!("path_kind_missing_{}", std::process::id()));
+    std::fs::remove_dir_all(&missing).ok();
+    assert_eq!(path_kind(&missing.to_string_lossy()), PathKind::Missing);
+  }
+
+  /// `std::fs::metadata` 跟隨 symlink：指向資料夾的 symlink 要被判為資料夾，
+  /// 而不是「不是資料夾」。
+  #[test]
+  fn path_kind_follows_a_symlink_to_a_directory() {
+    let base = canonical_temp_base("path_kind_symlink");
+    let real = base.join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = base.join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    assert_eq!(path_kind(&link.to_string_lossy()), PathKind::Directory);
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  #[test]
+  fn file_manager_action_opens_a_directory() {
+    let dir = canonical_temp_base("file_manager_action_dir");
+    assert_eq!(
+      file_manager_action(&dir.to_string_lossy()),
+      FileManagerAction::Open(dir.clone())
+    );
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
+  fn file_manager_action_reveals_a_file() {
+    let dir = temp_dir_named("file_manager_action_file");
+    let file = dir.join("config.json");
+    std::fs::write(&file, b"{}").unwrap();
+    assert_eq!(file_manager_action(&file.to_string_lossy()), FileManagerAction::Reveal);
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
+  fn file_manager_action_reports_a_missing_path() {
+    let missing = std::env::temp_dir().join(format!("file_manager_action_missing_{}", std::process::id()));
+    std::fs::remove_dir_all(&missing).ok();
+    assert_eq!(file_manager_action(&missing.to_string_lossy()), FileManagerAction::NotFound);
+  }
+
+  #[test]
+  fn file_manager_action_reveals_an_application_bundle() {
+    let base = canonical_temp_base("file_manager_action_bundle");
+    let bundle = base.join("Probe.app");
+    std::fs::create_dir_all(&bundle).unwrap();
+
+    assert_eq!(file_manager_action(&bundle.to_string_lossy()), FileManagerAction::Reveal);
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  #[test]
+  fn file_manager_action_reveals_an_application_bundle_named_in_upper_case() {
+    let base = canonical_temp_base("file_manager_action_bundle_upper");
+    let bundle = base.join("Upper.APP");
+    std::fs::create_dir_all(&bundle).unwrap();
+
+    assert_eq!(file_manager_action(&bundle.to_string_lossy()), FileManagerAction::Reveal);
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  #[test]
+  fn file_manager_action_reveals_a_symlink_to_an_application_bundle() {
+    let base = canonical_temp_base("file_manager_action_bundle_symlink");
+    let bundle = base.join("Linked.app");
+    std::fs::create_dir_all(&bundle).unwrap();
+    let link = base.join("link-to-bundle");
+    std::os::unix::fs::symlink(&bundle, &link).unwrap();
+
+    assert_eq!(file_manager_action(&link.to_string_lossy()), FileManagerAction::Reveal);
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  /// 帶出來的必須是解過 symlink 的目標路徑，不是呼叫端交進來的那個 symlink：
+  /// 判定與開啟共用同一次解析的答案，中間就沒有空隙可以把路徑換成指向 `.app`
+  /// 的 symlink。把實作改回「交原始路徑給 open」時這一條會紅。
+  #[test]
+  fn file_manager_action_opens_a_symlink_to_a_directory() {
+    let base = canonical_temp_base("file_manager_action_symlink");
+    let real = base.join("real");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = base.join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    assert_eq!(
+      file_manager_action(&link.to_string_lossy()),
+      FileManagerAction::Open(real.clone()),
+      "開啟拿到的必須是解過 symlink 的目標，不是原始路徑 {}",
+      link.display()
+    );
+    std::fs::remove_dir_all(&base).ok();
+  }
+
+  /// 反過來的那一種：symlink 自己叫 `FakeLink.app`，指向的卻是普通資料夾。本機
+  /// 實測 macOS 對它報 `public.folder`、`open` 不啟動任何東西，正確行為是直接開
+  /// 起來。判定只能看解過 symlink 之後的路徑——改成「原始路徑或解析後路徑任一
+  /// 以 `.app` 結尾就選取」時，這一條會紅。
+  #[test]
+  fn file_manager_action_opens_a_symlink_named_like_an_application_bundle() {
+    let base = canonical_temp_base("file_manager_action_fake_bundle_symlink");
+    let real = base.join("plain-folder");
+    std::fs::create_dir_all(&real).unwrap();
+    let link = base.join("FakeLink.app");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    assert_eq!(
+      file_manager_action(&link.to_string_lossy()),
+      FileManagerAction::Open(real.clone()),
+      "指向普通資料夾的 symlink 就算自己叫 .app 也要開起來"
+    );
+    std::fs::remove_dir_all(&base).ok();
   }
 
   #[test]

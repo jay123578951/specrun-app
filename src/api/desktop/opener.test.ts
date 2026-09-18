@@ -7,26 +7,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * （design D7：桌面形態沒有 web 形態那種「這個指令只有 macOS 有」的限制）。
  */
 describe('api/desktop/opener: 桌面形態的開啟通道', () => {
-  const revealItemInDir = vi.fn()
+  const openInFileManager = vi.fn()
   const openUrlShell = vi.fn()
 
   beforeEach(() => {
     vi.resetModules()
-    revealItemInDir.mockReset()
+    openInFileManager.mockReset()
     openUrlShell.mockReset()
-    vi.doMock('./shell', () => ({ revealItemInDir, openUrl: openUrlShell }))
+    vi.doMock('./shell', () => ({ openInFileManager, openUrl: openUrlShell }))
   })
 
   it('revealPath：外殼成功映射成 revealed', async () => {
-    revealItemInDir.mockResolvedValue({ ok: true })
+    openInFileManager.mockResolvedValue({ ok: true })
     const { revealPath } = await import('./opener')
 
     await expect(revealPath('/repo/project/file.md')).resolves.toEqual({ status: 'revealed' })
-    expect(revealItemInDir).toHaveBeenCalledWith('/repo/project/file.md')
+    expect(openInFileManager).toHaveBeenCalledWith('/repo/project/file.md')
   })
 
   it('revealPath：外殼失敗映射成 failed，不是 unsupported', async () => {
-    revealItemInDir.mockResolvedValue({ ok: false, message: 'no such file' })
+    openInFileManager.mockResolvedValue({ ok: false, message: 'no such file' })
     const { revealPath } = await import('./opener')
 
     const outcome = await revealPath('/repo/project/missing.md')

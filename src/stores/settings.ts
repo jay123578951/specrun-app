@@ -191,8 +191,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
     useChangesStore().notify(
       outcome.status === 'unsupported'
-        ? 'Opening the enclosing folder is not available on this platform.'
-        : 'Could not open the enclosing folder.',
+        ? 'Opening that location is not available on this platform.'
+        : 'Could not open that location.',
     )
   }
 

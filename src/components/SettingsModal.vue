@@ -27,8 +27,28 @@ let opener: HTMLElement | null = null
 
 const isAuto = computed(() => settings.mode === 'auto')
 
+interface RevealableRow {
+  key: string
+  label: string
+  value: string
+  mono: boolean
+  revealable: true
+  target: string | null
+  kind: 'file' | 'folder'
+  ariaLabel: string
+}
+
+interface StaticRow {
+  key: string
+  label: string
+  value: string
+  mono: boolean
+  revealable: false
+  target: null
+}
+
 /** 診斷區四行：值取不到就是佔位，不編一份看起來像真的假資料 */
-const rows = computed(() => {
+const rows = computed<(RevealableRow | StaticRow)[]>(() => {
   const env = settings.diagnostics
   return [
     {
@@ -38,6 +58,8 @@ const rows = computed(() => {
       mono: true,
       revealable: true,
       target: env?.configPath ?? null,
+      kind: 'file',
+      ariaLabel: 'Show config file in its folder',
     },
     {
       key: 'project',
@@ -47,6 +69,8 @@ const rows = computed(() => {
       mono: Boolean(env?.projectPath),
       revealable: true,
       target: env?.projectPath ?? null,
+      kind: 'folder',
+      ariaLabel: 'Open current project folder',
     },
     {
       key: 'watch',
@@ -90,7 +114,7 @@ function onReveal(target: string | null): void {
 }
 
 /** 禁用有三個成因，措辭要各自對得上——說明會被輔助技術當成「為什麼不能按」唸出來 */
-function revealHint(target: string | null): string {
+function revealHint(target: string | null, kind: 'file' | 'folder'): string {
   // 診斷還沒回來時按鈕已經是禁用態，這一瞬給的理由得是「還在問」——診斷區的
   // 四行以「—」表達同一件事，不能在這裡改口說成「這個平台辦不到」
   if (!settings.diagnostics)
@@ -100,7 +124,7 @@ function revealHint(target: string | null): string {
     return 'Showing a file in its folder is not available on this platform.'
   if (!target)
     return 'There is no path to show for this item yet.'
-  return 'Show in Finder'
+  return kind === 'folder' ? 'Open in Finder' : 'Show in Finder'
 }
 
 watch(() => settings.isOpen, async (open) => {
@@ -352,14 +376,14 @@ function focusable(): HTMLElement[] {
                         class="btn-inline shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-55 aria-disabled:active:bg-transparent aria-disabled:hover:bg-transparent aria-disabled:hover:text-text-2"
                         :aria-disabled="revealDisabled(row.target)"
                         :aria-describedby="revealDisabled(row.target) ? `${row.key}-reveal-hint` : undefined"
-                        :title="revealHint(row.target)"
-                        :aria-label="`Show ${row.label.toLowerCase()} in its folder`"
+                        :title="revealHint(row.target, row.kind)"
+                        :aria-label="row.ariaLabel"
                         @click="onReveal(row.target)"
                       >
                         <span class="i-lucide-folder-open h-4 w-4" aria-hidden="true" />
                       </button>
                       <span v-if="revealDisabled(row.target)" :id="`${row.key}-reveal-hint`" class="sr-only">
-                        {{ revealHint(row.target) }}
+                        {{ revealHint(row.target, row.kind) }}
                       </span>
                     </template>
                   </dd>
