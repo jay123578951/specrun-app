@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="src-tauri/icons/128x128@2x.png" width="128" alt="specrun icon">
+</p>
+
 # specrun
 
 OpenSpec 相容的桌面 spec 管理 App。引擎完全外包 [openspec CLI](https://github.com/Fission-AI/OpenSpec)，本專案負責畫面，以及把它包成一個 macOS App。
