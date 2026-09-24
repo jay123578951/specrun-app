@@ -2,6 +2,8 @@ import type { ArchivedSummary, ArtifactView, ChangeDetail, GatewayError } from '
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
+import { useChangesStore } from './changes'
+import { useViewStore } from './view'
 
 /**
  * Archived 頁的狀態源：生命週期比照 specs store——進頁載入、離頁清空、
@@ -47,7 +49,25 @@ export const useArchivedStore = defineStore('archived', () => {
   /** 進入 Archived 頁：不接續上次狀態，清空後重新載入 */
   async function enter(): Promise<void> {
     reset()
-    await load()
+    if (await load())
+      consumePendingOpen()
+  }
+
+  /**
+   * Roadmap 引用連結跳轉到 Archived 頁的待開目標（design D5）：載入完成後才問
+   * `view.pendingOpen`，不是輪到自己就 no-op；找到就開，找不到停在清單並 toast
+   * （同 specs.ts 的 consumePendingOpen，兩邊各自持有一份、不抽共用——單一 if
+   * 分支抽象化只會多一層跳轉）。
+   */
+  function consumePendingOpen(): void {
+    const dir = useViewStore().consumePendingOpen('archived')
+    if (dir === null || listError.value)
+      return
+
+    if (items.value.some(item => item.dir === dir))
+      void open(dir)
+    else
+      useChangesStore().notify(`Could not find "${dir}". It may have been moved or removed.`)
   }
 
   function reset(): void {
@@ -60,7 +80,8 @@ export const useArchivedStore = defineStore('archived', () => {
     close()
   }
 
-  async function load(): Promise<void> {
+  /** 回傳本輪是否仍有效（沒被後發的請求作廢）；只有有效的那輪才算資料落地 */
+  async function load(): Promise<boolean> {
     const mine = ++listSeq
     if (!firstLoadPending.value)
       refreshing.value = true
@@ -68,19 +89,20 @@ export const useArchivedStore = defineStore('archived', () => {
     try {
       const result = await gateway.listArchived()
       if (mine !== listSeq)
-        return
+        return false
 
       if (result.ok) {
         items.value = result.items
         targetPath.value = result.targetPath
         listError.value = null
-        return
+        return true
       }
 
       // 清單是這頁的全部內容，沒有「留著舊資料只丟 toast」的餘地
       items.value = []
       targetPath.value = result.targetPath || targetPath.value
       listError.value = result.error
+      return true
     }
     finally {
       if (mine === listSeq) {

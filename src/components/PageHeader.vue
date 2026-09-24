@@ -5,9 +5,9 @@ import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 
 /**
- * 三頁共用的頁首：左側麵包屑「<專案名> / <當前頁 ▾>」，
+ * 四頁共用的頁首：左側麵包屑「<專案名> / <當前頁 ▾>」，
  * 右側以 slot 收各頁自己的 Refresh。整行由這裡承擔而不只抽麵包屑本身——
- * 三頁的頁首結構必須一致，任一頁漏改就會出現兩種頁首。
+ * 四頁的頁首結構必須一致，任一頁漏改就會出現兩種頁首。
  */
 
 defineProps<{
@@ -30,11 +30,12 @@ const MENU_MOTION = {
   'leave-to-class': 'opacity-0 scale-96',
 } as const
 
-/** 三頁齊列且順序固定：下拉回答的是「現在在哪」，不是「可以去哪」 */
+/** 四頁齊列且順序固定：下拉回答的是「現在在哪」，不是「可以去哪」（design D8） */
 const PAGES: { value: AppView, label: string }[] = [
   { value: 'changes', label: 'Changes' },
   { value: 'specs', label: 'Specs' },
   { value: 'archived', label: 'Archived' },
+  { value: 'roadmap', label: 'Roadmap' },
 ]
 
 const root = ref<HTMLElement>()

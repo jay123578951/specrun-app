@@ -235,4 +235,139 @@ describe('markdownView', () => {
     expect(wrapper.emitted('toggle')).toEqual([[0]])
     expect(gateway.openUrl).not.toHaveBeenCalled()
   })
+
+  /**
+   * `.md-ref` 是 render.ts 在 roadmap 選項對得到目標時才會產出的 `<button>`（design D4）。
+   * 這裡比照上面「rogue」連結測試的手法：不依賴真的渲染出 `.md-ref`，直接在渲染後的 DOM
+   * 補上一顆，單獨驗證 onClick 這段委派邏輯本身，與「`roadmap` prop 是否真的被轉傳給
+   * `renderMarkdown`」（下面 `roadmap prop 轉傳` 這組測試）分開驗證，兩者互不取代。
+   */
+  it('點擊 .md-ref 時 emit ref 事件，帶 kind 與 target，不呼叫資料入口', async () => {
+    const wrapper = mount(MarkdownView, { props: { source: 'plain text' } })
+    await waitForRender()
+
+    const body = wrapper.get('.md-body').element
+    const button = document.createElement('button')
+    button.setAttribute('type', 'button')
+    button.className = 'md-ref'
+    button.dataset.refKind = 'spec'
+    button.dataset.refTarget = 'resilient-community-lifecycle'
+    button.innerHTML = '<code>resilient-community-lifecycle</code>'
+    body.appendChild(button)
+
+    await wrapper.get('.md-ref').trigger('click')
+
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'spec', target: 'resilient-community-lifecycle' }]])
+    expect(gateway.openUrl).not.toHaveBeenCalled()
+  })
+
+  it('唯讀模式（不帶 interactive）點擊 .md-ref 一樣 emit ref 事件——不受 interactive 限制', async () => {
+    // 明確不傳 interactive：roadmap 面板本身是唯讀模式，引用連結仍要點得動（design D4）
+    const wrapper = mount(MarkdownView, { props: { source: 'plain text' } })
+    await waitForRender()
+
+    const body = wrapper.get('.md-body').element
+    const button = document.createElement('button')
+    button.className = 'md-ref'
+    button.dataset.refKind = 'roadmap'
+    button.dataset.refTarget = '防災士名冊契約化.md'
+    body.appendChild(button)
+
+    await wrapper.get('.md-ref').trigger('click')
+
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'roadmap', target: '防災士名冊契約化.md' }]])
+  })
+
+  it('點擊 .md-ref 內部的子節點（實際渲染會把 <code> 包在 button 裡）一樣 emit ref——驗證委派走 closest 而非精準命中', async () => {
+    const wrapper = mount(MarkdownView, { props: { source: 'plain text' } })
+    await waitForRender()
+
+    const body = wrapper.get('.md-body').element
+    const button = document.createElement('button')
+    button.className = 'md-ref'
+    button.dataset.refKind = 'change'
+    button.dataset.refTarget = 'add-roadmap-view'
+    const code = document.createElement('code')
+    code.textContent = 'add-roadmap-view'
+    button.appendChild(code)
+    body.appendChild(button)
+
+    // 直接點內層 <code>，不是 button 本身——委派邏輯要靠 closest('.md-ref') 往上找到
+    await wrapper.get('.md-ref code').trigger('click')
+
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'change', target: 'add-roadmap-view' }]])
+  })
+
+  it('點擊 .md-ref 不會同時觸發 toggle 或資料入口——三個分支互斥', async () => {
+    const wrapper = mount(MarkdownView, { props: { source: 'plain text', interactive: true } })
+    await waitForRender()
+
+    const body = wrapper.get('.md-body').element
+    const button = document.createElement('button')
+    button.className = 'md-ref'
+    button.dataset.refKind = 'spec'
+    button.dataset.refTarget = 'no-restricted-imports'
+    body.appendChild(button)
+
+    await wrapper.get('.md-ref').trigger('click')
+
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'spec', target: 'no-restricted-imports' }]])
+    expect(wrapper.emitted('toggle')).toBeUndefined()
+    expect(gateway.openUrl).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * `roadmap` prop 本身是否真的被轉傳給 `renderMarkdown`（design D4、3.1／3.2 的邊界）。
+ * 上面 `.md-ref` 那組測試全部手動在 DOM 補節點，繞過了真正的渲染管線，驗不到
+ * `watch([source, interactive, roadmap], …)` 有沒有把 `props.roadmap` 交出去、
+ * `resolveRef` 有沒有真的被呼叫——這裡用真實 mount＋真實 renderMarkdown 補上這段。
+ */
+describe('roadmap prop 轉傳給 renderMarkdown（design D4）', () => {
+  it('不傳 roadmap 時，行內 code 維持一般 <code>，不呼叫任何解析函式', async () => {
+    const wrapper = mount(MarkdownView, { props: { source: '`add-roadmap-view`' } })
+    await waitForRender()
+
+    expect(wrapper.find('.md-ref').exists()).toBe(false)
+    expect(wrapper.get('code').text()).toBe('add-roadmap-view')
+  })
+
+  it('傳 roadmap 且 resolveRef 對得到目標時，真的渲染出 .md-ref，resolveRef 收到 code 原文', async () => {
+    const resolveRef = vi.fn((code: string) =>
+      code === 'add-roadmap-view' ? { kind: 'change' as const, target: 'add-roadmap-view' } : null)
+    const wrapper = mount(MarkdownView, {
+      props: { source: '`add-roadmap-view`', roadmap: { resolveRef } },
+    })
+    await waitForRender()
+
+    expect(resolveRef).toHaveBeenCalledWith('add-roadmap-view')
+    const ref = wrapper.get('.md-ref')
+    expect(ref.attributes('data-ref-kind')).toBe('change')
+    expect(ref.attributes('data-ref-target')).toBe('add-roadmap-view')
+
+    await ref.trigger('click')
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'change', target: 'add-roadmap-view' }]])
+  })
+
+  it('唯讀模式（未傳 interactive）下，真的渲染出的 .md-ref 仍可點擊', async () => {
+    const resolveRef = () => ({ kind: 'roadmap' as const, target: '防災士名冊契約化.md' })
+    const wrapper = mount(MarkdownView, {
+      props: { source: '`防災士名冊契約化.md`', roadmap: { resolveRef } },
+    })
+    await waitForRender()
+
+    await wrapper.get('.md-ref').trigger('click')
+    expect(wrapper.emitted('ref')).toEqual([[{ kind: 'roadmap', target: '防災士名冊契約化.md' }]])
+  })
+
+  it('roadmap prop 從無到有時會重新渲染，補上原本沒有的 .md-ref', async () => {
+    const wrapper = mount(MarkdownView, { props: { source: '`add-roadmap-view`' } })
+    await waitForRender()
+    expect(wrapper.find('.md-ref').exists()).toBe(false)
+
+    await wrapper.setProps({ roadmap: { resolveRef: () => ({ kind: 'change', target: 'add-roadmap-view' }) } })
+    await waitForRender()
+
+    expect(wrapper.find('.md-ref').exists()).toBe(true)
+  })
 })

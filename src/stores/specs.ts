@@ -2,6 +2,8 @@ import type { GatewayError, SpecSummary } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import { gateway } from '../api'
+import { useChangesStore } from './changes'
+import { useViewStore } from './view'
 
 /**
  * Specs 頁的狀態源。與 changes 那一側刻意不同的兩點：
@@ -36,7 +38,24 @@ export const useSpecsStore = defineStore('specs', () => {
   /** 進入 Specs 頁：不接續上次狀態，清空後重新載入 */
   async function enter(): Promise<void> {
     reset()
-    await load()
+    if (await load())
+      consumePendingOpen()
+  }
+
+  /**
+   * Roadmap 引用連結跳轉到 Specs 頁的待開目標（design D5）：載入完成後才問
+   * `view.pendingOpen`，不是輪到自己就 no-op；找到就開，找不到（例如期間被刪除）
+   * 停在清單並照 Requirement 引用連結的跳轉以非阻斷 toast 告知。
+   */
+  function consumePendingOpen(): void {
+    const id = useViewStore().consumePendingOpen('specs')
+    if (id === null || listError.value)
+      return
+
+    if (specs.value.some(spec => spec.id === id))
+      void open(id)
+    else
+      useChangesStore().notify(`Could not find "${id}". It may have been moved or removed.`)
   }
 
   function reset(): void {
@@ -49,7 +68,8 @@ export const useSpecsStore = defineStore('specs', () => {
     close()
   }
 
-  async function load(): Promise<void> {
+  /** 回傳本輪是否仍有效（沒被後發的請求作廢）；只有有效的那輪才算資料落地 */
+  async function load(): Promise<boolean> {
     const mine = ++listSeq
     if (!firstLoadPending.value)
       refreshing.value = true
@@ -57,19 +77,20 @@ export const useSpecsStore = defineStore('specs', () => {
     try {
       const result = await gateway.listSpecs()
       if (mine !== listSeq)
-        return
+        return false
 
       if (result.ok) {
         specs.value = result.specs
         targetPath.value = result.targetPath
         listError.value = null
-        return
+        return true
       }
 
       // 清單是這頁的全部內容，沒有「留著舊資料只丟 toast」的餘地
       specs.value = []
       targetPath.value = result.targetPath || targetPath.value
       listError.value = result.error
+      return true
     }
     finally {
       if (mine === listSeq) {

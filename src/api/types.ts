@@ -185,6 +185,85 @@ export type ArchivedListResult
   = { ok: true, targetPath: string, items: ArchivedSummary[] }
     | { ok: false, targetPath: string, error: GatewayError }
 
+/** 四個分組，同時是清單呈現順序（Requirement 清單分組） */
+export type RoadmapGroup = 'in-progress' | 'available' | 'blocked' | 'other'
+
+/**
+ * 規劃檔清單卡片所需的欄位，同時是詳情面板的資料來源——一次讀回全文，面板不另開
+ * 詳情通道（design D1）。解析規則（標題、狀態字、分組、Next、Needs、part of）全在
+ * normalize-roadmap.ts，IO 層只給 `RoadmapFileProbe` 的原始檔案內容。
+ */
+export interface RoadmapSummary {
+  /** 檔名去 `.md`，卡片顯示名 */
+  name: string
+  /** 檔名（含 `.md`），引用連結規則 1 比對用，也是 `RoadmapRefContext.roadmapFiles` 的元素形狀 */
+  file: string
+  /** 標題；可能含行內 code 的 Markdown 語法（如反引號包住的片段），呈現時需經行內渲染 */
+  title: string
+  /** 狀態字原文；沒有這一行或沒有狀態字時為空字串 */
+  statusText: string
+  group: RoadmapGroup
+  /** 狀態字為 `N/M` 形式時的兩個數字；不是這個形式時為 null（分組仍照規則跑，不依賴這個欄位） */
+  progress: { completed: number, total: number } | null
+  /** `## 拆分與進度` 表格中「狀態」欄含 `⬅` 那一列的「範圍」欄；取不到為 null */
+  next: string | null
+  /** 開頭段 `- **前置**：` 行內容，已去除行內 code 與粗體記號；取不到為 null */
+  needs: string | null
+  /** 開頭段 `- **屬於**：` 行中第一個對得到本次清單內規劃檔的 `*.md` 引用，其父項標題；取不到為 null */
+  partOf: string | null
+  /** 最後修改時刻（epoch ms）；stat 失敗時為 null */
+  mtime: number | null
+  /** 單檔內容讀取失敗；true 時 title 退回檔名、group 恆為 other、body 為空字串（單筆降級，不拖垮清單） */
+  readFailed: boolean
+  /** 去除第一個 `# ` 標題行後的全文，供詳情面板渲染（design D1，避免另開一支詳情通道） */
+  body: string
+}
+
+export type RoadmapListResult
+  = { ok: true, targetPath: string, dirExists: boolean, offExists: boolean, items: RoadmapSummary[], refs: RoadmapRefsProbe }
+    | { ok: false, targetPath: string, error: GatewayError }
+
+/** 開頭段一列「- **欄名**：內容」；欄名 1 到 6 個非空白字元（Requirement 開頭段重排） */
+export interface RoadmapRelationRow {
+  label: string
+  /** 冒號後的原文，Markdown 片段——引用連結規則照常適用，不在這裡先轉成純文字 */
+  value: string
+}
+
+/** 詳情面板內容區的四塊（Requirement 開頭段重排、拆分與進度提前） */
+export interface RoadmapSections {
+  /** 開頭段中，關係欄之外的其餘內容；沒有開頭段時為空字串 */
+  lead: string
+  /** 依原檔順序排列；沒有這類行時為空陣列 */
+  relations: RoadmapRelationRow[]
+  /** 第一個 `## 拆分與進度` 段落（含標題行）；取不到為空字串 */
+  split: string
+  /** 其餘段落，依原檔順序串接；取不到為空字串 */
+  rest: string
+}
+
+export type RoadmapRefKind = 'roadmap' | 'spec' | 'change' | 'archived'
+
+/** 引用連結解析出的目標（Requirement 引用連結） */
+export interface RoadmapRefResolution {
+  kind: RoadmapRefKind
+  /** roadmap 是檔名（含 `.md`）、spec 是 id、change 是 name、archived 是 archive 目錄名（含日期前綴） */
+  target: string
+}
+
+/**
+ * 供 `resolveRoadmapRef` 比對的名稱清單；由 `buildRoadmapRefContext` 組出。
+ * `changes` 已把 active 與 parked 併在一起——「別頁連結」規則本身不分兩者，
+ * 真的要分流時（跳轉到 Changes 頁）是 Changes 頁自己再查 active／parked 兩份清單（design D5）。
+ */
+export interface RoadmapRefContext {
+  roadmapFiles: string[]
+  specs: string[]
+  changes: string[]
+  /** archive 目錄名（含日期前綴） */
+  archived: string[]
+}
+
 /**
  * App 取得規格資料的唯一通道。web 版走 Nitro route，日後的 Tauri 版換成 shell plugin
  * 實作——呼叫端只認這個介面，替換範圍收斂在一個檔案。
@@ -233,6 +312,9 @@ export interface OpenSpecGateway {
   listArchived: () => Promise<ArchivedListResult>
   /** archived change 的唯讀詳情；tabs 為現場列舉，識別鍵是含日期前綴的目錄名 */
   getArchivedDetail: (dir: string) => Promise<ChangeDetailResult>
+
+  /** Roadmap 清單；一次讀回全文＋引用名稱清單，面板不另開詳情通道（design D1） */
+  listRoadmap: () => Promise<RoadmapListResult>
 
   /**
    * 原生選資料夾：能力判定不在前端，一律呼叫後依 status 分流。
@@ -478,4 +560,48 @@ export interface ArchivedTabProbe {
   content?: string
   /** 讀檔失敗的系統訊息；有值時 content 必為 undefined */
   error?: string
+}
+
+/**
+ * `GET /api/roadmap` 的回傳：`openspec/roadmap/` 頂層 `.md` 檔的原始內容＋引用解析用的
+ * 名稱清單。route 只做 IO，解析、分組、切段全在共用的 normalize-roadmap（design D2）。
+ */
+export interface RoadmapListProbe {
+  targetPath: string
+  /** `openspec/roadmap/` 目錄是否存在；不存在是正常狀態，不是錯誤 */
+  dirExists: boolean
+  /** `openspec/roadmap.off` 是否存在 */
+  offExists: boolean
+  files: RoadmapFileProbe[]
+  refs: RoadmapRefsProbe
+  /** 目標專案或列舉本身失敗；有值時 files 為空 */
+  failure?: RoadmapProbeFailure
+}
+
+export interface RoadmapFileProbe {
+  /** 檔名（含 `.md`） */
+  name: string
+  /** 檔案全文；讀取失敗時改帶 readError */
+  content?: string
+  /** 單檔讀取失敗的系統訊息；有值時 content 必為 undefined，該檔仍列入清單（Other 組） */
+  readError?: string
+  /** 最後修改時刻（epoch ms）；stat 失敗時為 undefined */
+  mtime?: number
+}
+
+/** 引用解析用的四類名稱清單，只取名稱、不含內容（Requirement 讀取範圍） */
+export interface RoadmapRefsProbe {
+  specs: string[]
+  /** `openspec/changes/` 排除 `archive` 的子目錄名 */
+  changes: string[]
+  /** `openspec/changes/archive/` 的子目錄名（含日期前綴） */
+  archived: string[]
+  /** parked change 名稱，沿用 `listParkedNames` */
+  parked: string[]
+}
+
+/** 兩類失敗分開呈現：非 openspec 專案沒得重試，讀取失敗才給 Try again（同 `ArchivedProbeFailure` 語意） */
+export interface RoadmapProbeFailure {
+  kind: 'not-openspec-project' | 'read-failed'
+  message: string
 }

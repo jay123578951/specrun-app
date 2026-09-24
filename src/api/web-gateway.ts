@@ -18,6 +18,8 @@ import type {
   PickFolderOutcome,
   ProjectActionResult,
   RevealOutcome,
+  RoadmapListProbe,
+  RoadmapListResult,
   SpecContentProbe,
   SpecContentResult,
   SpecListProbe,
@@ -28,6 +30,7 @@ import type {
 import { normalizeChangeDetail, normalizeChangeList, normalizeSpecContent, normalizeSpecList } from './normalize'
 import { normalizeArchivedDetail, normalizeArchivedList } from './normalize-archived'
 import { normalizeParkedDetail, normalizeParkedList } from './normalize-parked'
+import { normalizeRoadmapList } from './normalize-roadmap'
 
 /** web（Vite dev／Nitro 部署）版 gateway：向本地 route 取 CLI 原始輸出，再交給 shared normalize */
 export const webGateway: OpenSpecGateway = {
@@ -258,6 +261,25 @@ export const webGateway: OpenSpecGateway = {
       }
     }
     return normalizeArchivedDetail(probe)
+  },
+
+  async listRoadmap(): Promise<RoadmapListResult> {
+    let probe: RoadmapListProbe
+    try {
+      probe = await fetchProbe<RoadmapListProbe>('/api/roadmap')
+    }
+    catch (error) {
+      return {
+        ok: false,
+        targetPath: '',
+        error: {
+          kind: 'call-failed',
+          message: 'Could not read the roadmap list.',
+          detail: describe(error),
+        },
+      }
+    }
+    return normalizeRoadmapList(probe)
   },
 
   /**

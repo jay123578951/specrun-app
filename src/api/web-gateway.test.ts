@@ -129,3 +129,54 @@ describe('webGateway.openUrl: 開新分頁的時序與失敗收束', () => {
     await expect(webGateway.openUrl('https://example.com')).resolves.toEqual({ status: 'failed' })
   })
 })
+
+describe('webGateway.listRoadmap: 回應形狀', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('把 /api/roadmap 的 probe 交給 normalizeRoadmapList，回傳分組後的清單', async () => {
+    const probe = {
+      targetPath: '/project',
+      dirExists: true,
+      offExists: false,
+      files: [{ name: 'a.md', content: '# 培訓機構管理        1/4\n', mtime: 1_700_000_000_000 }],
+      // 非空 refs：確保斷言驗的是「原樣傳遞」而不是「兩邊都剛好是空陣列」
+      refs: { specs: ['spec-a'], changes: ['add-x'], archived: ['2026-01-02-add-y'], parked: ['parked-z'] },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(probe) }))
+
+    const result = await webGateway.listRoadmap()
+
+    expect(fetch).toHaveBeenCalledWith('/api/roadmap')
+    expect(result.ok).toBe(true)
+    if (!result.ok)
+      return
+    expect(result.dirExists).toBe(true)
+    expect(result.offExists).toBe(false)
+    expect(result.refs).toEqual(probe.refs)
+    expect(result.items).toEqual([expect.objectContaining({
+      name: 'a',
+      title: '培訓機構管理',
+      statusText: '1/4',
+      group: 'in-progress',
+      progress: { completed: 1, total: 4 },
+    })])
+  })
+
+  it('連本地 route 都到不了時收束成 call-failed，不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+    const result = await webGateway.listRoadmap()
+
+    expect(result).toEqual({
+      ok: false,
+      targetPath: '',
+      error: {
+        kind: 'call-failed',
+        message: 'Could not read the roadmap list.',
+        detail: 'network down',
+      },
+    })
+  })
+})

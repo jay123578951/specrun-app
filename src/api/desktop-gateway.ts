@@ -8,6 +8,7 @@ import { parkChange, unparkChange } from './desktop/park'
 import { getParkedDetail, listParked } from './desktop/parked'
 import { addProject, listProjects, removeProject, switchProject } from './desktop/projects'
 import { getChangeDetail, getSpecContent, listChanges, listSpecs } from './desktop/reads'
+import { listRoadmap } from './desktop/roadmap'
 import { toggleTask } from './desktop/tasks'
 import { subscribeToChanges } from './desktop/watch'
 
@@ -39,6 +40,8 @@ export const desktopGateway: OpenSpecGateway = {
 
   listArchived,
   getArchivedDetail,
+
+  listRoadmap,
 
   pickFolder,
 

@@ -33,15 +33,18 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
     const park = { parkChange: vi.fn(), unparkChange: vi.fn() }
     const parked = { listParked: vi.fn(), getParkedDetail: vi.fn() }
     const archived = { listArchived: vi.fn(), getArchivedDetail: vi.fn() }
+    const roadmap = { listRoadmap: vi.fn() }
     const watch = { subscribeToChanges: vi.fn() }
     const folderPicker = { pickFolder: vi.fn() }
     const opener = { revealPath: vi.fn(), openUrl: vi.fn() }
 
     // web 形態的每一個方法都給獨立的假函式，逐一比對時才能斷言「不是這一個」；
     // 若真的還有任何方法漏搬，desktopGateway 上的它會 `toBe` 這裡對應的假函式。
-    // 型別綁在 `OpenSpecGateway` 本身（不是自己另一份手寫物件）：介面新增方法時，
-    // 這裡少一個 key 就編譯不過，逼著這份 fixture 跟著介面走，不能兩份各自為政。
-    const webGatewayFake: Record<keyof OpenSpecGateway, ReturnType<typeof vi.fn>> = {
+    // 型別綁在 `OpenSpecGateway` 本身（不是自己另一份手寫物件、也不透過 `Record`——
+    // `Record<keyof T, V>` 會把 `keyof T` 攤成純字串聯集，丟失原本個別欄位的
+    // optional 修飾，逼著這裡連還沒兩形態都接上的 optional 方法也要先湊一個假函式）：
+    // 介面新增的必填方法，這裡少一個 key 就編譯不過，逼著這份 fixture 跟著介面走。
+    const webGatewayFake: { [K in keyof OpenSpecGateway]: ReturnType<typeof vi.fn> } = {
       listChanges: vi.fn(),
       getChangeDetail: vi.fn(),
       toggleTask: vi.fn(),
@@ -58,6 +61,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       getParkedDetail: vi.fn(),
       listArchived: vi.fn(),
       getArchivedDetail: vi.fn(),
+      listRoadmap: vi.fn(),
       pickFolder: vi.fn(),
       getCliSettings: vi.fn(),
       applyCliPath: vi.fn(),
@@ -75,6 +79,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
     vi.doMock('./desktop/park', () => park)
     vi.doMock('./desktop/parked', () => parked)
     vi.doMock('./desktop/archived', () => archived)
+    vi.doMock('./desktop/roadmap', () => roadmap)
     vi.doMock('./desktop/folder-picker', () => folderPicker)
     vi.doMock('./desktop/opener', () => opener)
     // watch.ts 一 import 就會接線 projects.ts 的訂閱出口，這裡整支模組替換掉，不連真的
@@ -83,7 +88,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
 
     const { desktopGateway } = await import('./desktop-gateway')
 
-    const expectedBySource: Record<keyof OpenSpecGateway, unknown> = {
+    const expectedBySource: { [K in keyof OpenSpecGateway]: unknown } = {
       listChanges: reads.listChanges,
       getChangeDetail: reads.getChangeDetail,
       toggleTask: tasks.toggleTask,
@@ -100,6 +105,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       getParkedDetail: parked.getParkedDetail,
       listArchived: archived.listArchived,
       getArchivedDetail: archived.getArchivedDetail,
+      listRoadmap: roadmap.listRoadmap,
       pickFolder: folderPicker.pickFolder,
       getCliSettings: cli.cliSettings,
       applyCliPath: cli.applyOverride,

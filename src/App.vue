@@ -6,6 +6,8 @@ import ArchivedPanel from './components/ArchivedPanel.vue'
 import ArchivedView from './components/ArchivedView.vue'
 import ArtifactPanel from './components/ArtifactPanel.vue'
 import ChangeList from './components/ChangeList.vue'
+import RoadmapPanel from './components/RoadmapPanel.vue'
+import RoadmapView from './components/RoadmapView.vue'
 import SettingsModal from './components/SettingsModal.vue'
 import SpecPanel from './components/SpecPanel.vue'
 import SpecsView from './components/SpecsView.vue'
@@ -14,6 +16,7 @@ import { useArchivedStore } from './stores/archived'
 import { useChangesStore } from './stores/changes'
 import { useDetailStore } from './stores/detail'
 import { useProjectsStore } from './stores/projects'
+import { useRoadmapStore } from './stores/roadmap'
 import { useSettingsStore } from './stores/settings'
 import { useSpecsStore } from './stores/specs'
 import { useViewStore } from './stores/view'
@@ -23,6 +26,7 @@ const detail = useDetailStore()
 const projects = useProjectsStore()
 const specs = useSpecsStore()
 const archived = useArchivedStore()
+const roadmap = useRoadmapStore()
 const view = useViewStore()
 const settings = useSettingsStore()
 
@@ -36,7 +40,7 @@ const REVEAL_WIDTH = 320
 const PANEL_MIN_WIDTH = 420
 
 /**
- * 三頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西。
+ * 四頁的 slideover 共用同一組進出場值，換頁時面板的動作看起來才是同一個東西。
  *
  * 全幅純位移的 drawer 式滑入滑出：fade 曾以「短位移＋淡入淡出」兩種配方（同拍、解耦）
  * 進過場，兩輪驗收都是 fade 的存在感蓋過移動，整組移除。也不回舊版
@@ -57,12 +61,17 @@ const main = ref<HTMLElement>()
 const onChanges = computed(() => view.currentView === 'changes')
 const onSpecs = computed(() => view.currentView === 'specs')
 const onArchived = computed(() => view.currentView === 'archived')
+const onRoadmap = computed(() => view.currentView === 'roadmap')
 
 /** 目前頁的面板是否開著；鍵盤只在這個條件下接管 ↑↓ 與 Esc */
 const panelOpen = computed(() => {
   if (onChanges.value)
     return detail.isOpen
-  return onSpecs.value ? specs.isOpen : archived.isOpen
+  if (onSpecs.value)
+    return specs.isOpen
+  if (onArchived.value)
+    return archived.isOpen
+  return roadmap.isOpen
 })
 
 let unsubscribe: (() => void) | null = null
@@ -105,6 +114,10 @@ function move(step: number): void {
     archived.move(step)
     return
   }
+  if (onRoadmap.value) {
+    roadmap.move(step)
+    return
+  }
 
   const names = store.changes.map(change => change.name)
   const current = names.indexOf(detail.changeName ?? '')
@@ -120,7 +133,7 @@ function onKeydown(event: KeyboardEvent): void {
   // 否則背後剛好開著詳情時 Esc 會穿透把它關掉。不做堆疊式依序關閉——只有這一層 modal
   if (settings.isOpen)
     return
-  // 頁切換下拉展開時同樣整個讓位：↑↓ 歸下拉的三項，
+  // 頁切換下拉展開時同樣整個讓位：↑↓ 歸下拉的四項，
   // Esc 只收下拉、不穿透關掉背後的詳情。與上面的 Settings 是同一種形狀，不做堆疊
   if (view.menuOpen)
     return
@@ -136,8 +149,10 @@ function onKeydown(event: KeyboardEvent): void {
       detail.close()
     else if (onSpecs.value)
       specs.close()
-    else
+    else if (onArchived.value)
       archived.close()
+    else
+      roadmap.close()
     return
   }
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')
@@ -148,7 +163,7 @@ function onKeydown(event: KeyboardEvent): void {
 }
 
 // 鍵盤切到捲動範圍外的項目時把它帶進視野；點擊切換不需要（本來就看得到）
-watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
+watch(() => [detail.changeName, specs.openId, archived.openDir, roadmap.openFileName], async () => {
   await nextTick()
   main.value?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
 })
@@ -163,7 +178,8 @@ watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
     <div ref="main" class="relative min-w-0 overflow-hidden">
       <ChangeList v-if="onChanges" />
       <SpecsView v-else-if="onSpecs" />
-      <ArchivedView v-else />
+      <ArchivedView v-else-if="onArchived" />
+      <RoadmapView v-else />
 
       <Transition v-bind="PANEL_MOTION">
         <!-- 寬度三個值綁在一起走 style：面板自己的 min-w-0 會跟 utility 版打架 -->
@@ -187,6 +203,15 @@ watch(() => [detail.changeName, specs.openId, archived.openDir], async () => {
         />
         <ArchivedPanel
           v-else-if="onArchived && archived.isOpen"
+          class="absolute inset-y-0 right-0"
+          :style="{
+            width: `calc(100% - ${REVEAL_WIDTH}px)`,
+            minWidth: `${PANEL_MIN_WIDTH}px`,
+            maxWidth: '100%',
+          }"
+        />
+        <RoadmapPanel
+          v-else-if="onRoadmap && roadmap.isOpen"
           class="absolute inset-y-0 right-0"
           :style="{
             width: `calc(100% - ${REVEAL_WIDTH}px)`,

@@ -57,8 +57,11 @@ function toArchivedSummary(entry: ArchivedEntryProbe): ArchivedSummary {
 /**
  * 目錄名拆成日期與名稱兩欄，卡片才不用把日期在名稱裡再讀一次。
  * 前綴不成立（手動搬移、命名偏離慣例）就整名照列、不顯示日期——清單不炸是底線。
+ *
+ * 對外匯出供 normalize-roadmap 的引用解析重用（規則 5.3「封存目錄去掉日期前綴後同名」）
+ * ——同一份「去日期前綴」邏輯只該有一處，避免兩邊對「哪些算日期前綴」的認知分岔。
  */
-function splitDatePrefix(dir: string): { name: string, archivedAt: string | null } {
+export function splitDatePrefix(dir: string): { name: string, archivedAt: string | null } {
   const match = DATE_PREFIX.exec(dir)
   if (!match || !isRealDate(match[1]!))
     return { name: dir, archivedAt: null }

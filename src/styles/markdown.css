@@ -265,3 +265,150 @@
 .md-body .task-list-item:has(> p > .task-list-item-checkbox:checked) code {
   background-color: var(--sr-surface-hover);
 }
+
+/**
+ * Roadmap 面板專用（design D4，僅 `renderMarkdown` 的 roadmap 選項開啟時才會輸出對應標記，
+ * 其餘頁面的 Markdown 不受影響）：
+ * - `.md-ref` / `.md-ref-dest`：引用連結（`code_inline` 換成的 button）與跨頁提示；
+ * - `.md-lead` / `.md-relations` 系列：開頭段拆成的導言與關係欄框（Requirement 開頭段重排）；
+ * - `.md-status-*`：拆分表狀態欄的圖示與列狀態字色（Requirement 拆分與進度提前與狀態圖示）。
+ * 對照模擬畫面（roadmap-mock）的視覺，色值全換成 tokens。
+ */
+
+/* 引用連結：外觀比照一般連結（accent 字色），但用底線陰影而非文字底線——
+   包住的是 <code>，文字底線會被 code 的底色蓋掉一段、看起來斷開 */
+.md-body .md-ref {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.md-body .md-ref code {
+  color: var(--sr-accent-bright);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--sr-accent-bright) 45%, transparent);
+  transition: background-color 150ms var(--sr-ease-out);
+}
+
+.md-body .md-ref:hover code {
+  background-color: color-mix(in srgb, var(--sr-accent) 35%, var(--sr-surface));
+}
+
+.md-body .md-ref:active code {
+  background-color: color-mix(in srgb, var(--sr-accent) 50%, var(--sr-surface));
+}
+
+.md-body .md-ref:focus-visible {
+  outline: 2px solid var(--sr-accent-bright);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* 目標頁提示（如「Specs ↗」）：UI 文案字體，比引用本身再降一階，不跟內容字級混在一起 */
+.md-body .md-ref-dest {
+  font-family: var(--sr-font-ui);
+  font-size: 11px;
+  color: var(--sr-text-3);
+  white-space: nowrap;
+}
+
+/* 導言：開頭段除關係欄外的其餘內容，字色降一階與正文區隔 */
+.md-lead {
+  color: var(--sr-text-2);
+}
+
+.md-lead > :first-child {
+  margin-top: 0;
+}
+
+/* 關係欄：有框區塊，每行一列，左欄名右內容（欄名最長 6 字，寬度留固定欄位即可） */
+.md-relations {
+  margin: 1.1em 0 0;
+  border: 1px solid var(--sr-line);
+  border-radius: 5px;
+  background-color: var(--sr-bg);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.md-relation-row {
+  display: grid;
+  grid-template-columns: 6.5em 1fr;
+  gap: 12px;
+  padding: 8px 14px;
+}
+
+.md-relation-row + .md-relation-row {
+  border-top: 1px solid var(--sr-line);
+}
+
+.md-relation-key {
+  padding-top: 1px;
+  color: var(--sr-text-3);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.md-relation-value {
+  min-width: 0;
+  color: var(--sr-text-2);
+}
+
+/* 關係欄內容可能含引用連結／行內 code（MarkdownView 唯讀渲染），字級跟隨關係欄縮小一階 */
+.md-relation-value code {
+  font-size: 13px;
+}
+
+/* 拆分表狀態欄：表頭與每列都加了 .md-status-col（render.ts），不折行、置中對齊圖示 */
+.md-body .md-status-col {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.md-status-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.md-status-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 完成：淡底圓點，完成色 */
+.md-status-icon-done {
+  color: var(--sr-done);
+  background-color: color-mix(in srgb, var(--sr-done) 15%, transparent);
+}
+
+/* 接下來：全表最醒目，實心 accent 底；字色用 --sr-text（非白色寫死）維持與底色的可讀對比 */
+.md-status-icon-next {
+  color: var(--sr-text);
+  background-color: var(--sr-accent);
+}
+
+/* 卡著：淡底圓點，parked 色 */
+.md-status-icon-blocked {
+  color: var(--sr-parked);
+  background-color: color-mix(in srgb, var(--sr-parked) 15%, transparent);
+}
+
+/* 列狀態字色：完成降階、接下來加重、卡著維持不變（Requirement 表格「該列文字」欄） */
+.md-body tr.md-status-row-done td {
+  color: var(--sr-text-3);
+}
+
+.md-body tr.md-status-row-next td {
+  color: var(--sr-text);
+  font-weight: 500;
+}

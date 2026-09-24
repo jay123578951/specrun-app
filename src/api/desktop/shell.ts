@@ -126,11 +126,12 @@ export function readDir(path: string): Promise<DirEntry[]> {
 
 /**
  * fs plugin 的 `stat` 回傳形狀（只列用得到的欄位）。它跟隨 symlink，時間戳是
- * epoch 毫秒、與 JS `Date` 同一刻度；檔案系統給不出建立時刻時該欄位為 null。
+ * epoch 毫秒、與 JS `Date` 同一刻度；檔案系統給不出建立或修改時刻時該欄位為 null。
  */
 export interface FileStat {
   isDirectory: boolean
   birthtime: number | null
+  mtime: number | null
 }
 
 export function statPath(path: string): Promise<FileStat> {

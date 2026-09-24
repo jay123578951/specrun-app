@@ -124,6 +124,9 @@ export default defineConfig<Theme>({
       'done': 'var(--sr-done)',
       'error': 'var(--sr-error)',
       'overlay': 'var(--sr-overlay)',
+      // Roadmap 卡片／面板標題的行內 code（真 DOM 節點，非 v-html）沿用 markdown 行內 code 同一色板
+      'code-bg': 'var(--sr-code-bg)',
+      'code-text': 'var(--sr-code-text)',
     },
     font: {
       ui: 'var(--sr-font-ui)',

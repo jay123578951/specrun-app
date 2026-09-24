@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { RoadmapRefKind } from '../api/types'
+import type { RoadmapRenderOptions } from '../markdown/render'
 import { shallowRef, useTemplateRef, watch } from 'vue'
 import { gateway } from '../api'
 import { renderMarkdown } from '../markdown/render'
@@ -10,18 +12,24 @@ const props = defineProps<{
   interactive?: boolean
   /** 寫入進行中的來源行號；這些 checkbox 呈現 pending 且不再接受點擊 */
   pendingLines?: number[]
+  /** Roadmap 面板專用：引用連結解析與拆分表圖示；不傳時輸出與現況逐字相同（design D4） */
+  roadmap?: RoadmapRenderOptions
 }>()
 
-const emit = defineEmits<{ toggle: [line: number] }>()
+const emit = defineEmits<{
+  toggle: [line: number]
+  /** 命中 `.md-ref`（design D4）；不受 `interactive` 限制，唯讀模式（roadmap 面板）也要能點 */
+  ref: [payload: { kind: RoadmapRefKind, target: string }]
+}>()
 
 const html = shallowRef('')
 // 渲染是 async（highlighter 首次要載語言），快速切 tab 會有多個 render 在飛：
 // 只認最後一次發出的，避免舊內容後到覆蓋新的
 let seq = 0
 
-watch([() => props.source, () => props.interactive], async ([source, interactive]) => {
+watch([() => props.source, () => props.interactive, () => props.roadmap], async ([source, interactive, roadmap]) => {
   const mine = ++seq
-  const rendered = await renderMarkdown(source, { interactive })
+  const rendered = await renderMarkdown(source, { interactive, roadmap })
   if (mine === seq)
     html.value = rendered
 }, { immediate: true })
@@ -64,6 +72,17 @@ function onClick(event: MouseEvent): void {
     const normalized = normalizeAllowedUrl(href)
     if (normalized)
       void openLink(normalized)
+    return
+  }
+
+  // `.md-ref` 是 render.ts 產出的 `<button>`（design D4），只在 roadmap 選項對得到目標時才會
+  // 存在；不受 `interactive` 限制——roadmap 面板本身是唯讀模式，引用連結仍要點得動
+  const refButton = target?.closest<HTMLButtonElement>('.md-ref')
+  if (refButton) {
+    const kind = refButton.dataset.refKind as RoadmapRefKind | undefined
+    const refTarget = refButton.dataset.refTarget
+    if (kind && refTarget !== undefined)
+      emit('ref', { kind, target: refTarget })
     return
   }
 

@@ -3,7 +3,8 @@ import { onUnmounted, ref } from 'vue'
 
 /** 複製 change 名稱的圖示鈕：卡片標題旁與詳情面板右上共用 */
 
-const props = defineProps<{ name: string }>()
+/** aria-label／title 的受詞；不傳沿用原文案，Roadmap 卡片與面板傳 'title' 換成「Copy title」 */
+const props = withDefaults(defineProps<{ name: string, label?: string }>(), { label: 'change name' })
 
 /** 成功回饋：icon 換 ✓ 後自動復原的停留時間（ui-interaction-states：不出 toast） */
 const COPIED_MS = 2500
@@ -34,8 +35,8 @@ onUnmounted(() => clearTimeout(timer))
     type="button"
     class="icon-btn"
     :class="copied ? '!text-done' : ''"
-    aria-label="Copy change name"
-    :title="copied ? 'Copied' : 'Copy change name'"
+    :aria-label="`Copy ${label}`"
+    :title="copied ? 'Copied' : `Copy ${label}`"
     @click.stop="copy()"
   >
     <span
