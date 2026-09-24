@@ -1,7 +1,7 @@
 [package]
 name = "specrun"
 # 這裡的 version 不被 tauri.conf.json 讀取（那邊指向 package.json）；改版時兩份一起改，避免再度分岔。
-version = "0.1.0"
+version = "0.2.0"
 description = "OpenSpec 相容的桌面 spec 管理 App，引擎外包 openspec CLI"
 authors = ["jay123578951"]
 license = "MIT"
