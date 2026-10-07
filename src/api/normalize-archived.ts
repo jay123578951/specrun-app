@@ -1,56 +1,85 @@
 /**
  * archived 清單／詳情的原始輸出 → App 型別（純函式，web 與日後的 Tauri 版共用）。
  *
- * 與 normalize-parked 的分工相同：route 只做 IO，所有解析集中在這裡。
- * 資料源同樣是檔案層直讀，所以日期、進度、順序全都是這裡算出來的
- * ——openspec CLI 不認識 archived change，沒有引擎答案可沿用。
+ * 清單來自 `list --archived --json`（CLI 1.14 起）；日期與順序仍由這裡從目錄名算出，
+ * CLI 的排序依修改時刻，與「歸檔日新→舊」不同。詳情仍是檔案層直讀。
  */
 
 import type {
   ArchivedDetailProbe,
-  ArchivedEntryProbe,
   ArchivedListProbe,
   ArchivedListResult,
   ArchivedSummary,
   ArtifactView,
   ChangeDetailResult,
 } from './types'
-import { countTasks, toTaskStatus } from './task-progress'
+import { isCliTooOld } from './cli-version'
+import { classifyListPayload, stripAnsi } from './normalize'
+import { toTaskStatus } from './task-progress'
 
 /** archive 的目錄命名慣例 `YYYY-MM-DD-<name>` */
 const DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})-(.+)$/
 
+const LIST_FAILED = 'Could not read the archived list.'
+
 export function normalizeArchivedList(probe: ArchivedListProbe): ArchivedListResult {
-  if (probe.failure) {
-    const { kind, message } = probe.failure
-    // 兩類失敗分開呈現：非 openspec 專案沒得重試，讀取失敗才給 Try again
+  // 舊版 CLI 的拒絕訊息要先於解析判定：它的 stdout 是空的，會被誤分到「呼叫或解析失敗」
+  if (isCliTooOld(probe)) {
     return {
       ok: false,
       targetPath: probe.targetPath,
-      error: kind === 'not-openspec-project'
-        ? { kind: 'not-openspec-project', message: 'The target folder is not an OpenSpec project.', detail: message }
-        : { kind: 'call-failed', message: 'Could not read the archived list.', detail: message },
+      error: {
+        kind: 'cli-outdated',
+        message: 'The Archived view needs openspec 1.14 or later.',
+        detail: stripAnsi(probe.stderr).trim().split('\n', 1)[0],
+      },
     }
   }
 
-  return {
-    ok: true,
+  const classified = classifyListPayload(probe, LIST_FAILED)
+  if (!classified.ok)
+    return { ok: false, targetPath: probe.targetPath, error: classified.error }
+
+  const failShape = (detail: string): ArchivedListResult => ({
+    ok: false,
     targetPath: probe.targetPath,
-    items: probe.entries.map(toArchivedSummary).sort(byArchivedAtDesc),
+    error: { kind: 'call-failed', message: LIST_FAILED, detail },
+  })
+
+  const { changes } = classified.payload
+  if (!Array.isArray(changes))
+    return failShape('The CLI response carried no change list.')
+
+  const items: ArchivedSummary[] = []
+  for (const raw of changes) {
+    const item = toArchivedSummary(raw)
+    if (!item)
+      return failShape('The CLI response had an unexpected shape.')
+    items.push(item)
   }
+
+  return { ok: true, targetPath: probe.targetPath, items: items.sort(byArchivedAtDesc) }
 }
 
-function toArchivedSummary(entry: ArchivedEntryProbe): ArchivedSummary {
-  const { completedTasks, totalTasks } = countTasks(entry.tasks ?? '')
-  const { name, archivedAt } = splitDatePrefix(entry.dir)
+/** 日期與名稱只從 `name`（完整目錄名）拆；CLI 的 `lastModified` 是檔案修改時刻，不讀 */
+function toArchivedSummary(raw: unknown): ArchivedSummary | null {
+  if (typeof raw !== 'object' || raw === null)
+    return null
 
+  const { name: dir, completedTasks, totalTasks } = raw as Record<string, unknown>
+  if (typeof dir !== 'string' || !dir)
+    return null
+  if (!Number.isFinite(completedTasks) || !Number.isFinite(totalTasks))
+    return null
+
+  const { name, archivedAt } = splitDatePrefix(dir)
   return {
-    dir: entry.dir,
+    dir,
     name,
     archivedAt,
-    completedTasks,
-    totalTasks,
-    status: toTaskStatus(completedTasks, totalTasks),
+    completedTasks: completedTasks as number,
+    totalTasks: totalTasks as number,
+    status: toTaskStatus(completedTasks as number, totalTasks as number),
   }
 }
 

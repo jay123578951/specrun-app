@@ -1,7 +1,8 @@
 import type { LoginShellHit, ResolveEnv, VerifyResult } from '../cli-resolve'
-import type { CliApplyResult, CliSettings, ProbeFailure } from '../types'
+import type { CliApplyResult, CliSettings, CliUpdateCheck, ProbeFailure } from '../types'
 import type { SpawnLimits } from './shell'
 import { CLI_COMMAND, LOGIN_SHELL_PATH_MARKER, pickCommandPath, pickCommandPathAndSearchPath, pickVersion, resolveWith } from '../cli-resolve'
+import { normalizeCliUpdate } from '../normalize-cli-update'
 import { config, persist } from './config-store'
 import { homePath, isMacOS, isWindows, resolveUserPath, spawnBin } from './shell'
 
@@ -221,4 +222,16 @@ function overrideSearchPath(): Promise<string | null> {
 
 function firstLine(text: string): string {
   return text.split('\n').map(line => line.trim()).find(Boolean) ?? ''
+}
+
+export async function checkCliUpdate(): Promise<CliUpdateCheck> {
+  try {
+    const outcome = await runCli(['version', '--check', '--json'], await homePath())
+    if (!outcome.ok)
+      return normalizeCliUpdate({ exitCode: null, stdout: '', stderr: '', failure: outcome.failure })
+    return normalizeCliUpdate({ exitCode: outcome.exitCode, stdout: outcome.stdout, stderr: outcome.stderr })
+  }
+  catch {
+    return { status: 'unavailable' }
+  }
 }

@@ -22,8 +22,8 @@ export interface ChangeSummary {
   summary: string
 }
 
-/** 三類錯誤，對應「錯誤分類」與 UI 的三層呈現 */
-export type GatewayErrorKind = 'cli-unavailable' | 'not-openspec-project' | 'call-failed'
+/** 四類錯誤，對應「錯誤分類」與 UI 的分層呈現 */
+export type GatewayErrorKind = 'cli-unavailable' | 'not-openspec-project' | 'call-failed' | 'cli-outdated'
 
 export interface GatewayError {
   kind: GatewayErrorKind
@@ -166,8 +166,8 @@ export type ParkActionResult
     | { ok: false, message: string, detail?: string }
 
 /**
- * archived 卡片所需的摘要。archived change 對 openspec CLI 同樣不可見，
- * 日期來自目錄名前綴、進度來自現場解析 tasks.md。
+ * archived 卡片所需的摘要。清單與進度來自 `openspec list --archived --json`，
+ * 日期不取 CLI 的 `lastModified`（那是檔案修改時刻），而是由目錄名前綴拆出。
  */
 export interface ArchivedSummary {
   /** archive 底下的目錄名（含日期前綴），同時是詳情的識別鍵 */
@@ -308,7 +308,7 @@ export interface OpenSpecGateway {
   /** parked change 的詳情打包；tabs 依 park 當下的快照，不打 openspec status */
   getParkedDetail: (name: string) => Promise<ChangeDetailResult>
 
-  /** archived 清單；檔案層直讀 `openspec/changes/archive/`，CLI 零參與 */
+  /** archived 清單；單次 `openspec list --archived --json`（1.14 起）。詳情仍直讀檔案 */
   listArchived: () => Promise<ArchivedListResult>
   /** archived change 的唯讀詳情；tabs 為現場列舉，識別鍵是含日期前綴的目錄名 */
   getArchivedDetail: (dir: string) => Promise<ChangeDetailResult>
@@ -341,7 +341,14 @@ export interface OpenSpecGateway {
    * 支援」——每個執行形態都具備開啟外部網址的能力（design D3）。
    */
   openUrl: (url: string) => Promise<OpenUrlOutcome>
+  checkCliUpdate: () => Promise<CliUpdateCheck>
 }
+
+export type CliUpdateCheck
+  = { status: 'available', latest: string, command?: string }
+    | { status: 'current' }
+    | { status: 'unavailable' }
+    | { status: 'too-old' }
 
 /** CLI 執行檔的兩種來源：自動偵測／使用者明示覆寫 */
 export type CliMode = 'auto' | 'override'
@@ -517,29 +524,9 @@ export interface ParkedArtifactProbe {
   files: ArtifactFileProbe[]
 }
 
-/**
- * `GET /api/archived` 的回傳：目錄列舉結果＋各 archived change 的 tasks 原文。
- * route 一樣只做 IO，日期前綴拆解、進度計算與排序都在 shared normalize。
- */
-export interface ArchivedListProbe {
-  targetPath: string
-  entries: ArchivedEntryProbe[]
-  /** 目標專案或 archive 目錄取不到；有值時 entries 為空 */
-  failure?: ArchivedProbeFailure
-}
+export type ArchivedListProbe = ChangeListProbe
 
-/** 兩類失敗要分開呈現：非 openspec 專案是設定問題，讀取失敗才值得重試 */
-export interface ArchivedProbeFailure {
-  kind: 'not-openspec-project' | 'read-failed'
-  message: string
-}
-
-export interface ArchivedEntryProbe {
-  /** archive 底下的目錄名，原樣帶回（含日期前綴） */
-  dir: string
-  /** tasks 檔案原文；缺檔或讀取失敗時 undefined＝該卡不顯示進度（單筆降級，不拖垮清單） */
-  tasks?: string
-}
+export type CliUpdateProbe = Pick<ChangeListProbe, 'exitCode' | 'stdout' | 'stderr' | 'failure'>
 
 /**
  * `GET /api/archived/:name` 的回傳：現場列舉的 tabs 與逐檔內容。

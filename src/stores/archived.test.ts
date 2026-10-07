@@ -75,3 +75,22 @@ describe('archived store：enter() 消化 Roadmap 跳轉來的 pendingOpen', () 
     expect(changes.toasts).toHaveLength(0)
   })
 })
+
+describe('archived store：CLI 錯誤旗標', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it.each([
+    ['cli-unavailable', true, false],
+    ['cli-outdated', false, true],
+    ['call-failed', false, false],
+  ] as const)('%s 只亮對應旗標', async (kind, unavailable, outdated) => {
+    gateway.listArchived.mockResolvedValue({ ok: false, targetPath: '/p', error: { kind, message: 'x' } })
+    const store = useArchivedStore()
+    await store.load()
+    expect(store.cliUnavailable).toBe(unavailable)
+    expect(store.cliOutdated).toBe(outdated)
+  })
+})

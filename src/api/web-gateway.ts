@@ -8,6 +8,7 @@ import type {
   ChangeListResult,
   CliApplyResult,
   CliSettings,
+  CliUpdateCheck,
   EnvironmentDiagnostics,
   OpenSpecGateway,
   OpenUrlOutcome,
@@ -368,6 +369,18 @@ export const webGateway: OpenSpecGateway = {
       opened = null
     }
     return Promise.resolve(opened ? { status: 'opened' } : { status: 'failed' })
+  },
+
+  async checkCliUpdate(): Promise<CliUpdateCheck> {
+    try {
+      const res = await fetch('/api/cli/update-check')
+      if (!res.ok)
+        return { status: 'unavailable' }
+      return await res.json() as CliUpdateCheck
+    }
+    catch {
+      return { status: 'unavailable' }
+    }
   },
 }
 

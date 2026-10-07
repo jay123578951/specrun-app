@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import type { VueWrapper } from '@vue/test-utils'
-import type { EnvironmentDiagnostics } from '../api'
+import type { CliUpdateCheck, EnvironmentDiagnostics } from '../api'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import SettingsModal from './SettingsModal.vue'
 
@@ -188,5 +189,82 @@ describe('settingsModal', () => {
       expect(reason).toBeDefined()
       expect(reason).not.toContain('desktop app yet')
     }
+  })
+  describe('更新檢查區塊', () => {
+    function withCheck(patch: { checking?: boolean, check?: CliUpdateCheck | null }) {
+      const { store } = openModal(READY)
+      store.checkingUpdate = patch.checking ?? false
+      store.updateCheck = patch.check ?? null
+      return nextTick().then(() => document.querySelector<HTMLElement>('[data-testid="update-check"]'))
+    }
+
+    it('沒有結果也不在檢查：整塊不出現', async () => {
+      expect(await withCheck({})).toBeNull()
+    })
+
+    it('檢查中', async () => {
+      const el = await withCheck({ checking: true })
+      expect(el?.textContent).toContain('Checking for updates')
+    })
+
+    it('有新版且附指令：顯示版號、指令與複製鈕', async () => {
+      const el = await withCheck({ check: { status: 'available', latest: '1.15.0', command: 'pnpm add -g @fission-ai/openspec@latest' } })
+      expect(el?.textContent).toContain('openspec 1.15.0 is available')
+      expect(el?.textContent).toContain('pnpm add -g @fission-ai/openspec@latest')
+      expect(el?.querySelector('[aria-label="Copy upgrade command"]')).not.toBeNull()
+    })
+
+    it('有新版但沒有指令：只有版號，沒有複製鈕', async () => {
+      const el = await withCheck({ check: { status: 'available', latest: '1.15.0' } })
+      expect(el?.textContent).toContain('openspec 1.15.0 is available')
+      expect(el?.querySelector('button')).toBeNull()
+      expect(el?.querySelector('code')).toBeNull()
+    })
+
+    it('已是最新版', async () => {
+      const el = await withCheck({ check: { status: 'current' } })
+      expect(el?.textContent).toContain('up to date')
+    })
+
+    it('無法檢查', async () => {
+      const el = await withCheck({ check: { status: 'unavailable' } })
+      expect(el?.textContent).toContain('Can\'t check for updates right now')
+    })
+
+    it('複製鈕複製的是升級指令本身，成功後換成 Copied、逾時復原', async () => {
+      vi.useFakeTimers()
+      try {
+        const writeText = vi.fn().mockResolvedValue(undefined)
+        Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+        const el = await withCheck({ check: { status: 'available', latest: '1.15.0', command: 'pnpm add -g @fission-ai/openspec@latest' } })
+        const button = el!.querySelector<HTMLButtonElement>('[aria-label="Copy upgrade command"]')!
+        expect(button.getAttribute('title')).toBe('Copy upgrade command')
+
+        button.click()
+        await vi.advanceTimersByTimeAsync(0)
+        await nextTick()
+
+        expect(writeText).toHaveBeenCalledWith('pnpm add -g @fission-ai/openspec@latest')
+        expect(button.getAttribute('title')).toBe('Copied')
+
+        await vi.advanceTimersByTimeAsync(2500)
+        expect(button.getAttribute('title')).toBe('Copy upgrade command')
+      }
+      finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('結果就地呈現，不出 toast', async () => {
+      await withCheck({ check: { status: 'unavailable' } })
+      expect(document.querySelector('[data-testid="update-check"]')).not.toBeNull()
+      expect(document.querySelector('[data-testid*="toast"], [role="alert"]')).toBeNull()
+    })
+
+    it('版本低於 1.14：說明需要 1.14 以上，沒有指令', async () => {
+      const el = await withCheck({ check: { status: 'too-old' } })
+      expect(el?.textContent).toContain('openspec 1.14 or later')
+      expect(el?.querySelector('button')).toBeNull()
+    })
   })
 })

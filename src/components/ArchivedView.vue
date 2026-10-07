@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useArchivedStore } from '../stores/archived'
 import { useProjectsStore } from '../stores/projects'
+import { useSettingsStore } from '../stores/settings'
 import PageHeader from './PageHeader.vue'
 import StateNotice from './StateNotice.vue'
 
@@ -13,6 +14,7 @@ import StateNotice from './StateNotice.vue'
 
 const archived = useArchivedStore()
 const projects = useProjectsStore()
+const settings = useSettingsStore()
 
 onMounted(() => {
   void archived.enter()
@@ -105,11 +107,39 @@ function progressTitle(completed: number, total: number): string {
         />
 
         <StateNotice
+          v-else-if="archived.cliUnavailable"
+          icon="i-lucide-unplug"
+          tone="error"
+          title="openspec CLI not available"
+          body="specrun could not run the openspec command. Point it at the executable in settings, or install openspec if it is missing."
+          :detail="archived.listError?.detail"
+        >
+          <button type="button" class="btn" @click="settings.open()">
+            <span class="i-lucide-settings h-4 w-4" aria-hidden="true" />
+            Open settings
+          </button>
+        </StateNotice>
+
+        <StateNotice
+          v-else-if="archived.cliOutdated"
+          icon="i-lucide-circle-arrow-up"
+          tone="error"
+          title="openspec CLI is too old"
+          body="The Archived page needs openspec 1.14 or later. Upgrade openspec, or point specrun at a newer executable in settings."
+          :detail="archived.listError?.detail"
+        >
+          <button type="button" class="btn" @click="settings.open()">
+            <span class="i-lucide-settings h-4 w-4" aria-hidden="true" />
+            Open settings
+          </button>
+        </StateNotice>
+
+        <StateNotice
           v-else-if="loadFailed"
           icon="i-lucide-file-warning"
           tone="error"
           title="Could not load archived changes"
-          body="Reading openspec/changes/archive/ did not complete, so this list may be missing. This is usually temporary."
+          body="The openspec CLI call or its response could not be read, so this list may be missing. This is usually temporary."
           :detail="archived.listError?.detail"
         >
           <button type="button" class="btn" :disabled="archived.busy" @click="archived.load()">

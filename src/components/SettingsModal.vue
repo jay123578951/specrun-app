@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
+import CopyNameButton from './CopyNameButton.vue'
 
 /**
  * App 的第一個 modal：內容為 1 組控制＋4 行唯讀，有硬上限、永不捲動，
@@ -345,6 +346,50 @@ function focusable(): HTMLElement[] {
                     Not verified yet.
                   </p>
                 </div>
+              </div>
+
+              <div
+                v-if="settings.checkingUpdate || settings.updateCheck"
+                class="mt-2.5 min-h-7 flex items-center gap-2.5 text-ui-sm"
+                role="status"
+                data-testid="update-check"
+              >
+                <template v-if="settings.checkingUpdate">
+                  <span class="i-lucide-loader-circle h-4 w-4 shrink-0 animate-spin text-text-3" aria-hidden="true" />
+                  <p class="text-text-2">
+                    Checking for updates…
+                  </p>
+                </template>
+                <template v-else-if="settings.updateCheck?.status === 'available'">
+                  <span class="i-lucide-circle-arrow-up h-4 w-4 shrink-0 text-accent-bright" aria-hidden="true" />
+                  <p class="shrink-0 text-text">
+                    openspec {{ settings.updateCheck.latest }} is available
+                  </p>
+                  <template v-if="settings.updateCheck.command">
+                    <code class="min-w-0 flex-1 truncate text-text-2 font-mono" :title="settings.updateCheck.command">
+                      {{ settings.updateCheck.command }}
+                    </code>
+                    <CopyNameButton :name="settings.updateCheck.command" label="upgrade command" />
+                  </template>
+                </template>
+                <template v-else-if="settings.updateCheck?.status === 'current'">
+                  <span class="i-lucide-circle-check h-4 w-4 shrink-0 text-done" aria-hidden="true" />
+                  <p class="text-text-2">
+                    openspec is up to date
+                  </p>
+                </template>
+                <template v-else-if="settings.updateCheck?.status === 'too-old'">
+                  <span class="i-lucide-triangle-alert h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+                  <p class="text-text-2 text-pretty">
+                    The Archived page and update checks need openspec 1.14 or later.
+                  </p>
+                </template>
+                <template v-else>
+                  <span class="i-lucide-circle-question-mark h-4 w-4 shrink-0 text-text-3" aria-hidden="true" />
+                  <p class="text-text-2">
+                    Can't check for updates right now.
+                  </p>
+                </template>
               </div>
             </section>
 

@@ -18,6 +18,7 @@ const gateway = vi.hoisted(() => ({
   listProjects: vi.fn(),
   listSpecs: vi.fn(),
   listArchived: vi.fn(),
+  checkCliUpdate: vi.fn(),
 }))
 
 vi.mock('../api', () => ({ gateway }))
@@ -39,6 +40,7 @@ function serverIsQuiet(): void {
   })
   gateway.listSpecs.mockResolvedValue({ ok: true, targetPath: '/p', specs: [] })
   gateway.listArchived.mockResolvedValue({ ok: true, targetPath: '/p', items: [] })
+  gateway.checkCliUpdate.mockResolvedValue({ status: 'current' })
   gateway.getDiagnostics.mockResolvedValue({
     configPath: '/config.json',
     projectPath: '/p',
@@ -96,16 +98,18 @@ describe('settings store', () => {
     })
   })
 
-  it('archived 不因換 CLI 而重載（檔案層直讀、CLI 零參與）', async () => {
+  it('套用成功後 archived 被重載', async () => {
     const store = await opened()
-    useArchivedStore()
     gateway.applyCliPath.mockResolvedValue({ ok: true, settings: OVERRIDE_OK })
+    const archived = useArchivedStore()
+    const load = vi.spyOn(archived, 'load')
 
     store.useManual()
     store.setDraft('/Users/me/Library/pnpm/openspec')
     await store.apply()
 
-    expect(gateway.listArchived).not.toHaveBeenCalled()
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(gateway.listArchived).toHaveBeenCalledTimes(1)
   })
 
   it('目前頁為 Changes 時不另外重載 specs', async () => {
@@ -165,7 +169,7 @@ describe('settings store', () => {
     expect(gateway.redetectCli).toHaveBeenCalledTimes(1)
     expect(store.mode).toBe('auto')
     expect(gateway.listChanges).toHaveBeenCalledTimes(1)
-    expect(gateway.listArchived).not.toHaveBeenCalled()
+    expect(gateway.listArchived).toHaveBeenCalledTimes(1)
   })
 
   it('reveal 成功時不顯示任何提示', async () => {
@@ -219,5 +223,145 @@ describe('settings store', () => {
 
     expect(store.settings).toEqual(AUTO_OK)
     expect(gateway.listChanges).not.toHaveBeenCalled()
+  })
+  describe('更新檢查', () => {
+    it('開啟 Settings 且有可用執行檔時檢查，先是檢查中再是結果', async () => {
+      let resolve!: (v: unknown) => void
+      gateway.checkCliUpdate.mockReturnValue(new Promise((r) => {
+        resolve = r
+      }))
+      const store = await opened()
+
+      expect(store.checkingUpdate).toBe(true)
+      expect(store.updateCheck).toBeNull()
+
+      resolve({ status: 'available', latest: '1.15.0' })
+      await vi.waitFor(() => expect(store.checkingUpdate).toBe(false))
+      expect(store.updateCheck).toEqual({ status: 'available', latest: '1.15.0' })
+    })
+
+    it('沒有可用執行檔時不檢查', async () => {
+      gateway.getCliSettings.mockResolvedValue({ mode: 'auto', bin: null, version: null, message: 'x' })
+      const store = useSettingsStore()
+      await store.open()
+
+      expect(gateway.checkCliUpdate).not.toHaveBeenCalled()
+      expect(store.updateCheck).toBeNull()
+      expect(store.checkingUpdate).toBe(false)
+    })
+
+    it('套用新執行檔成功後以新執行檔重新檢查', async () => {
+      const store = await opened()
+      await vi.waitFor(() => expect(store.checkingUpdate).toBe(false))
+      gateway.checkCliUpdate.mockResolvedValue({ status: 'too-old' })
+      gateway.applyCliPath.mockResolvedValue({ ok: true, settings: OVERRIDE_OK })
+
+      store.useManual()
+      store.setDraft('/x/openspec')
+      await store.apply()
+
+      expect(gateway.checkCliUpdate).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'too-old' }))
+    })
+
+    it('晚到的舊結果不覆蓋新結果', async () => {
+      const resolvers: ((v: unknown) => void)[] = []
+      gateway.checkCliUpdate.mockImplementation(() => new Promise((r) => {
+        resolvers.push(r)
+      }))
+      const store = await opened()
+      gateway.applyCliPath.mockResolvedValue({ ok: true, settings: OVERRIDE_OK })
+
+      store.useManual()
+      store.setDraft('/x/openspec')
+      await store.apply()
+      expect(resolvers).toHaveLength(2)
+
+      resolvers[1]!({ status: 'current' })
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'current' }))
+      resolvers[0]!({ status: 'available', latest: '9.9.9' })
+      await Promise.resolve()
+
+      expect(store.updateCheck).toEqual({ status: 'current' })
+    })
+
+    it('切回自動偵測成功後以新執行檔重新檢查', async () => {
+      const store = await opened()
+      await vi.waitFor(() => expect(store.checkingUpdate).toBe(false))
+      gateway.redetectCli.mockResolvedValue(AUTO_OK)
+      gateway.checkCliUpdate.mockResolvedValue({ status: 'available', latest: '2.0.0' })
+
+      store.useManual()
+      await store.useAuto()
+
+      expect(gateway.checkCliUpdate).toHaveBeenCalledTimes(2)
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'available', latest: '2.0.0' }))
+    })
+
+    it('套用失敗時不重新檢查，也不動既有結果', async () => {
+      const store = await opened()
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'current' }))
+      gateway.applyCliPath.mockResolvedValue({ ok: false, message: 'nope' })
+
+      store.useManual()
+      store.setDraft('/gone')
+      await store.apply()
+
+      expect(gateway.checkCliUpdate).toHaveBeenCalledTimes(1)
+      expect(gateway.listArchived).not.toHaveBeenCalled()
+      expect(store.updateCheck).toEqual({ status: 'current' })
+    })
+
+    it('重新檢查期間不留前一個執行檔的舊結果', async () => {
+      const store = await opened()
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'current' }))
+      gateway.checkCliUpdate.mockReturnValue(new Promise(() => {}))
+
+      void store.checkUpdate()
+
+      expect(store.checkingUpdate).toBe(true)
+      expect(store.updateCheck).toBeNull()
+    })
+
+    it('換成沒有可用版本的執行檔後清掉舊結果、不再檢查', async () => {
+      const store = await opened()
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'current' }))
+      gateway.applyCliPath.mockResolvedValue({
+        ok: true,
+        settings: { mode: 'override', bin: '/x/openspec', version: null, message: 'broken' },
+      })
+
+      store.useManual()
+      store.setDraft('/x/openspec')
+      await store.apply()
+
+      expect(gateway.checkCliUpdate).toHaveBeenCalledTimes(1)
+      expect(store.updateCheck).toBeNull()
+      expect(store.checkingUpdate).toBe(false)
+    })
+
+    it('重新檢查被取代時，舊檢查的結果也不會讓檢查中提早結束', async () => {
+      const resolvers: ((v: unknown) => void)[] = []
+      gateway.checkCliUpdate.mockImplementation(() => new Promise((r) => {
+        resolvers.push(r)
+      }))
+      const store = await opened()
+      void store.checkUpdate()
+      expect(resolvers).toHaveLength(2)
+
+      resolvers[0]!({ status: 'unavailable' })
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(store.checkingUpdate).toBe(true)
+      expect(store.updateCheck).toBeNull()
+    })
+
+    it('檢查拋例外時視為無法檢查', async () => {
+      gateway.checkCliUpdate.mockRejectedValue(new Error('boom'))
+      const store = await opened()
+
+      await vi.waitFor(() => expect(store.updateCheck).toEqual({ status: 'unavailable' }))
+    })
   })
 })

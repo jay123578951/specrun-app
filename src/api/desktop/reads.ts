@@ -136,7 +136,7 @@ async function readSpecContent(specId: string): Promise<SpecContentResult> {
  * 輸出原樣搬進去——CLI 以診斷 JSON 失敗時，那份 stdout 正是 normalize 要解析的東西。
  * 沒跑成時 runCli 已分類完，失敗原樣放進 probe。
  */
-async function cliProbe(args: string[], targetPath: string): Promise<ChangeListProbe> {
+export async function cliProbe(args: string[], targetPath: string): Promise<ChangeListProbe> {
   const outcome = await runCli(args, targetPath)
   if (!outcome.ok)
     return { targetPath, exitCode: null, stdout: '', stderr: '', failure: outcome.failure }

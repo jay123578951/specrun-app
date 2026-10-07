@@ -1,6 +1,5 @@
 import type {
   ArchivedDetailProbe,
-  ArchivedEntryProbe,
   ArchivedListProbe,
   ArchivedListResult,
   ArchivedTabProbe,
@@ -11,15 +10,12 @@ import { normalizeArchivedDetail, normalizeArchivedList } from '../normalize-arc
 import { isDirectory, isSafeChangeName } from './parked-store'
 import { isInside, join } from './paths'
 import { resolveTarget } from './projects'
-import { pathExists, readDir, readTextFile } from './shell'
+import { cliProbe } from './reads'
+import { readDir, readTextFile } from './shell'
 
 /**
- * 桌面形態的 archived 清單與詳情（對應 web 形態的 server/api/archived.get.ts 與
- * server/api/archived/[name].get.ts）。這一側只做 IO 並造出 probe——日期前綴拆解、
- * 進度計算、排序與錯誤分類都在兩形態共用的 src/api/normalize-archived.ts。
- *
- * 一切都在 `<project>/openspec/changes/archive/` 底下，目錄為準：openspec CLI 不認識
- * archived change（`list` 無選項、`status`／`show` 回錯誤），所以只列目錄、只讀 Markdown。
+ * 清單走 CLI 的 `list --archived --json`；詳情仍直讀
+ * `<project>/openspec/changes/archive/` 底下的 Markdown：`status`／`show` 不認得 archived change。
  *
  * 詳情的 tabs 只能現場列舉——archived change 既沒有 `openspec status` 可問，也沒有
  * park 那樣的快照。集合是頂層 `*.md` ＋ `specs/**\/spec.md`，順序 proposal → design →
@@ -29,7 +25,7 @@ import { pathExists, readDir, readTextFile } from './shell'
 
 const OPENSPEC_DIR = 'openspec'
 const ARCHIVE_DIR = ['changes', 'archive']
-const TASKS_FILE = 'tasks.md'
+const ARCHIVED_LIST_ARGS = ['list', '--archived', '--json']
 const SPECS_DIR = 'specs'
 const SPEC_FILE = 'spec.md'
 /** 慣例上的閱讀順序；其餘頂層檔案排在最後、依字母序 */
@@ -44,8 +40,10 @@ export async function listArchived(): Promise<ArchivedListResult> {
     // 通道本身出事（外殼拒絕 invoke）時的兜底：這條路對外只回結果、不丟例外
     return normalizeArchivedList({
       targetPath: '',
-      entries: [],
-      failure: { kind: 'read-failed', message: describe(error) },
+      exitCode: null,
+      stdout: '',
+      stderr: '',
+      failure: { kind: 'spawn-failed', message: describe(error) },
     })
   }
 }
@@ -59,74 +57,18 @@ export async function getArchivedDetail(changeName: string): Promise<ChangeDetai
   }
 }
 
-function openspecDirOf(projectPath: string): string {
-  return join(projectPath, OPENSPEC_DIR)
-}
-
 /** archived change 的存放根目錄；帶 dir 時直接給該 change 的目錄 */
 function archiveDirOf(projectPath: string, dir?: string): string {
-  const root = join(openspecDirOf(projectPath), ...ARCHIVE_DIR)
+  const root = join(projectPath, OPENSPEC_DIR, ...ARCHIVE_DIR)
   return dir === undefined ? root : join(root, dir)
 }
 
 async function readArchivedList(): Promise<ArchivedListProbe> {
   const target = await resolveTarget()
-  if (!target.ok) {
-    return {
-      targetPath: target.probe.targetPath,
-      entries: [],
-      failure: {
-        kind: 'not-openspec-project',
-        message: target.probe.failure?.message ?? 'No project is selected.',
-      },
-    }
-  }
+  if (!target.ok)
+    return target.probe
 
-  // 沒有 openspec/ 就不是 openspec 專案——與 Changes／Specs 頁的分層一致，
-  // 不能混進「讀取失敗」讓使用者以為重試有用
-  if (!(await isDirectory(openspecDirOf(target.targetPath)))) {
-    return {
-      targetPath: target.targetPath,
-      entries: [],
-      failure: {
-        kind: 'not-openspec-project',
-        message: `No openspec/ directory at ${target.targetPath}.`,
-      },
-    }
-  }
-
-  const archiveRoot = archiveDirOf(target.targetPath)
-  // 先問 archive 根目錄在不在，才分得出「還沒 archive 過任何東西」與「目錄在、列不
-  // 出來」——後者要給得出 Try again，不能一起吞成空清單（design D2）
-  if (!(await pathExists(archiveRoot)))
-    return { targetPath: target.targetPath, entries: [] }
-
-  let dirs: DirEntry[]
-  try {
-    dirs = sortByName(await readDir(archiveRoot)).filter(entry => entry.isDirectory)
-  }
-  catch (error) {
-    return {
-      targetPath: target.targetPath,
-      entries: [],
-      failure: { kind: 'read-failed', message: describe(error) },
-    }
-  }
-
-  const entries = await Promise.all(
-    dirs.map(entry => readEntry(join(archiveRoot, entry.name), entry.name)),
-  )
-  return { targetPath: target.targetPath, entries }
-}
-
-/** 讀不到就是沒有：該卡退回「無進度」，其他卡片照常（單一 change 讀不到不拖垮清單） */
-async function readEntry(dir: string, name: string): Promise<ArchivedEntryProbe> {
-  try {
-    return { dir: name, tasks: await readTextFile(join(dir, TASKS_FILE)) }
-  }
-  catch {
-    return { dir: name }
-  }
+  return cliProbe(ARCHIVED_LIST_ARGS, target.targetPath)
 }
 
 async function readArchivedDetail(changeName: string): Promise<ArchivedDetailProbe> {

@@ -33,6 +33,8 @@ export const useArchivedStore = defineStore('archived', () => {
   const isOpen = computed(() => openDir.value !== null)
   const busy = computed(() => firstLoadPending.value || refreshing.value)
   const count = computed(() => items.value.length)
+  const cliUnavailable = computed(() => listError.value?.kind === 'cli-unavailable')
+  const cliOutdated = computed(() => listError.value?.kind === 'cli-outdated')
   const artifacts = computed<ArtifactView[]>(() => detail.value?.artifacts ?? [])
   const currentArtifact = computed(
     () => artifacts.value.find(artifact => artifact.id === currentTab.value) ?? null,
@@ -193,6 +195,8 @@ export const useArchivedStore = defineStore('archived', () => {
     isOpen,
     busy,
     count,
+    cliUnavailable,
+    cliOutdated,
     artifacts,
     currentArtifact,
     openName,

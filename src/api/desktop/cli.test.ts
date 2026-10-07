@@ -551,4 +551,80 @@ describe('desktop/cli', () => {
     expect(settings.message).toContain('/Users/me/Library/pnpm/openspec')
     expect(settings.message).not.toContain('Could not find')
   })
+
+  describe('checkCliUpdate', () => {
+    const isUpdateCheck = (_p: string, a: string[]) => a.join(' ') === 'version --check --json'
+
+    async function loadWith(updateOutcome: SpawnOutcome | Error) {
+      const store = makeConfigStore(makeConfig({ openspecBin: '/custom/openspec' }))
+      const shell = makeShell([
+        { match: (p, a) => p === '/custom/openspec' && isVersionCall(p, a), outcome: ok('1.14.1') },
+        {
+          match: isUpdateCheck,
+          get outcome(): SpawnOutcome {
+            if (updateOutcome instanceof Error)
+              throw updateOutcome
+            return updateOutcome
+          },
+        },
+      ], { windows: true })
+      vi.doMock('./config-store', () => store)
+      vi.doMock('./shell', () => shell)
+      return { shell, ...await import('./cli') }
+    }
+
+    it('有新版：回 latest 與 command，並以資料上限在家目錄執行', async () => {
+      const stdout = JSON.stringify({ update: { status: 'available', latest: '1.15.0', command: 'pnpm add -g x' } })
+      const { checkCliUpdate, shell } = await loadWith(ok(stdout))
+
+      expect(await checkCliUpdate()).toEqual({ status: 'available', latest: '1.15.0', command: 'pnpm add -g x' })
+      expect(shell.spawnBin).toHaveBeenCalledWith('/custom/openspec', ['version', '--check', '--json'], '/home/x', DATA_LIMITS)
+    })
+
+    it('已是最新', async () => {
+      const { checkCliUpdate } = await loadWith(ok(JSON.stringify({ update: { status: 'current', latest: '1.14.1' } })))
+      expect(await checkCliUpdate()).toEqual({ status: 'current' })
+    })
+
+    it('1.13.2 的輸出：too-old', async () => {
+      const { checkCliUpdate } = await loadWith(nonZero('error: unknown command \'version\''))
+      expect(await checkCliUpdate()).toEqual({ status: 'too-old' })
+    })
+
+    it('逾時、spawn 失敗、輸出亂碼：一律 unavailable', async () => {
+      expect(await (await loadWith(timedOut())).checkCliUpdate()).toEqual({ status: 'unavailable' })
+      vi.resetModules()
+      expect(await (await loadWith(fail('boom'))).checkCliUpdate()).toEqual({ status: 'unavailable' })
+      vi.resetModules()
+      expect(await (await loadWith(ok('not json'))).checkCliUpdate()).toEqual({ status: 'unavailable' })
+    })
+
+    it('有新版但 CLI 沒給指令：只回 latest，不帶 command 欄位', async () => {
+      const { checkCliUpdate } = await loadWith(ok(JSON.stringify({ update: { status: 'available', latest: '1.15.0', command: null } })))
+      expect(await checkCliUpdate()).toEqual({ status: 'available', latest: '1.15.0' })
+    })
+
+    it.each(['offline', 'disabled'])('registry 狀態 %s（exit 0）：unavailable', async (status) => {
+      const { checkCliUpdate } = await loadWith(ok(JSON.stringify({ update: { status, latest: null, command: null } })))
+      expect(await checkCliUpdate()).toEqual({ status: 'unavailable' })
+    })
+
+    it('非零結束就算輸出長得像有新版也是 unavailable', async () => {
+      const stdout = JSON.stringify({ update: { status: 'available', latest: '1.15.0' } })
+      const outcome: SpawnOutcome = { ok: true, result: { status: 2, stdout, stderr: 'boom', timedOut: false, truncated: false } }
+      const { checkCliUpdate } = await loadWith(outcome)
+      expect(await checkCliUpdate()).toEqual({ status: 'unavailable' })
+    })
+
+    it('輸出被截斷：unavailable，不解析半截輸出', async () => {
+      const stdout = JSON.stringify({ update: { status: 'available', latest: '1.15.0' } })
+      const { checkCliUpdate } = await loadWith(truncated(stdout))
+      expect(await checkCliUpdate()).toEqual({ status: 'unavailable' })
+    })
+
+    it('通道丟例外：收成 unavailable，不逸出', async () => {
+      const { checkCliUpdate } = await loadWith(new Error('invoke refused'))
+      expect(await checkCliUpdate()).toEqual({ status: 'unavailable' })
+    })
+  })
 })

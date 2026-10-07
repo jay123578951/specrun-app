@@ -14,6 +14,7 @@ import type {
   ChangeListResult,
   ChangeStatus,
   ChangeSummary,
+  GatewayError,
   GatewayErrorKind,
   SpecContentProbe,
   SpecContentResult,
@@ -34,11 +35,41 @@ interface CliDiagnostic {
 }
 
 export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
-  const fail = (kind: GatewayErrorKind, message: string, detail?: string): ChangeListResult => ({
+  const failLoad = (detail: string): ChangeListResult => ({
     ok: false,
     targetPath: probe.targetPath,
+    error: { kind: 'call-failed', message: 'Could not read the change list.', detail },
+  })
+
+  const classified = classifyListPayload(probe, 'Could not read the change list.')
+  if (!classified.ok)
+    return { ok: false, targetPath: probe.targetPath, error: classified.error }
+  const { payload } = classified
+
+  if (!Array.isArray(payload.changes))
+    return failLoad('The CLI response carried no change list.')
+
+  const changes: ChangeSummary[] = []
+  for (const raw of payload.changes) {
+    const change = toSummary(raw, probe.proposals, probe.createdAt)
+    if (!change)
+      return failLoad('The CLI response had an unexpected shape.')
+    changes.push(change)
+  }
+
+  // 順序即 CLI 順序（lastModified 新→舊）；前端不重排
+  return { ok: true, targetPath: probe.targetPath, changes }
+}
+
+export function classifyListPayload(
+  probe: ChangeListProbe,
+  callFailedMessage: string,
+): { ok: true, payload: Record<string, unknown> } | { ok: false, error: GatewayError } {
+  const fail = (kind: GatewayErrorKind, message: string, detail?: string): { ok: false, error: GatewayError } => ({
+    ok: false,
     error: detail ? { kind, message, detail } : { kind, message },
   })
+  const notProject = 'The target folder is not an OpenSpec project.'
 
   if (probe.failure) {
     switch (probe.failure.kind) {
@@ -46,29 +77,24 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
         return fail('cli-unavailable', 'The openspec CLI is not available.', probe.failure.message)
       // 路徑不存在的資料夾當然不是 openspec 專案；與 CLI 找不到執行檔分開才不會誤導使用者
       case 'target-missing':
-        return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', probe.failure.message)
+        return fail('not-openspec-project', notProject, probe.failure.message)
       default:
-        return fail('call-failed', 'Could not read the change list.', probe.failure.message)
+        return fail('call-failed', callFailedMessage, probe.failure.message)
     }
   }
 
   const payload = parseJson(probe.stdout)
   if (!payload)
-    return fail('call-failed', 'Could not read the change list.', describeUnparsable(probe))
+    return fail('call-failed', callFailedMessage, describeUnparsable(probe))
 
   if (probe.exitCode !== 0) {
     const diagnostic = firstDiagnostic(payload)
     // exit 非 0＋root 解析類診斷 payload＝目標路徑無 openspec root
-    if (diagnostic && isRootDiagnostic(diagnostic)) {
-      return fail(
-        'not-openspec-project',
-        'The target folder is not an OpenSpec project.',
-        joinDetail(diagnostic.message, diagnostic.fix),
-      )
-    }
+    if (diagnostic && isRootDiagnostic(diagnostic))
+      return fail('not-openspec-project', notProject, joinDetail(diagnostic.message, diagnostic.fix))
     return fail(
       'call-failed',
-      'Could not read the change list.',
+      callFailedMessage,
       diagnostic ? joinDetail(diagnostic.message, diagnostic.fix) : `openspec exited with code ${probe.exitCode}.`,
     )
   }
@@ -76,23 +102,11 @@ export function normalizeChangeList(probe: ChangeListProbe): ChangeListResult {
   const root = checkRoot(payload, probe.targetPath)
   if (!root.ok) {
     return root.kind === 'missing'
-      ? fail('call-failed', 'Could not read the change list.', 'The CLI response carried no root path.')
-      : fail('not-openspec-project', 'The target folder is not an OpenSpec project.', root.detail)
+      ? fail('call-failed', callFailedMessage, 'The CLI response carried no root path.')
+      : fail('not-openspec-project', notProject, root.detail)
   }
 
-  if (!Array.isArray(payload.changes))
-    return fail('call-failed', 'Could not read the change list.', 'The CLI response carried no change list.')
-
-  const changes: ChangeSummary[] = []
-  for (const raw of payload.changes) {
-    const change = toSummary(raw, probe.proposals, probe.createdAt)
-    if (!change)
-      return fail('call-failed', 'Could not read the change list.', 'The CLI response had an unexpected shape.')
-    changes.push(change)
-  }
-
-  // 順序即 CLI 順序（lastModified 新→舊）；前端不重排
-  return { ok: true, targetPath: probe.targetPath, changes }
+  return { ok: true, payload }
 }
 
 /**
@@ -160,49 +174,17 @@ export function normalizeChangeDetail(probe: ChangeDetailProbe): ChangeDetailRes
   return { ok: true, detail: { name, artifacts } }
 }
 
-/**
- * specs 清單的判定順序與 change 清單同構——同一個 `list` 家族的 `--json` 輸出，
- * 差別只在讀 `payload.specs` 而非 `payload.changes`。
- */
 export function normalizeSpecList(probe: SpecListProbe): SpecListResult {
-  const fail = (kind: GatewayErrorKind, message: string, detail?: string): SpecListResult => ({
+  const failLoad = (detail: string): SpecListResult => ({
     ok: false,
     targetPath: probe.targetPath,
-    error: detail ? { kind, message, detail } : { kind, message },
+    error: { kind: 'call-failed', message: 'Could not read the spec list.', detail },
   })
-  const failLoad = (detail?: string): SpecListResult =>
-    fail('call-failed', 'Could not read the spec list.', detail)
 
-  if (probe.failure) {
-    switch (probe.failure.kind) {
-      case 'cli-unavailable':
-        return fail('cli-unavailable', 'The openspec CLI is not available.', probe.failure.message)
-      case 'target-missing':
-        return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', probe.failure.message)
-      default:
-        return failLoad(probe.failure.message)
-    }
-  }
-
-  const payload = parseJson(probe.stdout)
-  if (!payload)
-    return failLoad(describeUnparsable(probe))
-
-  if (probe.exitCode !== 0) {
-    const diagnostic = firstDiagnostic(payload)
-    if (diagnostic && isRootDiagnostic(diagnostic))
-      return fail('not-openspec-project', 'The target folder is not an OpenSpec project.', joinDetail(diagnostic.message, diagnostic.fix))
-    return failLoad(
-      diagnostic ? joinDetail(diagnostic.message, diagnostic.fix) : `openspec exited with code ${probe.exitCode}.`,
-    )
-  }
-
-  const root = checkRoot(payload, probe.targetPath)
-  if (!root.ok) {
-    return root.kind === 'missing'
-      ? failLoad('The CLI response carried no root path.')
-      : fail('not-openspec-project', 'The target folder is not an OpenSpec project.', root.detail)
-  }
+  const classified = classifyListPayload(probe, 'Could not read the spec list.')
+  if (!classified.ok)
+    return { ok: false, targetPath: probe.targetPath, error: classified.error }
+  const { payload } = classified
 
   if (!Array.isArray(payload.specs))
     return failLoad('The CLI response carried no spec list.')
@@ -221,6 +203,7 @@ export function normalizeSpecList(probe: SpecListProbe): SpecListResult {
 
 const SPEC_CONTENT_MESSAGES: Record<GatewayErrorKind, string> = {
   'cli-unavailable': 'The openspec CLI is not available.',
+  'cli-outdated': 'The openspec CLI is too old for this view.',
   'not-openspec-project': 'The target folder is not an OpenSpec project.',
   'call-failed': 'Could not load this spec.',
 }
@@ -437,6 +420,6 @@ function firstLine(value: string): string {
 // eslint-disable-next-line no-control-regex -- ESC 正是這裡要匹配的字元
 const ANSI = /\u001B\[[0-9;]*m/g
 
-function stripAnsi(value: string): string {
+export function stripAnsi(value: string): string {
   return value.replace(ANSI, '')
 }

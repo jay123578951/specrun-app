@@ -1,6 +1,6 @@
 import type { OpenSpecGateway } from './types'
 import { getArchivedDetail, listArchived } from './desktop/archived'
-import { applyOverride, cliSettings, redetect } from './desktop/cli'
+import { applyOverride, checkCliUpdate, cliSettings, redetect } from './desktop/cli'
 import { diagnostics } from './desktop/diagnostics'
 import { pickFolder } from './desktop/folder-picker'
 import { openUrl, revealPath } from './desktop/opener'
@@ -55,4 +55,6 @@ export const desktopGateway: OpenSpecGateway = {
 
   revealPath,
   openUrl,
+
+  checkCliUpdate,
 }

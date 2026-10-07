@@ -89,9 +89,18 @@ function makeProjects(targetPath: string | null) {
   }
 }
 
-async function load(shell: ReturnType<typeof makeShell>, projects: ReturnType<typeof makeProjects>) {
+function makeReads(probe: ChangeListProbe) {
+  return { cliProbe: vi.fn(async (_args: string[], _targetPath: string) => probe) }
+}
+
+async function load(
+  shell: ReturnType<typeof makeShell>,
+  projects: ReturnType<typeof makeProjects>,
+  reads: ReturnType<typeof makeReads> = makeReads({ targetPath: REPO, exitCode: 0, stdout: '', stderr: '' }),
+) {
   vi.doMock('./shell', () => shell)
   vi.doMock('./projects', () => projects)
+  vi.doMock('./reads', () => reads)
   return import('./archived')
 }
 
@@ -101,128 +110,75 @@ describe('desktop/archived', () => {
   })
 
   describe('清單', () => {
-    it('目錄列舉為準，每筆現場讀 tasks；日期新的排前面', async () => {
-      const shell = makeShell({
-        dirs: [REPO, OPENSPEC, ARCHIVE, `${ARCHIVE}/2026-01-02-add-x`, `${ARCHIVE}/2026-02-03-add-y`],
-        files: {
-          [`${ARCHIVE}/2026-01-02-add-x/tasks.md`]: '- [x] 1.1 done\n- [ ] 1.2 next\n',
-          [`${ARCHIVE}/2026-02-03-add-y/tasks.md`]: '- [x] 1.1 done\n',
-        },
-      })
-      const { listArchived } = await load(shell, makeProjects(REPO))
+    const listJson = JSON.stringify({
+      changes: [
+        { name: '2026-01-02-add-x', completedTasks: 1, totalTasks: 2, lastModified: '2026-09-01T00:00:00Z', status: 'in-progress' },
+        { name: '2026-02-03-add-y', completedTasks: 1, totalTasks: 1, lastModified: '2026-02-03T00:00:00Z', status: 'complete' },
+      ],
+      root: { path: REPO, source: 'explicit' },
+    })
+
+    it('走 CLI 的 list --archived --json，不列目錄也不讀 tasks；日期新的排前面', async () => {
+      const shell = makeShell({ dirs: [REPO, OPENSPEC, ARCHIVE] })
+      const reads = makeReads({ targetPath: REPO, exitCode: 0, stdout: listJson, stderr: '' })
+      const { listArchived } = await load(shell, makeProjects(REPO), reads)
 
       const result = await listArchived()
+      expect(reads.cliProbe).toHaveBeenCalledWith(['list', '--archived', '--json'], REPO)
+      expect(shell.readDir).not.toHaveBeenCalled()
+      expect(shell.readTextFile).not.toHaveBeenCalled()
       expect(result).toMatchObject({ ok: true, targetPath: REPO })
       expect(result.ok && result.items).toEqual([
-        {
-          dir: '2026-02-03-add-y',
-          name: 'add-y',
-          archivedAt: '2026-02-03',
-          completedTasks: 1,
-          totalTasks: 1,
-          status: 'complete',
-        },
-        {
-          dir: '2026-01-02-add-x',
-          name: 'add-x',
-          archivedAt: '2026-01-02',
-          completedTasks: 1,
-          totalTasks: 2,
-          status: 'in-progress',
-        },
+        { dir: '2026-02-03-add-y', name: 'add-y', archivedAt: '2026-02-03', completedTasks: 1, totalTasks: 1, status: 'complete' },
+        { dir: '2026-01-02-add-x', name: 'add-x', archivedAt: '2026-01-02', completedTasks: 1, totalTasks: 2, status: 'in-progress' },
       ])
     })
 
-    it('archive 目錄還不存在：問過一次就回空清單，不是錯誤', async () => {
-      const shell = makeShell({ dirs: [REPO, OPENSPEC] })
-      const { listArchived } = await load(shell, makeProjects(REPO))
+    it('changes 為空：回空清單，不是錯誤', async () => {
+      const reads = makeReads({ targetPath: REPO, exitCode: 0, stdout: '{"changes":[],"root":{"path":"/repo","source":"explicit"}}', stderr: '' })
+      const { listArchived } = await load(makeShell({}), makeProjects(REPO), reads)
 
       expect(await listArchived()).toEqual({ ok: true, targetPath: REPO, items: [] })
-      // 兩分岔的第一岔：根目錄問過（design D2），問完發現不在就直接回空清單，不繼續列目錄
-      expect(shell.pathExists).toHaveBeenCalledWith(ARCHIVE)
-      expect(shell.readDir).not.toHaveBeenCalled()
     })
 
-    it('archive 目錄存在但列不出來：回可重試的讀取失敗，不是空清單（design D2）', async () => {
-      const shell = makeShell({ dirs: [REPO, OPENSPEC, ARCHIVE] })
-      // 目錄本身「存在」但列舉這一步失敗（權限之類）：pathExists 答有、readDir 丟錯
-      shell.readDir.mockImplementation(async (path: string) => {
-        if (path === ARCHIVE)
-          throw new Error('EACCES: archive')
-        throw new Error(`ENOENT: ${path}`)
-      })
-      const { listArchived } = await load(shell, makeProjects(REPO))
+    it('1.13.2 的輸出：回 cli-outdated', async () => {
+      const reads = makeReads({ targetPath: REPO, exitCode: 1, stdout: '', stderr: 'error: unknown option \'--archived\'\n' })
+      const { listArchived } = await load(makeShell({}), makeProjects(REPO), reads)
 
       const result = await listArchived()
-      expect(shell.pathExists).toHaveBeenCalledWith(ARCHIVE)
-      expect(result.ok).toBe(false)
-      // normalizeArchivedList 把 'read-failed' 轉成 'call-failed'——畫面上才會出現 Try again
-      expect(result.ok === false && result.error).toEqual({
-        kind: 'call-failed',
-        message: 'Could not read the archived list.',
-        detail: 'EACCES: archive',
-      })
+      expect(result.ok === false && result.error.kind).toBe('cli-outdated')
     })
 
-    it('專案沒有 openspec/：回「不是 OpenSpec 專案」，不是讀取失敗', async () => {
-      const { listArchived } = await load(makeShell({ dirs: [REPO] }), makeProjects(REPO))
+    it('找不到執行檔：回 cli-unavailable', async () => {
+      const reads = makeReads({
+        targetPath: REPO,
+        exitCode: null,
+        stdout: '',
+        stderr: '',
+        failure: { kind: 'cli-unavailable', message: 'Could not find "openspec".' },
+      })
+      const { listArchived } = await load(makeShell({}), makeProjects(REPO), reads)
 
       const result = await listArchived()
-      expect(result.ok).toBe(false)
-      expect(result.ok === false && result.error).toEqual({
-        kind: 'not-openspec-project',
-        message: 'The target folder is not an OpenSpec project.',
-        detail: `No openspec/ directory at ${REPO}.`,
-      })
+      expect(result.ok === false && result.error.kind).toBe('cli-unavailable')
     })
 
-    it('無目標專案：同樣落在「不是 OpenSpec 專案」這一類', async () => {
-      const { listArchived } = await load(makeShell({}), makeProjects(null))
+    it('無目標專案：不跑 CLI，歸「不是 OpenSpec 專案」', async () => {
+      const reads = makeReads({ targetPath: '', exitCode: 0, stdout: '', stderr: '' })
+      const { listArchived } = await load(makeShell({}), makeProjects(null), reads)
 
       const result = await listArchived()
       expect(result.ok === false && result.error.kind).toBe('not-openspec-project')
+      expect(reads.cliProbe).not.toHaveBeenCalled()
     })
 
-    it('單筆讀不到 tasks：那張卡沒有進度，其餘照常', async () => {
-      const shell = makeShell({
-        dirs: [REPO, OPENSPEC, ARCHIVE, `${ARCHIVE}/2026-01-02-add-x`, `${ARCHIVE}/2026-01-03-add-y`],
-        files: { [`${ARCHIVE}/2026-01-03-add-y/tasks.md`]: '- [ ] 1.1 first\n' },
-        unreadable: [`${ARCHIVE}/2026-01-02-add-x/tasks.md`],
-      })
-      const { listArchived } = await load(shell, makeProjects(REPO))
+    it('通道本身丟例外：收成 call-failed，不逸出', async () => {
+      const reads = makeReads({ targetPath: REPO, exitCode: 0, stdout: '', stderr: '' })
+      reads.cliProbe.mockRejectedValue(new Error('invoke refused'))
+      const { listArchived } = await load(makeShell({}), makeProjects(REPO), reads)
 
       const result = await listArchived()
-      expect(result.ok && result.items.map(item => [item.name, item.totalTasks])).toEqual([
-        ['add-y', 1],
-        ['add-x', 0],
-      ])
-    })
-
-    it('每筆進度不問「這個檔案還在嗎」：只有 archive 根目錄問一次，逐筆 tasks 不問（那個詢問只落在 parked 詳情）', async () => {
-      const shell = makeShell({
-        dirs: [REPO, OPENSPEC, ARCHIVE, `${ARCHIVE}/2026-01-02-add-x`],
-        files: { [`${ARCHIVE}/2026-01-02-add-x/tasks.md`]: '- [ ] 1.1 first\n' },
-      })
-      const { listArchived } = await load(shell, makeProjects(REPO))
-
-      await listArchived()
-      // 根目錄那一問（design D2）之外，不再多問——逐筆 tasks 檔案讀不到就是那張卡沒進度
-      expect(shell.pathExists).toHaveBeenCalledTimes(1)
-      expect(shell.pathExists).toHaveBeenCalledWith(ARCHIVE)
-    })
-
-    it('散落檔案不算一筆：只認目錄', async () => {
-      const shell = makeShell({
-        dirs: [REPO, OPENSPEC, ARCHIVE, `${ARCHIVE}/2026-01-02-add-x`],
-        files: {
-          [`${ARCHIVE}/2026-01-02-add-x/tasks.md`]: '- [ ] 1.1 first\n',
-          [`${ARCHIVE}/.DS_Store`]: 'junk',
-        },
-      })
-      const { listArchived } = await load(shell, makeProjects(REPO))
-
-      const result = await listArchived()
-      expect(result.ok && result.items.map(item => item.dir)).toEqual(['2026-01-02-add-x'])
+      expect(result.ok === false && result.error).toMatchObject({ kind: 'call-failed', detail: 'invoke refused' })
     })
   })
 

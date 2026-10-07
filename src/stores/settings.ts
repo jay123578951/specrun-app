@@ -1,7 +1,8 @@
-import type { CliMode, CliSettings, EnvironmentDiagnostics } from '../api'
+import type { CliMode, CliSettings, CliUpdateCheck, EnvironmentDiagnostics } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { gateway } from '../api'
+import { useArchivedStore } from './archived'
 import { useChangesStore } from './changes'
 import { useProjectsStore } from './projects'
 import { useSpecsStore } from './specs'
@@ -39,6 +40,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const detecting = ref(false)
   const diagnostics = ref<EnvironmentDiagnostics | null>(null)
 
+  const updateCheck = ref<CliUpdateCheck | null>(null)
+  const checkingUpdate = ref(false)
+
   const busy = computed(() => applying.value || detecting.value)
   const canReveal = computed(() => diagnostics.value?.canReveal === true)
 
@@ -66,10 +70,38 @@ export const useSettingsStore = defineStore('settings', () => {
   async function open(): Promise<void> {
     isOpen.value = true
     await refresh()
+    void checkUpdate()
   }
 
   function close(): void {
     isOpen.value = false
+  }
+
+  let checkSeq = 0
+
+  async function checkUpdate(): Promise<void> {
+    const mine = ++checkSeq
+    const current = settings.value
+    if (!current?.bin || !current.version) {
+      updateCheck.value = null
+      checkingUpdate.value = false
+      return
+    }
+
+    updateCheck.value = null
+    checkingUpdate.value = true
+    let result: CliUpdateCheck
+    try {
+      result = await gateway.checkCliUpdate()
+    }
+    catch {
+      result = { status: 'unavailable' }
+    }
+    if (mine !== checkSeq)
+      return
+
+    updateCheck.value = result
+    checkingUpdate.value = false
   }
 
   /** 取回目前的解析結果與診斷；兩者互不等待 */
@@ -112,6 +144,7 @@ export const useSettingsStore = defineStore('settings', () => {
       if (mine !== seq)
         return
       adopt(result)
+      void checkUpdate()
       await reloadAfterCliChange()
     }
     finally {
@@ -146,6 +179,7 @@ export const useSettingsStore = defineStore('settings', () => {
       }
 
       adopt(result.settings)
+      void checkUpdate()
       // modal 不自動關：狀態列留著成功態，使用者關掉就看到資料已經回來
       await reloadAfterCliChange()
     }
@@ -156,13 +190,13 @@ export const useSettingsStore = defineStore('settings', () => {
 
   /**
    * 換 CLI 執行檔後的重載範圍，比照 `projects.ts` 的 `adopt()`：
-   * change 清單、目前所在頁的引擎資料、各專案徽章。
-   * archived 走檔案層直讀、CLI 零參與；watcher 監看檔案系統、與 CLI 無關——兩者都不動。
+   * change 清單、archived 清單（同樣由 CLI 產生）、目前所在頁的引擎資料、各專案徽章。
+   * watcher 監看檔案系統、與 CLI 無關，不重掛。
    */
   async function reloadAfterCliChange(): Promise<void> {
     const changes = useChangesStore()
     changes.invalidate()
-    await changes.load()
+    await Promise.all([changes.load(), useArchivedStore().load()])
 
     if (useViewStore().currentView === 'specs')
       await useSpecsStore().load()
@@ -207,9 +241,12 @@ export const useSettingsStore = defineStore('settings', () => {
     busy,
     canReveal,
     status,
+    updateCheck,
+    checkingUpdate,
     open,
     close,
     refresh,
+    checkUpdate,
     useManual,
     useAuto,
     apply,

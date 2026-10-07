@@ -15,6 +15,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       cliSettings: vi.fn(),
       applyOverride: vi.fn(),
       redetect: vi.fn(),
+      checkCliUpdate: vi.fn(),
     }
     const diagnosticsFn = vi.fn()
     const projects = {
@@ -69,6 +70,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       getDiagnostics: vi.fn(),
       revealPath: vi.fn(),
       openUrl: vi.fn(),
+      checkCliUpdate: vi.fn(),
     }
 
     vi.doMock('./desktop/cli', () => cli)
@@ -113,6 +115,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       getDiagnostics: diagnosticsFn,
       revealPath: opener.revealPath,
       openUrl: opener.openUrl,
+      checkCliUpdate: cli.checkCliUpdate,
     }
 
     // 逐一比對兩份實作的方法參照：desktopGateway 的每個方法都要等於桌面自己

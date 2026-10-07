@@ -180,3 +180,84 @@ describe('webGateway.listRoadmap: 回應形狀', () => {
     })
   })
 })
+
+describe('webGateway.listArchived: 回應形狀', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('把 /api/archived 的 CLI probe 交給 normalizeArchivedList', async () => {
+    const stdout = JSON.stringify({
+      changes: [{ name: '2026-01-02-add-x', completedTasks: 1, totalTasks: 2, lastModified: '2026-09-01T00:00:00Z', status: 'in-progress' }],
+      root: { path: '/project', source: 'explicit' },
+    })
+    const probe = { targetPath: '/project', exitCode: 0, stdout, stderr: '' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(probe) }))
+
+    const result = await webGateway.listArchived()
+
+    expect(fetch).toHaveBeenCalledWith('/api/archived')
+    expect(result.ok && result.items).toEqual([
+      { dir: '2026-01-02-add-x', name: 'add-x', archivedAt: '2026-01-02', completedTasks: 1, totalTasks: 2, status: 'in-progress' },
+    ])
+  })
+
+  it('1.13.2 的輸出（exit 1、unknown option）：cli-outdated，不是 call-failed', async () => {
+    const probe = { targetPath: '/project', exitCode: 1, stdout: '', stderr: 'error: unknown option \'--archived\'\n' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(probe) }))
+
+    const result = await webGateway.listArchived()
+    expect(result.ok === false && result.error.kind).toBe('cli-outdated')
+  })
+
+  it('changes 為空：空清單，不是錯誤', async () => {
+    const probe = { targetPath: '/project', exitCode: 0, stdout: '{"changes":[],"root":{"path":"/project","source":"explicit"}}', stderr: '' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(probe) }))
+
+    expect(await webGateway.listArchived()).toEqual({ ok: true, targetPath: '/project', items: [] })
+  })
+
+  it('連不到 route：call-failed，不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+    const result = await webGateway.listArchived()
+    expect(result.ok === false && result.error.kind).toBe('call-failed')
+  })
+})
+
+describe('webGateway.checkCliUpdate: 回應形狀', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('原樣回傳 /api/cli/update-check 的結果', async () => {
+    const body = { status: 'available', latest: '1.15.0', command: 'pnpm add -g x' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) }))
+
+    expect(await webGateway.checkCliUpdate()).toEqual(body)
+    expect(fetch).toHaveBeenCalledWith('/api/cli/update-check')
+  })
+
+  it.each([
+    { status: 'available', latest: '1.15.0' },
+    { status: 'current' },
+    { status: 'unavailable' },
+    { status: 'too-old' },
+  ])('四種結果之一原樣轉出：$status', async (body) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) }))
+    expect(await webGateway.checkCliUpdate()).toEqual(body)
+  })
+
+  it('回應不是合法 JSON：unavailable，不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.reject(new SyntaxError('bad json')) }))
+    expect(await webGateway.checkCliUpdate()).toEqual({ status: 'unavailable' })
+  })
+
+  it('連不到 route 或回應非 2xx：unavailable，不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    expect(await webGateway.checkCliUpdate()).toEqual({ status: 'unavailable' })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: () => Promise.resolve({}) }))
+    expect(await webGateway.checkCliUpdate()).toEqual({ status: 'unavailable' })
+  })
+})
