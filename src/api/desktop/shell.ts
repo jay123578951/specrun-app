@@ -86,6 +86,26 @@ export async function readTextFile(path: string): Promise<string> {
   return new TextDecoder().decode(bytes instanceof ArrayBuffer ? bytes : Uint8Array.from(bytes))
 }
 
+/** fs plugin 的 `open` 預設以唯讀開檔並回傳 Resource id，用完要交給 closeResource */
+export function openFileForRead(path: string): Promise<number> {
+  return invoke<number>('plugin:fs|open', { path })
+}
+
+/**
+ * fs plugin 的 `read` 回傳的位元組尾端附 8 位元組大端序的實際讀取長度；
+ * 讀到檔尾時長度為 0。
+ */
+export async function readFileChunk(rid: number, len: number): Promise<Uint8Array> {
+  const raw = await invoke<ArrayBuffer | number[]>('plugin:fs|read', { rid, len })
+  const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : Uint8Array.from(raw)
+  const nread = Number(new DataView(bytes.buffer, bytes.byteOffset + bytes.byteLength - 8, 8).getBigUint64(0))
+  return bytes.slice(0, nread)
+}
+
+export function closeResource(rid: number): Promise<void> {
+  return invoke('plugin:resources|close', { rid })
+}
+
 /** fs plugin 的 write_text_file 走 raw request：內容是 body，路徑放在 header 且需 percent-encode */
 export function writeTextFile(path: string, contents: string): Promise<void> {
   return invoke('plugin:fs|write_text_file', new TextEncoder().encode(contents), {

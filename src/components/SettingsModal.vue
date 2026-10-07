@@ -2,11 +2,11 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import CopyNameButton from './CopyNameButton.vue'
+import WorkflowFileRow from './WorkflowFileRow.vue'
 
 /**
- * App 的第一個 modal：內容為 1 組控制＋4 行唯讀，有硬上限、永不捲動，
- * 所以由內容決定尺寸而不是由容器決定。疊在任何頁之上、不進 App.vue 的面板槽——
- * 詳情開著也能疊上來，關掉就回到原狀。
+ * App 的第一個 modal：疊在任何頁之上、不進 App.vue 的面板槽——
+ * 詳情開著也能疊上來，關掉就回到原狀。內容區超過視窗高度時自己捲動。
  */
 
 const settings = useSettingsStore()
@@ -168,6 +168,12 @@ function onKeydown(event: KeyboardEvent): void {
   const first = targets[0]!
   const last = targets[targets.length - 1]!
   const active = document.activeElement
+
+  if (!panel.value?.contains(active)) {
+    event.preventDefault()
+    ;(event.shiftKey ? last : first).focus()
+    return
+  }
 
   // 焦點在盒子本身（tabindex -1）時交給瀏覽器：正向自然落在第一項，反向才要接手
   if (event.shiftKey && (active === first || active === panel.value)) {
@@ -391,6 +397,60 @@ function focusable(): HTMLElement[] {
                   </p>
                 </template>
               </div>
+            </section>
+
+            <section class="border-t border-line pt-5" data-testid="workflow-files">
+              <h3 class="text-ui-xs text-text-3 uppercase tracking-wider">
+                Project workflow files
+              </h3>
+              <p class="mt-1.5 text-ui-sm text-text-2 text-pretty">
+                The openspec skill files each project carries, compared with the CLI above.
+              </p>
+
+              <p
+                v-if="settings.workflowFiles === null && settings.workflowFilesError === null"
+                class="mt-3 flex items-center gap-2 text-ui-sm text-text-2"
+                role="status"
+              >
+                <span class="i-lucide-loader-circle h-4 w-4 shrink-0 animate-spin text-text-3" aria-hidden="true" />
+                Reading project workflow files…
+              </p>
+              <p v-else-if="settings.workflowFilesError !== null" class="mt-3 flex items-start gap-2 text-ui-sm text-text-2" role="status">
+                <span class="i-lucide-triangle-alert mt-0.5 h-4 w-4 shrink-0 text-error" aria-hidden="true" />
+                <span class="min-w-0 text-pretty">Can't read project workflow files: {{ settings.workflowFilesError }}</span>
+              </p>
+              <p v-else-if="settings.workflowFiles?.length === 0" class="mt-3 text-ui-sm text-text-2">
+                No projects added yet.
+              </p>
+              <template v-else>
+                <p v-if="settings.workflowCurrent === null" class="mt-3 text-ui-sm text-text-2" data-testid="workflow-no-current">
+                  The current project isn't in your project list.
+                </p>
+                <ul v-else class="mt-3">
+                  <WorkflowFileRow :entry="settings.workflowCurrent" />
+                </ul>
+                <button
+                  v-if="settings.workflowOthers.length > 0"
+                  type="button"
+                  class="mt-1 h-9 w-full flex cursor-pointer items-center gap-1.5 rounded text-left text-ui-sm text-text-2 transition-[color] duration-150 ease-[var(--sr-ease-out)] hover:text-text kbd-focus"
+                  data-testid="workflow-others-toggle"
+                  aria-controls="workflow-others"
+                  :aria-expanded="settings.workflowOthersOpen"
+                  @click="settings.workflowOthersOpen = !settings.workflowOthersOpen"
+                >
+                  <span
+                    class="i-lucide-chevron-right h-4 w-4 shrink-0 text-text-3"
+                    :class="{ 'rotate-90': settings.workflowOthersOpen }"
+                    aria-hidden="true"
+                  />
+                  Other projects ({{ settings.workflowOthers.length }}) · <span class="tabular-nums">{{ settings.workflowOthersBehind }}</span> behind
+                </button>
+                <div id="workflow-others">
+                  <ul v-if="settings.workflowOthersOpen" class="space-y-1">
+                    <WorkflowFileRow v-for="entry in settings.workflowOthers" :key="entry.path" :entry="entry" />
+                  </ul>
+                </div>
+              </template>
             </section>
 
             <section class="border-t border-line pt-5">

@@ -27,6 +27,8 @@ import type {
   SpecListResult,
   TaskToggleInput,
   ToggleResult,
+  WorkflowFilesListResult,
+  WorkflowFilesUpdateResult,
 } from './types'
 import { normalizeChangeDetail, normalizeChangeList, normalizeSpecContent, normalizeSpecList } from './normalize'
 import { normalizeArchivedDetail, normalizeArchivedList } from './normalize-archived'
@@ -380,6 +382,36 @@ export const webGateway: OpenSpecGateway = {
     }
     catch {
       return { status: 'unavailable' }
+    }
+  },
+
+  async listWorkflowFiles(): Promise<WorkflowFilesListResult> {
+    try {
+      const res = await fetch('/api/workflow-files')
+      const result = await res.json() as WorkflowFilesListResult
+      if (typeof result?.ok !== 'boolean')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch (error) {
+      return { ok: false, message: `Could not read the workflow files: ${describe(error)}` }
+    }
+  },
+
+  async updateWorkflowFiles(path: string): Promise<WorkflowFilesUpdateResult> {
+    try {
+      const res = await fetch('/api/workflow-files/update', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path }),
+      })
+      const result = await res.json() as WorkflowFilesUpdateResult
+      if (typeof result?.ok !== 'boolean')
+        throw new TypeError(`Unexpected response: ${res.status}`)
+      return result
+    }
+    catch (error) {
+      return { ok: false, message: `Could not update the workflow files: ${describe(error)}` }
     }
   },
 }

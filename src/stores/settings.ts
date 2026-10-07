@@ -1,4 +1,4 @@
-import type { CliMode, CliSettings, CliUpdateCheck, EnvironmentDiagnostics } from '../api'
+import type { CliMode, CliSettings, CliUpdateCheck, EnvironmentDiagnostics, WorkflowFilesEntry } from '../api'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { gateway } from '../api'
@@ -23,6 +23,11 @@ export type CliStatus
     | { kind: 'ok', bin: string, version: string }
     | { kind: 'failed', message: string }
 
+export type WorkflowRowOp
+  = { kind: 'updating' }
+    | { kind: 'done', warning: string | null }
+    | { kind: 'failed', message: string }
+
 export const useSettingsStore = defineStore('settings', () => {
   const isOpen = ref(false)
   /** 目前生效的解析結果；null＝尚未取得（modal 首次開啟前） */
@@ -42,6 +47,19 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const updateCheck = ref<CliUpdateCheck | null>(null)
   const checkingUpdate = ref(false)
+
+  const workflowFiles = ref<WorkflowFilesEntry[] | null>(null)
+  const workflowFilesError = ref<string | null>(null)
+  const workflowOps = ref<Record<string, WorkflowRowOp>>({})
+  const workflowOthersOpen = ref(false)
+
+  /** 目前專案在流程檔一覽裡那一列；目前專案不在清單、或沒有目前專案時為 null */
+  const workflowCurrent = computed(() => {
+    const path = useProjectsStore().currentProject?.path
+    return workflowFiles.value?.find(entry => entry.path === path) ?? null
+  })
+  const workflowOthers = computed(() => (workflowFiles.value ?? []).filter(entry => entry !== workflowCurrent.value))
+  const workflowOthersBehind = computed(() => workflowOthers.value.filter(entry => entry.status === 'behind').length)
 
   const busy = computed(() => applying.value || detecting.value)
   const canReveal = computed(() => diagnostics.value?.canReveal === true)
@@ -69,8 +87,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function open(): Promise<void> {
     isOpen.value = true
+    workflowOthersOpen.value = false
     await refresh()
     void checkUpdate()
+    void loadWorkflowFiles()
   }
 
   function close(): void {
@@ -102,6 +122,53 @@ export const useSettingsStore = defineStore('settings', () => {
 
     updateCheck.value = result
     checkingUpdate.value = false
+  }
+
+  let workflowSeq = 0
+  const refreshedAt = new Map<string, number>()
+
+  async function loadWorkflowFiles(): Promise<void> {
+    const mine = ++workflowSeq
+    const result = await gateway.listWorkflowFiles()
+    if (mine !== workflowSeq)
+      return
+
+    if (!result.ok) {
+      workflowFiles.value = null
+      workflowFilesError.value = result.message
+      return
+    }
+
+    workflowFilesError.value = null
+    const keepCurrent = (path: string): boolean => (refreshedAt.get(path) ?? -1) >= mine
+    const current = workflowFiles.value
+    workflowFiles.value = result.entries.map(entry => keepCurrent(entry.path) ? current?.find(item => item.path === entry.path) ?? entry : entry)
+    workflowOps.value = Object.fromEntries(
+      Object.entries(workflowOps.value).filter(([path, op]) => op.kind === 'updating' || keepCurrent(path)),
+    )
+  }
+
+  async function updateWorkflowFile(path: string): Promise<void> {
+    if (workflowOps.value[path]?.kind === 'updating')
+      return
+
+    workflowOps.value = { ...workflowOps.value, [path]: { kind: 'updating' } }
+    const result = await gateway.updateWorkflowFiles(path)
+    if (!result.ok) {
+      workflowOps.value = { ...workflowOps.value, [path]: { kind: 'failed', message: result.message } }
+      return
+    }
+
+    let warning = result.warning ?? null
+    const fresh = await gateway.listWorkflowFiles()
+    const entry = fresh.ok ? fresh.entries.find(item => item.path === path) : undefined
+    if (entry && workflowFiles.value)
+      workflowFiles.value = workflowFiles.value.map(item => item.path === path ? entry : item)
+    else
+      warning ??= 'Updated, but the new version could not be read.'
+
+    refreshedAt.set(path, workflowSeq)
+    workflowOps.value = { ...workflowOps.value, [path]: { kind: 'done', warning } }
   }
 
   /** 取回目前的解析結果與診斷；兩者互不等待 */
@@ -145,6 +212,7 @@ export const useSettingsStore = defineStore('settings', () => {
         return
       adopt(result)
       void checkUpdate()
+      void loadWorkflowFiles()
       await reloadAfterCliChange()
     }
     finally {
@@ -180,6 +248,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
       adopt(result.settings)
       void checkUpdate()
+      void loadWorkflowFiles()
       // modal 不自動關：狀態列留著成功態，使用者關掉就看到資料已經回來
       await reloadAfterCliChange()
     }
@@ -243,10 +312,19 @@ export const useSettingsStore = defineStore('settings', () => {
     status,
     updateCheck,
     checkingUpdate,
+    workflowFiles,
+    workflowFilesError,
+    workflowOps,
+    workflowOthersOpen,
+    workflowCurrent,
+    workflowOthers,
+    workflowOthersBehind,
     open,
     close,
     refresh,
     checkUpdate,
+    loadWorkflowFiles,
+    updateWorkflowFile,
     useManual,
     useAuto,
     apply,

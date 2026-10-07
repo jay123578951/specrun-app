@@ -11,6 +11,7 @@ import { getChangeDetail, getSpecContent, listChanges, listSpecs } from './deskt
 import { listRoadmap } from './desktop/roadmap'
 import { toggleTask } from './desktop/tasks'
 import { subscribeToChanges } from './desktop/watch'
+import { listWorkflowFiles, updateWorkflowFiles } from './desktop/workflow-files'
 
 /**
  * 桌面形態的 gateway。設定、CLI 解析、環境診斷、change 與 spec 的讀取、檔案變動通知、
@@ -57,4 +58,7 @@ export const desktopGateway: OpenSpecGateway = {
   openUrl,
 
   checkCliUpdate,
+
+  listWorkflowFiles,
+  updateWorkflowFiles,
 }

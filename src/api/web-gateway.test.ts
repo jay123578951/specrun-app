@@ -261,3 +261,46 @@ describe('webGateway.checkCliUpdate: 回應形狀', () => {
     expect(await webGateway.checkCliUpdate()).toEqual({ status: 'unavailable' })
   })
 })
+
+describe('webGateway.listWorkflowFiles／updateWorkflowFiles: 回應形狀', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('list：原樣回傳 /api/workflow-files 的結果', async () => {
+    const body = { ok: true, entries: [{ path: '/a', version: '1.13.1', status: 'behind' }] }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(body) }))
+
+    expect(await webGateway.listWorkflowFiles()).toEqual(body)
+    expect(fetch).toHaveBeenCalledWith('/api/workflow-files')
+  })
+
+  it('list：連不到或回應形狀不對，回 ok:false 不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    expect(await webGateway.listWorkflowFiles()).toMatchObject({ ok: false })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({}) }))
+    expect(await webGateway.listWorkflowFiles()).toMatchObject({ ok: false })
+  })
+
+  it('update：POST 路徑，原樣回傳結果（含非 2xx 的拒絕 body）', async () => {
+    const rejected = { ok: false, message: 'This project is not in the project list.' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 400, json: () => Promise.resolve(rejected) }))
+
+    expect(await webGateway.updateWorkflowFiles('/x')).toEqual(rejected)
+    expect(fetch).toHaveBeenCalledWith('/api/workflow-files/update', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path: '/x' }),
+    })
+
+    const done = { ok: true, warning: '⚠ skipped' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(done) }))
+    expect(await webGateway.updateWorkflowFiles('/a')).toEqual(done)
+  })
+
+  it('update：連不到時回 ok:false 不外洩例外', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+    expect(await webGateway.updateWorkflowFiles('/a')).toMatchObject({ ok: false })
+  })
+})

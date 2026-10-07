@@ -118,6 +118,8 @@ async fn spawn_bin(
 
 /// runtime 擴充 fs scope。遞迴 allow 不含 dotfile 目錄，而 park 機制依賴
 /// `.git/specrun-app/` 讀寫，故同一呼叫內對 `.git` 補顯式 allow。
+/// 流程檔版本要讀 `.claude/skills/*/SKILL.md`，同理補放行 `.claude/skills`；
+/// 不放行整個 `.claude`，因為其下有 `settings.json` 等個人設定。
 #[tauri::command]
 fn allow_path<R: tauri::Runtime>(app: tauri::AppHandle<R>, path: String) -> Result<(), String> {
   let scope = app.fs_scope();
@@ -125,6 +127,10 @@ fn allow_path<R: tauri::Runtime>(app: tauri::AppHandle<R>, path: String) -> Resu
   let git = std::path::Path::new(&path).join(".git");
   if git.is_dir() {
     scope.allow_directory(&git, true).map_err(|e| e.to_string())?;
+  }
+  let skills = std::path::Path::new(&path).join(".claude/skills");
+  if skills.is_dir() {
+    scope.allow_directory(&skills, true).map_err(|e| e.to_string())?;
   }
   Ok(())
 }
@@ -581,6 +587,70 @@ mod tests {
       scope.is_allowed(&parked),
       "park state lives under .git/, which a recursive allow does not cover on its own"
     );
+    std::fs::remove_dir_all(&project).ok();
+  }
+
+  #[test]
+  fn allow_path_reaches_claude_skills_but_not_the_rest_of_dot_claude() {
+    let app = mock_app();
+    let project = temp_dir_named("allow_path_claude");
+    let skill = project.join(".claude/skills/x/SKILL.md");
+    std::fs::create_dir_all(skill.parent().unwrap()).unwrap();
+    std::fs::write(&skill, b"x").unwrap();
+    let settings = project.join(".claude/settings.json");
+    std::fs::write(&settings, b"{}").unwrap();
+
+    allow_path(app.handle().clone(), project.to_string_lossy().into_owned()).unwrap();
+
+    let scope = app.fs_scope();
+    assert!(scope.is_allowed(&skill), ".claude/skills must be readable");
+    assert!(!scope.is_allowed(&settings), ".claude/settings.json must stay unreadable");
+    std::fs::remove_dir_all(&project).ok();
+  }
+
+  #[test]
+  fn allow_path_covers_every_skill_and_no_other_dot_claude_directory() {
+    let app = mock_app();
+    let project = temp_dir_named("allow_path_claude_many");
+    let skills: Vec<_> = ["openspec-explore", "openspec-apply-change", "other"]
+      .iter()
+      .map(|n| project.join(format!(".claude/skills/{n}/SKILL.md")))
+      .collect();
+    let outside: Vec<_> = [".claude/agents/a.md", ".claude/commands/c.md", ".claude/settings.local.json"]
+      .iter()
+      .map(|p| project.join(p))
+      .collect();
+    let git = project.join(".git/HEAD");
+    let ordinary = project.join("src/main.ts");
+    for f in skills.iter().chain(outside.iter()).chain([&git, &ordinary]) {
+      std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+      std::fs::write(f, b"x").unwrap();
+    }
+
+    allow_path(app.handle().clone(), project.to_string_lossy().into_owned()).unwrap();
+
+    let scope = app.fs_scope();
+    for f in &skills {
+      assert!(scope.is_allowed(f), "{f:?} must be readable");
+    }
+    for f in &outside {
+      assert!(!scope.is_allowed(f), "{f:?} must stay unreadable");
+    }
+    assert!(scope.is_allowed(&git), ".git must remain reachable");
+    assert!(scope.is_allowed(&ordinary), "ordinary files must remain reachable");
+    std::fs::remove_dir_all(&project).ok();
+  }
+
+  #[test]
+  fn allow_path_succeeds_for_a_project_without_claude_skills() {
+    let app = mock_app();
+    let project = temp_dir_named("allow_path_no_claude");
+    let file = project.join("openspec/project.md");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, b"x").unwrap();
+
+    assert_eq!(allow_path(app.handle().clone(), project.to_string_lossy().into_owned()), Ok(()));
+    assert!(app.fs_scope().is_allowed(&file));
     std::fs::remove_dir_all(&project).ok();
   }
 

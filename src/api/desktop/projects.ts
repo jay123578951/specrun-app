@@ -91,7 +91,7 @@ async function persistAndNotify(previous: string | null, next: string | null): P
  */
 const granted = new Set<string>()
 
-async function ensureAccess(path: string): Promise<void> {
+export async function ensureAccess(path: string): Promise<void> {
   if (granted.has(path))
     return
   await allowPath(path)

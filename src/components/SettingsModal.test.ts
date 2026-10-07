@@ -1,12 +1,23 @@
 // @vitest-environment jsdom
 import type { VueWrapper } from '@vue/test-utils'
-import type { CliUpdateCheck, EnvironmentDiagnostics } from '../api'
+import type { CliUpdateCheck, EnvironmentDiagnostics, WorkflowFilesEntry } from '../api'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { useProjectsStore } from '../stores/projects'
 import { useSettingsStore } from '../stores/settings'
 import SettingsModal from './SettingsModal.vue'
+
+const gateway = vi.hoisted(() => ({
+  getCliSettings: vi.fn(),
+  getDiagnostics: vi.fn(),
+  checkCliUpdate: vi.fn(),
+  listWorkflowFiles: vi.fn(),
+  updateWorkflowFiles: vi.fn(),
+}))
+
+vi.mock('../api', () => ({ gateway }))
 
 /**
  * 開啟位置的禁用成因由四種減為三種（本張的 5.3）。這裡只驗說明文字，
@@ -265,6 +276,352 @@ describe('settingsModal', () => {
       const el = await withCheck({ check: { status: 'too-old' } })
       expect(el?.textContent).toContain('openspec 1.14 or later')
       expect(el?.querySelector('button')).toBeNull()
+    })
+  })
+
+  describe('流程檔一覽區', () => {
+    const entries: WorkflowFilesEntry[] = [
+      { path: '/w/alpha', version: '1.13.1', status: 'behind' },
+      { path: '/w/beta', version: '1.14.1', status: 'current' },
+      { path: '/w/gamma', version: '1.15.0', status: 'ahead' },
+      { path: '/w/delta', version: null, status: 'unset' },
+      { path: '/w/epsilon', version: null, status: 'missing' },
+      { path: '/w/zeta', version: '1.8.0', status: null },
+    ]
+
+    /** currentPath 為 null＝沒有目前專案；不在 list 裡＝暫時加入的目前專案 */
+    function withEntries(list: WorkflowFilesEntry[] | null = entries, currentPath: string | null = '/w/alpha') {
+      const ctx = openModal(READY)
+      ctx.store.workflowFiles = list
+      useProjectsStore().projects = (list ?? []).concat(currentPath && !list?.some(e => e.path === currentPath) ? [{ path: currentPath, version: null, status: null }] : []).map(e => ({
+        path: e.path,
+        name: e.path,
+        current: e.path === currentPath,
+        temporary: false,
+        badge: null,
+      }))
+      return nextTick().then(() => ctx)
+    }
+
+    const toggle = () => document.querySelector<HTMLButtonElement>('[data-testid="workflow-others-toggle"]')!
+    async function expand() {
+      toggle().click()
+      await nextTick()
+    }
+
+    const rows = () => [...document.querySelectorAll<HTMLElement>('[data-testid="workflow-row"]')]
+    const updateButton = (name: string) => document.querySelector<HTMLButtonElement>(`[aria-label="Update ${name}"]`)
+
+    it('六種列狀態各自呈現，只有落後列有 Update 按鈕', async () => {
+      await withEntries()
+      await expand()
+      const text = rows().map(r => r.textContent!.replace(/\s+/g, ' ').trim())
+      expect(text[0]).toContain('alpha')
+      expect(text[0]).toContain('1.13.1')
+      expect(text[0]).toContain('Behind CLI')
+      expect(text[1]).toContain('Up to date')
+      expect(text[2]).toContain('Newer than CLI')
+      expect(text[3]).toContain('Not set up')
+      // 沒有版本（未設定、資料夾不存在）顯示 "-"，不留空也不顯示 null
+      for (const index of [3, 4]) {
+        const cells = [...rows()[index]!.querySelectorAll('span')].map(span => span.textContent!.trim())
+        expect(cells).toContain('-')
+        expect(text[index]).not.toMatch(/null|undefined/)
+      }
+      // 有版本的列不顯示 "-"
+      expect([...rows()[0]!.querySelectorAll('span')].map(span => span.textContent!.trim())).not.toContain('-')
+      expect(text[4]).toContain('Folder not found')
+      expect(text[5]).toContain('1.8.0')
+      expect(text[5]).not.toMatch(/Behind|Up to date|Newer|Not set up|not found/)
+      expect(document.querySelectorAll('[aria-label^="Update "]')).toHaveLength(1)
+      expect(updateButton('alpha')).not.toBeNull()
+    })
+
+    it('沒有全部更新按鈕、沒有 git 資訊', async () => {
+      await withEntries()
+      await expand()
+      const section = document.querySelector('[data-testid="workflow-files"]')!.textContent!
+      expect(section).not.toMatch(/update all/i)
+      expect(section).not.toMatch(/git|branch|uncommitted/i)
+    })
+
+    it('尚未讀到時顯示讀取中；整體失敗時顯示訊息；沒有專案時顯示空狀態', async () => {
+      await withEntries(null)
+      expect(document.querySelector('[data-testid="workflow-files"]')!.textContent).toContain('Reading project workflow files')
+      mounted.pop()!.unmount()
+
+      const { store } = await withEntries(null)
+      store.workflowFilesError = 'nope'
+      await nextTick()
+      expect(document.querySelector('[data-testid="workflow-files"]')!.textContent).toContain('nope')
+      mounted.pop()!.unmount()
+
+      await withEntries([])
+      expect(document.querySelector('[data-testid="workflow-files"]')!.textContent).toContain('No projects added yet')
+    })
+
+    it('按下 Update 帶入該專案路徑', async () => {
+      const { store } = await withEntries()
+      const spy = vi.spyOn(store, 'updateWorkflowFile').mockResolvedValue()
+      updateButton('alpha')!.click()
+      expect(spy).toHaveBeenCalledWith('/w/alpha')
+    })
+
+    it('更新中：按鈕禁用且標示忙碌，其他列照常', async () => {
+      const { store } = await withEntries([
+        { path: '/w/alpha', version: '1.13.1', status: 'behind' },
+        { path: '/w/beta', version: '1.13.1', status: 'behind' },
+      ])
+      await expand()
+      store.workflowOps['/w/alpha'] = { kind: 'updating' }
+      await nextTick()
+      const busy = updateButton('alpha')!
+      expect(busy.disabled).toBe(true)
+      expect(busy.getAttribute('aria-busy')).toBe('true')
+      expect(busy.textContent).toContain('Updating')
+      expect(updateButton('beta')!.disabled).toBe(false)
+    })
+
+    it('成功：列改為已是最新，按鈕消失，且不出 toast', async () => {
+      const { store } = await withEntries()
+      gateway.updateWorkflowFiles.mockResolvedValue({ ok: true })
+      gateway.listWorkflowFiles.mockResolvedValue({
+        ok: true,
+        entries: entries.map(e => e.path === '/w/alpha' ? { ...e, version: '1.14.1', status: 'current' } : e),
+      })
+      updateButton('alpha')!.click()
+      await vi.waitFor(() => expect(store.workflowOps['/w/alpha']?.kind).toBe('done'))
+      await nextTick()
+      expect(rows()[0]!.textContent).toContain('Up to date')
+      expect(rows()[0]!.textContent).toContain('1.14.1')
+      expect(updateButton('alpha')).toBeNull()
+      expect(document.querySelector('[data-testid*="toast"], [role="alert"]')).toBeNull()
+    })
+
+    it('區塊位置在 openspec CLI 區塊之後、Environment 之前', async () => {
+      await withEntries()
+      const sections = [...document.querySelectorAll('section')]
+      const idx = sections.findIndex(s => s.getAttribute('data-testid') === 'workflow-files')
+      expect(idx).toBeGreaterThan(0)
+      expect(sections[idx - 1]!.textContent).toMatch(/openspec/i)
+      expect(sections[idx + 1]!.textContent).toContain('Environment')
+    })
+
+    it('4 列落後就只有 4 個各自的 Update 按鈕', async () => {
+      await withEntries([
+        { path: '/w/a', version: '1.13.1', status: 'behind' },
+        { path: '/w/b', version: '1.13.1', status: 'behind' },
+        { path: '/w/c', version: '1.2.0', status: 'behind' },
+        { path: '/w/d', version: '1.8.0', status: 'behind' },
+        { path: '/w/e', version: '1.14.1', status: 'current' },
+        { path: '/w/f', version: null, status: 'unset' },
+      ], '/w/e')
+      await expand()
+      const buttons = [...document.querySelectorAll('[data-testid="workflow-files"] [aria-label^="Update "]')]
+      expect(buttons).toHaveLength(4)
+      expect(buttons.map(b => b.getAttribute('aria-label'))).toEqual(['Update a', 'Update b', 'Update c', 'Update d'])
+    })
+
+    it('cli 不可用（全部 status 為 null）：列出專案與版本，沒有狀態文字也沒有按鈕', async () => {
+      await withEntries([
+        { path: '/w/a', version: '1.13.1', status: null },
+        { path: '/w/b', version: '1.14.1', status: null },
+      ])
+      await expand()
+      expect(rows()).toHaveLength(2)
+      expect(rows()[0]!.textContent).toContain('1.13.1')
+      expect(rows()[1]!.textContent).toContain('1.14.1')
+      expect(document.querySelector('[data-testid="workflow-files"] [aria-label^="Update "]')).toBeNull()
+      expect(document.querySelector('[data-testid="workflow-files"]')!.textContent).not.toMatch(/Behind|Up to date|Newer|Update/)
+    })
+
+    it('實際點擊：更新中再點無效；另一列可同時更新，各自顯示結果', async () => {
+      gateway.updateWorkflowFiles.mockReset()
+      gateway.listWorkflowFiles.mockReset()
+      const finish: Record<string, (v: unknown) => void> = {}
+      gateway.updateWorkflowFiles.mockImplementation((path: string) => new Promise((r) => {
+        finish[path] = r
+      }))
+      gateway.listWorkflowFiles.mockResolvedValue({
+        ok: true,
+        entries: [
+          { path: '/w/alpha', version: '1.14.1', status: 'current' },
+          { path: '/w/beta', version: '1.13.1', status: 'behind' },
+        ],
+      })
+      const { store } = await withEntries([
+        { path: '/w/alpha', version: '1.13.1', status: 'behind' },
+        { path: '/w/beta', version: '1.13.1', status: 'behind' },
+      ])
+      await expand()
+      updateButton('alpha')!.click()
+      await nextTick()
+      updateButton('alpha')!.click()
+      expect(gateway.updateWorkflowFiles).toHaveBeenCalledTimes(1)
+      updateButton('beta')!.click()
+      await nextTick()
+      expect(gateway.updateWorkflowFiles).toHaveBeenCalledTimes(2)
+      expect(gateway.updateWorkflowFiles.mock.calls.map(c => c[0])).toEqual(['/w/alpha', '/w/beta'])
+
+      finish['/w/beta']!({ ok: false, message: 'exit 2' })
+      await vi.waitFor(() => expect(store.workflowOps['/w/beta']?.kind).toBe('failed'))
+      finish['/w/alpha']!({ ok: true })
+      await vi.waitFor(() => expect(store.workflowOps['/w/alpha']?.kind).toBe('done'))
+      await nextTick()
+      expect(rows()[0]!.textContent).toContain('Up to date')
+      expect(updateButton('alpha')).toBeNull()
+      expect(rows()[1]!.textContent).toContain('Update failed: exit 2')
+      expect(updateButton('beta')!.disabled).toBe(false)
+    })
+
+    describe('目前專案置頂、其他專案收起', () => {
+      const six: WorkflowFilesEntry[] = [
+        { path: '/w/specrun-app', version: '1.13.1', status: 'behind' },
+        { path: '/w/b', version: '1.13.1', status: 'behind' },
+        { path: '/w/c', version: '1.2.0', status: 'behind' },
+        { path: '/w/d', version: '1.8.0', status: 'behind' },
+        { path: '/w/e', version: '1.14.1', status: 'current' },
+        { path: '/w/f', version: null, status: 'unset' },
+      ]
+      const label = () => toggle().textContent!.replace(/\s+/g, ' ').trim()
+
+      it('預設：最上方只有目前專案一列，其下一行顯示其餘數量與落後數，其餘各列未列出', async () => {
+        await withEntries(six, '/w/specrun-app')
+        expect(rows()).toHaveLength(1)
+        expect(rows()[0]!.textContent).toContain('specrun-app')
+        expect(rows()[0]!.textContent).toContain('Behind CLI')
+        expect(label()).toBe('Other projects (5) · 3 behind')
+        expect(toggle().getAttribute('aria-expanded')).toBe('false')
+        expect(document.querySelector('[aria-label="Update b"]')).toBeNull()
+      })
+
+      it('點開：列出其餘 5 列，3 落後、1 最新、1 未設定；再點收起', async () => {
+        await withEntries(six, '/w/specrun-app')
+        await expand()
+        expect(toggle().getAttribute('aria-expanded')).toBe('true')
+        expect(document.getElementById(toggle().getAttribute('aria-controls')!)).not.toBeNull()
+        const text = rows().map(r => r.textContent!)
+        expect(text).toHaveLength(6)
+        expect(text.slice(1).filter(t => t.includes('Behind CLI'))).toHaveLength(3)
+        expect(text.slice(1).filter(t => t.includes('Up to date'))).toHaveLength(1)
+        expect(text.slice(1).filter(t => t.includes('Not set up'))).toHaveLength(1)
+        await expand()
+        expect(rows()).toHaveLength(1)
+        expect(toggle().getAttribute('aria-expanded')).toBe('false')
+      })
+
+      it('每次開啟 Settings 重新收起', async () => {
+        gateway.getCliSettings.mockResolvedValue({ mode: 'auto', bin: 'openspec', version: '1.14.1', message: null })
+        gateway.getDiagnostics.mockResolvedValue(READY)
+        gateway.checkCliUpdate.mockResolvedValue({ status: 'current' })
+        gateway.listWorkflowFiles.mockResolvedValue({ ok: true, entries: six })
+        const { store } = await withEntries(six, '/w/specrun-app')
+        await expand()
+        expect(rows()).toHaveLength(6)
+        store.close()
+        await store.open()
+        await vi.waitFor(() => expect(store.workflowFiles).not.toBeNull())
+        await nextTick()
+        expect(toggle().getAttribute('aria-expanded')).toBe('false')
+        expect(rows()).toHaveLength(1)
+      })
+
+      it('沒有目前專案：最上方是一句說明，其他專案列出清單全部', async () => {
+        await withEntries(six, null)
+        expect(rows()).toHaveLength(0)
+        expect(document.querySelector('[data-testid="workflow-no-current"]')!.textContent).toContain('isn\'t in your project list')
+        expect(label()).toBe('Other projects (6) · 4 behind')
+        await expand()
+        expect(rows()).toHaveLength(6)
+      })
+
+      it('目前專案是暫時加入、不在清單：同樣以說明取代，清單全部列在其他專案', async () => {
+        await withEntries(six, '/tmp/scratch')
+        expect(document.querySelector('[data-testid="workflow-no-current"]')).not.toBeNull()
+        expect(label()).toBe('Other projects (6) · 4 behind')
+      })
+
+      it('其他專案某列更新成功：該行落後數減 1', async () => {
+        const { store } = await withEntries(six, '/w/specrun-app')
+        await expand()
+        gateway.updateWorkflowFiles.mockResolvedValue({ ok: true })
+        gateway.listWorkflowFiles.mockResolvedValue({
+          ok: true,
+          entries: six.map(e => e.path === '/w/b' ? { ...e, version: '1.14.1', status: 'current' as const } : e),
+        })
+        updateButton('b')!.click()
+        await vi.waitFor(() => expect(store.workflowOps['/w/b']?.kind).toBe('done'))
+        await nextTick()
+        expect(label()).toBe('Other projects (5) · 2 behind')
+      })
+
+      it('收起時更新中的列狀態保留，再展開仍顯示更新中', async () => {
+        const { store } = await withEntries(six, '/w/specrun-app')
+        await expand()
+        store.workflowOps['/w/b'] = { kind: 'updating' }
+        await expand()
+        await expand()
+        expect(updateButton('b')!.textContent).toContain('Updating')
+      })
+
+      it('展開按鈕可用鍵盤操作：是原生 button，且有 focus ring', async () => {
+        await withEntries(six, '/w/specrun-app')
+        expect(toggle().tagName).toBe('BUTTON')
+        expect(toggle().getAttribute('type')).toBe('button')
+        expect(toggle().className).toContain('kbd-focus')
+      })
+    })
+
+    it('警告：就地顯示 CLI 給的警告文字', async () => {
+      const { store } = await withEntries()
+      store.workflowOps['/w/alpha'] = { kind: 'done', warning: 'Run with --force to clean up' }
+      await nextTick()
+      expect(rows()[0]!.textContent).toContain('Run with --force to clean up')
+    })
+
+    it('失敗：就地顯示訊息，Update 按鈕保留可再按', async () => {
+      const { store } = await withEntries()
+      store.workflowOps['/w/alpha'] = { kind: 'failed', message: 'exit code 1' }
+      await nextTick()
+      expect(rows()[0]!.textContent).toContain('Update failed: exit code 1')
+      expect(updateButton('alpha')!.disabled).toBe(false)
+    })
+  })
+  describe('焦點留在 modal 內（Tab 拉回）', () => {
+    async function openedWithOutsideButton() {
+      const outside = document.createElement('button')
+      document.body.append(outside)
+      const ctx = openModal(READY)
+      // keydown 監聽在 isOpen 由關變開時才掛上，所以關了再開
+      ctx.store.isOpen = false
+      await nextTick()
+      ctx.store.isOpen = true
+      await nextTick()
+      await nextTick()
+      return { ...ctx, outside }
+    }
+    const focusables = () => [...document.querySelectorAll<HTMLElement>(
+      'button:not(:disabled), input:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+    )].filter(el => el !== document.body && !!el.closest('[role="dialog"], [aria-modal="true"]'))
+
+    it('焦點在 modal 外時：Tab 拉回第一項、Shift+Tab 拉回最後一項', async () => {
+      const { outside } = await openedWithOutsideButton()
+      const items = focusables()
+      expect(items.length).toBeGreaterThan(1)
+
+      outside.focus()
+      expect(document.activeElement).toBe(outside)
+      const forward = new KeyboardEvent('keydown', { key: 'Tab', cancelable: true })
+      window.dispatchEvent(forward)
+      expect(forward.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(items[0])
+
+      outside.focus()
+      const backward = new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true })
+      window.dispatchEvent(backward)
+      expect(backward.defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(items.at(-1))
+      outside.remove()
     })
   })
 })

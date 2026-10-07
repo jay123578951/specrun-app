@@ -38,6 +38,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
     const watch = { subscribeToChanges: vi.fn() }
     const folderPicker = { pickFolder: vi.fn() }
     const opener = { revealPath: vi.fn(), openUrl: vi.fn() }
+    const workflowFiles = { listWorkflowFiles: vi.fn(), updateWorkflowFiles: vi.fn() }
 
     // web 形態的每一個方法都給獨立的假函式，逐一比對時才能斷言「不是這一個」；
     // 若真的還有任何方法漏搬，desktopGateway 上的它會 `toBe` 這裡對應的假函式。
@@ -71,6 +72,8 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       revealPath: vi.fn(),
       openUrl: vi.fn(),
       checkCliUpdate: vi.fn(),
+      listWorkflowFiles: vi.fn(),
+      updateWorkflowFiles: vi.fn(),
     }
 
     vi.doMock('./desktop/cli', () => cli)
@@ -84,6 +87,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
     vi.doMock('./desktop/roadmap', () => roadmap)
     vi.doMock('./desktop/folder-picker', () => folderPicker)
     vi.doMock('./desktop/opener', () => opener)
+    vi.doMock('./desktop/workflow-files', () => workflowFiles)
     // watch.ts 一 import 就會接線 projects.ts 的訂閱出口，這裡整支模組替換掉，不連真的
     vi.doMock('./desktop/watch', () => watch)
     vi.doMock('./web-gateway', () => ({ webGateway: webGatewayFake }))
@@ -116,6 +120,8 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       revealPath: opener.revealPath,
       openUrl: opener.openUrl,
       checkCliUpdate: cli.checkCliUpdate,
+      listWorkflowFiles: workflowFiles.listWorkflowFiles,
+      updateWorkflowFiles: workflowFiles.updateWorkflowFiles,
     }
 
     // 逐一比對兩份實作的方法參照：desktopGateway 的每個方法都要等於桌面自己

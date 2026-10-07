@@ -342,7 +342,28 @@ export interface OpenSpecGateway {
    */
   openUrl: (url: string) => Promise<OpenUrlOutcome>
   checkCliUpdate: () => Promise<CliUpdateCheck>
+
+  listWorkflowFiles: () => Promise<WorkflowFilesListResult>
+  updateWorkflowFiles: (path: string) => Promise<WorkflowFilesUpdateResult>
 }
+
+export type WorkflowFilesComparison = 'behind' | 'current' | 'ahead'
+
+export type WorkflowFilesStatus = WorkflowFilesComparison | 'unset' | 'missing'
+
+export interface WorkflowFilesEntry {
+  path: string
+  version: string | null
+  status: WorkflowFilesStatus | null
+}
+
+export type WorkflowFilesListResult
+  = { ok: true, entries: WorkflowFilesEntry[] }
+    | { ok: false, message: string }
+
+export type WorkflowFilesUpdateResult
+  = { ok: true, warning?: string }
+    | { ok: false, message: string }
 
 export type CliUpdateCheck
   = { status: 'available', latest: string, command?: string }
