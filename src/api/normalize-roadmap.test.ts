@@ -133,24 +133,77 @@ describe('normalizeRoadmapList: 清單分組', () => {
 })
 
 describe('normalizeRoadmapList: 排序', () => {
-  it('組內依檔名字母序，組間依 In progress → Available → Blocked → Other', () => {
-    const probe = listProbe([
-      file('z卡著項.md', '# z卡著項        卡著\n'),
-      file('a其他項.md', '# a其他項        3/3\n'),
-      file('b可挑項.md', '# b可挑項        0/1\n\n## 動工前必知\n'),
-      file('a可挑項.md', '# a可挑項        0/1\n\n## 動工前必知\n'),
-      file('a進行中.md', '# a進行中        1/2\n'),
-    ])
+  function namesOf(probe: RoadmapListProbe): string[] {
     const result = normalizeRoadmapList(probe)
     if (!result.ok)
       throw new Error('expected ok result')
-    expect(result.items.map(item => item.name)).toEqual([
-      'a進行中',
-      'a可挑項',
-      'b可挑項',
-      'z卡著項',
-      'a其他項',
+    return result.items.map(item => item.name)
+  }
+
+  it('組間依 In progress → Available → Blocked → Other，組內依修改時刻由新到舊', () => {
+    const probe = listProbe([
+      file('z卡著項.md', '# z卡著項        卡著\n', { mtime: 1000 }),
+      file('a其他項.md', '# a其他項        3/3\n', { mtime: 1000 }),
+      file('b可挑項.md', '# b可挑項        0/1\n\n## 動工前必知\n', { mtime: 3000 }),
+      file('a可挑項.md', '# a可挑項        0/1\n\n## 動工前必知\n', { mtime: 2000 }),
+      file('a進行中.md', '# a進行中        1/2\n', { mtime: 1000 }),
     ])
+    expect(namesOf(probe)).toEqual(['a進行中', 'b可挑項', 'a可挑項', 'z卡著項', 'a其他項'])
+  })
+
+  it('最近修改的排最前', () => {
+    const probe = listProbe([
+      file('a.md', '# a        1/2\n', { mtime: 1000 }),
+      file('b.md', '# b        1/2\n', { mtime: 9000 }),
+    ])
+    expect(namesOf(probe)).toEqual(['b', 'a'])
+  })
+
+  it('修改時刻相同依檔名字母序', () => {
+    const probe = listProbe([
+      file('b.md', '# b        1/2\n', { mtime: 5000 }),
+      file('a.md', '# a        1/2\n', { mtime: 5000 }),
+    ])
+    expect(namesOf(probe)).toEqual(['a', 'b'])
+  })
+
+  it('mtime 為 null 的排組尾，彼此依檔名字母序', () => {
+    const probe = listProbe([
+      file('b.md', '# b        3/3\n', { mtime: undefined }),
+      file('00-執行順序.md', '# 執行順序\n', { mtime: undefined }),
+      file('z.md', '# z        3/3\n', { mtime: 1000 }),
+    ])
+    expect(namesOf(probe)).toEqual(['z', '00-執行順序', 'b'])
+  })
+
+  it('三個以上的檔：mtime 順序與檔名順序相反時仍依 mtime 由新到舊', () => {
+    const probe = listProbe([
+      file('a.md', '# a        1/2\n', { mtime: 1000 }),
+      file('b.md', '# b        1/2\n', { mtime: 2000 }),
+      file('c.md', '# c        1/2\n', { mtime: 3000 }),
+      file('d.md', '# d        1/2\n', { mtime: 2000 }),
+    ])
+    expect(namesOf(probe)).toEqual(['c', 'b', 'd', 'a'])
+  })
+
+  it('mtime 為 0 是有效值：排在正值之後、null 之前', () => {
+    const probe = listProbe([
+      file('a.md', '# a        3/3\n', { mtime: undefined }),
+      file('b.md', '# b        3/3\n', { mtime: 0 }),
+      file('c.md', '# c        3/3\n', { mtime: 5 }),
+    ])
+    expect(namesOf(probe)).toEqual(['c', 'b', 'a'])
+  })
+
+  it('每組各自排序：後面組別的檔再新也不會跳到前面組別', () => {
+    const probe = listProbe([
+      file('old-ip.md', '# old-ip        1/2\n', { mtime: 1 }),
+      file('new-other.md', '# new-other        3/3\n', { mtime: 9999 }),
+      file('null-ip.md', '# null-ip        1/2\n', { mtime: undefined }),
+      file('new-ip.md', '# new-ip        1/2\n', { mtime: 500 }),
+      file('old-other.md', '# old-other        3/3\n', { mtime: 2 }),
+    ])
+    expect(namesOf(probe)).toEqual(['new-ip', 'old-ip', 'null-ip', 'new-other', 'old-other'])
   })
 })
 

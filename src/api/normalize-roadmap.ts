@@ -29,7 +29,7 @@ import { splitDatePrefix } from './normalize-archived'
 /** Available 組第二條件所需的四個段落標題（Requirement 清單分組） */
 const REQUIRED_SECTIONS = ['開始的條件', '拆分與進度', '動工前必知', '已否決的做法']
 
-/** 清單呈現順序，也是排序鍵——組內另依檔名字母序（Requirement 清單分組） */
+/** 清單呈現順序，也是排序鍵（Requirement 清單分組） */
 const GROUP_ORDER: RoadmapGroup[] = ['in-progress', 'available', 'blocked', 'other']
 
 const MD_REF = /^[^/]+\.md$/
@@ -93,7 +93,7 @@ export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult
       readFailed: p.readFailed,
       body: p.body,
     }))
-    .sort(byGroupThenFile)
+    .sort(byGroupThenMtimeDesc)
 
   return {
     ok: true,
@@ -105,16 +105,23 @@ export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult
   }
 }
 
-function byGroupThenFile(a: RoadmapSummary, b: RoadmapSummary): number {
+function byGroupThenMtimeDesc(a: RoadmapSummary, b: RoadmapSummary): number {
   const groupDiff = GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group)
   if (groupDiff !== 0)
     return groupDiff
+  if (a.mtime !== b.mtime) {
+    if (a.mtime === null)
+      return 1
+    if (b.mtime === null)
+      return -1
+    return b.mtime - a.mtime
+  }
   return a.file.localeCompare(b.file)
 }
 
 function parseFile(fileProbe: RoadmapFileProbe): ParsedFile {
   const name = fileProbe.name.replace(/\.md$/, '')
-  const mtime = typeof fileProbe.mtime === 'number' ? fileProbe.mtime : null
+  const mtime = typeof fileProbe.mtime === 'number' && Number.isFinite(fileProbe.mtime) ? fileProbe.mtime : null
 
   if (typeof fileProbe.content !== 'string') {
     // 單檔讀取失敗：以檔名列入 Other 組，其餘卡片正常（單筆降級，不拖垮清單）
