@@ -3,6 +3,7 @@ import type { ChangeSummary, ParkedSummary } from '../api'
 import { computed, onUnmounted, ref } from 'vue'
 import { useChangesStore } from '../stores/changes'
 import { useDetailStore } from '../stores/detail'
+import { useNow } from '../utils/now'
 import { parkUnavailableCopy } from '../utils/park-copy'
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time'
 import CopyNameButton from './CopyNameButton.vue'
@@ -31,10 +32,11 @@ const ratio = computed(() => hasTasks.value
 
 /** active 卡＝最後修改時間；parked 卡＝停放時點，且可能不明 */
 const timestamp = computed(() => parked.value ? parked.value.parkedAt : (props.change as ChangeSummary).lastModified)
+const now = useNow()
 const timeLabel = computed(() => {
   if (!parked.value)
-    return formatRelativeTime(timestamp.value as number)
-  return timestamp.value === null ? 'parked · time unknown' : `parked ${formatRelativeTime(timestamp.value)}`
+    return formatRelativeTime(timestamp.value as number, now.value)
+  return timestamp.value === null ? 'parked · time unknown' : `parked ${formatRelativeTime(timestamp.value, now.value)}`
 })
 
 const pending = computed(() => changes.parkPending === props.change.name)

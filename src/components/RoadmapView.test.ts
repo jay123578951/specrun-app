@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import type { RoadmapListResult, RoadmapSummary } from '../api'
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextTick } from 'vue'
 import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 import RoadmapView from './RoadmapView.vue'
@@ -12,6 +13,8 @@ import RoadmapView from './RoadmapView.vue'
  * 直接掛載真實元件＋真實 pinia store，只在邊界 mock `gateway.listRoadmap`——沿用
  * stores/roadmap.test.ts 的 fixture 慣例，不自建替代測試設施。
  */
+
+enableAutoUnmount(afterEach)
 
 const gateway = vi.hoisted(() => ({
   listRoadmap: vi.fn(),
@@ -305,5 +308,49 @@ describe('roadmapView 麵包屑數量', () => {
     })
 
     expect(wrapper.get('.crumb-page').text()).toBe('Roadmap')
+  })
+})
+
+describe('roadmapView 更新時間隨時間更新', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    gateway.listRoadmap.mockReset()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('開著不動跨過午夜後一分鐘內，更新時間改為相對寫法', async () => {
+    vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 30))
+    const wrapper = await mountReady(ok([item('a.md', 'available', { mtime: new Date(2026, 5, 10, 18, 38).getTime() })]))
+    await nextTick()
+    expect(wrapper.text()).toContain('18:38')
+
+    vi.setSystemTime(new Date(2026, 5, 11, 0, 1, 0))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(wrapper.text()).not.toContain('18:38')
+    expect(wrapper.text()).toContain('5h ago')
+  })
+  it('視窗切回可見時，每張卡片的更新時間立即重算', async () => {
+    vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 30))
+    const wrapper = await mountReady(ok([
+      item('a.md', 'available', { mtime: new Date(2026, 5, 10, 18, 38).getTime() }),
+      item('b.md', 'available', { mtime: new Date(2026, 5, 10, 19, 38).getTime() }),
+    ]))
+    await nextTick()
+    expect(wrapper.text()).toContain('18:38')
+    expect(wrapper.text()).toContain('19:38')
+
+    vi.setSystemTime(new Date(2026, 5, 11, 0, 1, 0))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(wrapper.text()).toContain('18:38')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await nextTick()
+    expect(wrapper.text()).not.toContain('18:38')
+    expect(wrapper.text()).not.toContain('19:38')
+    expect(wrapper.text()).toContain('5h ago')
+    expect(wrapper.text()).toContain('4h ago')
   })
 })

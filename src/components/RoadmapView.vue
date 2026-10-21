@@ -5,6 +5,7 @@ import { stripInlineMarkup } from '../api/normalize-roadmap'
 import { useProjectsStore } from '../stores/projects'
 import { useRoadmapStore } from '../stores/roadmap'
 import { splitInlineCode } from '../utils/inline-code'
+import { useNow } from '../utils/now'
 import { formatAbsoluteTime, formatRelativeTime } from '../utils/time'
 import CopyNameButton from './CopyNameButton.vue'
 import PageHeader from './PageHeader.vue'
@@ -17,6 +18,7 @@ import StateNotice from './StateNotice.vue'
 
 const roadmap = useRoadmapStore()
 const projects = useProjectsStore()
+const now = useNow()
 
 onMounted(() => {
   void roadmap.enter()
@@ -228,7 +230,7 @@ function plainTitle(item: RoadmapSummary): string {
                     :datetime="new Date(item.mtime).toISOString()"
                     :title="formatAbsoluteTime(item.mtime)"
                   >
-                    {{ formatRelativeTime(item.mtime) }}
+                    {{ formatRelativeTime(item.mtime, now) }}
                   </time>
                 </div>
               </div>
