@@ -23,6 +23,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       addProject: vi.fn(),
       removeProject: vi.fn(),
       switchProject: vi.fn(),
+      reorderProjects: vi.fn(),
     }
     const reads = {
       listChanges: vi.fn(),
@@ -55,6 +56,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       addProject: vi.fn(),
       removeProject: vi.fn(),
       switchProject: vi.fn(),
+      reorderProjects: vi.fn(),
       listSpecs: vi.fn(),
       getSpecContent: vi.fn(),
       listParked: vi.fn(),
@@ -103,6 +105,7 @@ describe('api/desktop-gateway: 桌面實作接線，不再落回 web 形態', ()
       addProject: projects.addProject,
       removeProject: projects.removeProject,
       switchProject: projects.switchProject,
+      reorderProjects: projects.reorderProjects,
       listSpecs: reads.listSpecs,
       getSpecContent: reads.getSpecContent,
       listParked: parked.listParked,

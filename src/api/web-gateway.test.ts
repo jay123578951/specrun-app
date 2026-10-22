@@ -304,3 +304,38 @@ describe('webGateway.listWorkflowFiles／updateWorkflowFiles: 回應形狀', () 
     expect(await webGateway.updateWorkflowFiles('/a')).toMatchObject({ ok: false })
   })
 })
+
+describe('webGateway.reorderProjects: 請求與回應', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('以 POST 把 { paths } 原順序送到 /api/project/reorder，並回傳 body', async () => {
+    const result = { ok: true, snapshot: { projects: [] } }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, json: () => Promise.resolve(result) }))
+
+    const out = await webGateway.reorderProjects(['/c', '/a', '/b'])
+
+    expect(fetch).toHaveBeenCalledWith('/api/project/reorder', expect.objectContaining({ method: 'POST' }))
+    const init = vi.mocked(fetch).mock.calls[0]![1]!
+    expect(JSON.parse(init.body as string)).toEqual({ paths: ['/c', '/a', '/b'] })
+    expect(out).toEqual(result)
+  })
+
+  it('400 的失敗 body 原樣回傳，不被換成通用訊息', async () => {
+    const body = { ok: false, message: 'The project list has changed. Try again.' }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 400, json: () => Promise.resolve(body) }))
+
+    await expect(webGateway.reorderProjects(['/a'])).resolves.toEqual(body)
+  })
+
+  it('連 route 都到不了時回 ok:false 與固定訊息', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+    await expect(webGateway.reorderProjects(['/a'])).resolves.toEqual({
+      ok: false,
+      message: 'Could not save the project order.',
+      detail: 'network down',
+    })
+  })
+})

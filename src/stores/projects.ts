@@ -128,10 +128,67 @@ export const useProjectsStore = defineStore('projects', () => {
       useChangesStore().notify(result.message)
   }
 
+  let saving: Promise<void> | null = null
+  let queuedOrder: string[] | null = null
+  let savedOrder: string[] = []
+
+  function orderedPaths(): string[] {
+    return projects.value.filter(each => !each.temporary).map(each => each.path)
+  }
+
+  function applyOrder(paths: string[]): void {
+    const byPath = new Map(projects.value.map(each => [each.path, each]))
+    const listed = new Set(paths)
+    const temporary = projects.value.filter(each => each.temporary)
+    const ordered = paths.flatMap(path => byPath.get(path) ?? [])
+    const rest = projects.value.filter(each => !each.temporary && !listed.has(each.path))
+    projects.value = [...temporary, ...ordered, ...rest]
+  }
+
+  async function saveOrders(first: string[]): Promise<void> {
+    let next = first
+    while (true) {
+      let result: ProjectActionResult
+      try {
+        result = await gateway.reorderProjects(next)
+      }
+      catch {
+        result = { ok: false, message: 'Could not save the project order.' }
+      }
+      if (!result.ok) {
+        queuedOrder = null
+        applyOrder(savedOrder)
+        useChangesStore().notify(result.message)
+        return
+      }
+      savedOrder = next
+      if (!queuedOrder)
+        return
+      next = queuedOrder
+      queuedOrder = null
+    }
+  }
+
+  async function reorder(paths: string[]): Promise<void> {
+    if (!saving)
+      savedOrder = orderedPaths()
+    applyOrder(paths)
+    if (saving) {
+      queuedOrder = paths
+      return saving
+    }
+    saving = saveOrders(paths).finally(() => {
+      saving = null
+    })
+    return saving
+  }
+
   async function mutate<T>(
     call: () => Promise<ProjectActionResult>,
     onSuccess: (result: Extract<ProjectActionResult, { ok: true }>) => T,
   ): Promise<T | { ok: false, message: string }> {
+    if (saving)
+      await saving
     if (busy.value)
       return { ok: false, message: 'Another project action is still running.' }
 
@@ -207,6 +264,7 @@ export const useProjectsStore = defineStore('projects', () => {
     startAdd,
     remove,
     switchTo,
+    reorder,
     refreshBadges,
   }
 })

@@ -128,6 +128,30 @@ export async function removeProject(input: string): Promise<void> {
   await persist(current)
 }
 
+export type ReorderOutcome
+  = { ok: true }
+    | { ok: false, message: string }
+
+export async function reorderProjects(paths: string[]): Promise<ReorderOutcome> {
+  const current = await state()
+  const before = current.config.projects
+  const sameSet = paths.length === before.length
+    && new Set(paths).size === paths.length
+    && paths.every(each => before.includes(each))
+  if (!sameSet)
+    return { ok: false, message: 'The project list has changed. Try again.' }
+
+  current.config.projects = [...paths]
+  try {
+    await writeConfig(current.config)
+  }
+  catch {
+    current.config.projects = before
+    return { ok: false, message: 'Could not save the project order.' }
+  }
+  return { ok: true }
+}
+
 export type SwitchOutcome
   = { ok: true, path: string }
     | { ok: false, message: string }

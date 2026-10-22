@@ -24,7 +24,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
 
 function makeConfigStore(initial: AppConfig) {
   const state = { ...initial }
-  return { config: vi.fn(async () => state), persist: vi.fn(async () => {}), state }
+  return { config: vi.fn(async () => state), persist: vi.fn(async () => {}), persistOrThrow: vi.fn(async () => {}), state }
 }
 
 function withOpenSpec(): DirEntry[] {
@@ -692,5 +692,106 @@ describe('desktop/projects：解析目標專案', () => {
     expect(store.state.lastActivePath).toBe('/resolved/real')
     expect(shell.allowPath).toHaveBeenCalledWith('/resolved/real')
     expect(shell.allowDirListing).toHaveBeenCalledWith('/resolved/real')
+  })
+})
+
+describe('desktop/projects：調整順序', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  async function setup(failWrite = false) {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b', '/c'], lastActivePath: '/a' }))
+    if (failWrite)
+      store.persistOrThrow.mockRejectedValue(new Error('EROFS'))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const mod = await import('./projects')
+    return { store, ...mod }
+  }
+
+  it('換順序後清單照新順序並寫檔', async () => {
+    const { store, reorderProjects } = await setup()
+    const result = await reorderProjects(['/c', '/a', '/b'])
+    expect(result.ok && result.snapshot.projects.map(each => each.path)).toEqual(['/c', '/a', '/b'])
+    expect(store.state.projects).toEqual(['/c', '/a', '/b'])
+    expect(store.persistOrThrow).toHaveBeenCalledOnce()
+  })
+
+  it('路徑組不同被拒，設定不變也不寫檔', async () => {
+    const { store, reorderProjects } = await setup()
+    expect((await reorderProjects(['/c', '/a'])).ok).toBe(false)
+    expect((await reorderProjects(['/c', '/a', '/x'])).ok).toBe(false)
+    expect(store.state.projects).toEqual(['/a', '/b', '/c'])
+    expect(store.persistOrThrow).not.toHaveBeenCalled()
+  })
+
+  it('寫檔失敗回 ok:false 且順序還原', async () => {
+    const { store, reorderProjects } = await setup(true)
+    expect((await reorderProjects(['/c', '/a', '/b'])).ok).toBe(false)
+    expect(store.state.projects).toEqual(['/a', '/b', '/c'])
+  })
+
+  it('寫檔當下 projects 已是新順序；成功後目前專案不變', async () => {
+    const { store, reorderProjects } = await setup()
+    let seenAtWrite: string[] = []
+    store.persistOrThrow.mockImplementation(async () => {
+      seenAtWrite = [...store.state.projects]
+    })
+    const result = await reorderProjects(['/c', '/b', '/a'])
+    expect(seenAtWrite).toEqual(['/c', '/b', '/a'])
+    expect(result.ok && result.snapshot.currentPath).toBe('/a')
+    expect(store.state.lastActivePath).toBe('/a')
+  })
+
+  it('被拒的邊界：重複路徑、同長度但有陌生路徑、空陣列都不改設定', async () => {
+    const { store, reorderProjects } = await setup()
+    for (const bad of [['/a', '/a', '/b'], ['/a', '/b', '/x'], [], ['/a', '/b', '/c', '/c']]) {
+      const result = await reorderProjects(bad)
+      expect(result.ok).toBe(false)
+      expect(result.ok === false && result.message).toBeTruthy()
+    }
+    expect(store.state.projects).toEqual(['/a', '/b', '/c'])
+    expect(store.persistOrThrow).not.toHaveBeenCalled()
+  })
+
+  it('暫時項不在傳入路徑中也能排序，清單仍把暫時項置頂且為目前專案', async () => {
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b', '/c'], lastActivePath: '/gone' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => makeCli())
+    const { reorderProjects } = await import('./projects')
+
+    const result = await reorderProjects(['/c', '/b', '/a'])
+    expect(result.ok).toBe(true)
+    if (!result.ok)
+      return
+    expect(result.snapshot.projects.map(each => each.path)).toEqual(['/gone', '/c', '/b', '/a'])
+    expect(result.snapshot.projects[0]).toMatchObject({ temporary: true, current: true })
+    expect(result.snapshot.currentPath).toBe('/gone')
+    expect(store.state.projects).toEqual(['/c', '/b', '/a'])
+  })
+
+  it('成功的清單不帶徽章，不呼叫 CLI', async () => {
+    const cli = makeCli()
+    const store = makeConfigStore(makeConfig({ projects: ['/a', '/b'], lastActivePath: '/a' }))
+    vi.doMock('./config-store', () => store)
+    vi.doMock('./shell', () => makeShell())
+    vi.doMock('./cli', () => cli)
+    const { reorderProjects } = await import('./projects')
+
+    const result = await reorderProjects(['/b', '/a'])
+    expect(result.ok && result.snapshot.badgesIncluded).toBe(false)
+    expect(result.ok && result.snapshot.projects.every(each => each.badge === null)).toBe(true)
+    expect(cli.runCli).not.toHaveBeenCalled()
+  })
+
+  it('寫檔失敗後再以同一份順序重試，可在寫檔恢復後成功', async () => {
+    const { store, reorderProjects } = await setup(true)
+    expect((await reorderProjects(['/c', '/a', '/b'])).ok).toBe(false)
+    store.persistOrThrow.mockResolvedValue(undefined)
+    const retry = await reorderProjects(['/c', '/a', '/b'])
+    expect(retry.ok && retry.snapshot.projects.map(each => each.path)).toEqual(['/c', '/a', '/b'])
   })
 })

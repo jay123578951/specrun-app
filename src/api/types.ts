@@ -293,6 +293,8 @@ export interface OpenSpecGateway {
   /** 只移出清單，不動磁碟 */
   removeProject: (path: string) => Promise<ProjectActionResult>
   switchProject: (path: string) => Promise<ProjectActionResult>
+  /** 傳入不含暫時項的完整順序，必須和目前清單是同一組路徑；否則回 `ok: false` */
+  reorderProjects: (paths: string[]) => Promise<ProjectActionResult>
 
   /** capability spec 清單（識別名＋requirement 數）；排序沿用引擎輸出，不補欄位 */
   listSpecs: () => Promise<SpecListResult>

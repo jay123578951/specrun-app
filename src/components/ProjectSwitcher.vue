@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ProjectEntry } from '../api'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useProjectsStore } from '../stores/projects'
 import { useViewStore } from '../stores/view'
 
@@ -34,6 +34,178 @@ const visible = computed<ProjectEntry[]>(() => {
 })
 
 const collapsible = computed(() => projects.projects.length > COLLAPSE_THRESHOLD)
+
+const DRAG_THRESHOLD_PX = 5
+
+const listRef = ref<HTMLElement | null>(null)
+
+const sortablePaths = computed(() => projects.projects.filter(each => !each.temporary).map(each => each.path))
+
+const canReorder = computed(() => !projects.busy && (showAll.value || !collapsible.value))
+
+function reorderHint(project: ProjectEntry): string {
+  return canReorder.value && !project.temporary
+    ? `${project.path}\nAlt+↑ / Alt+↓ to reorder`
+    : project.path
+}
+
+function moveTo(path: string, toIndex: number): void {
+  const next = sortablePaths.value.filter(each => each !== path)
+  next.splice(toIndex, 0, path)
+  if (next.every((each, index) => each === sortablePaths.value[index]))
+    return
+  void projects.reorder(next)
+}
+
+function onProjectKeydown(event: KeyboardEvent, project: ProjectEntry): void {
+  if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown'))
+    return
+
+  event.preventDefault()
+  const from = sortablePaths.value.indexOf(project.path)
+  if (!canReorder.value || from === -1)
+    return
+
+  const to = from + (event.key === 'ArrowUp' ? -1 : 1)
+  if (to < 0 || to >= sortablePaths.value.length)
+    return
+
+  moveTo(project.path, to)
+  // Vue 搬移有 key 的 DOM 節點時，瀏覽器可能讓 focus 掉到 body
+  void nextTick(() => {
+    const buttons = listRef.value?.querySelectorAll<HTMLElement>('button[data-project-path]') ?? []
+    Array.from(buttons).find(each => each.dataset.projectPath === project.path)?.focus()
+  })
+}
+
+interface DragRow { path: string, top: number, height: number }
+interface DragState {
+  pointerId: number
+  startY: number
+  active: boolean
+  path: string
+  rows: DragRow[]
+  from: number
+  offset: number
+  to: number
+  step: number
+}
+
+const drag = ref<DragState | null>(null)
+const dragging = computed(() => drag.value?.active === true)
+let swallowClick = false
+
+function onItemPointerDown(event: PointerEvent, project: ProjectEntry): void {
+  swallowClick = false
+  if (event.button !== 0 || !canReorder.value || project.temporary || confirming.value === project.path)
+    return
+  if ((event.target as HTMLElement).closest('[data-remove]'))
+    return
+
+  drag.value = { pointerId: event.pointerId, startY: event.clientY, active: false, path: project.path, rows: [], from: -1, offset: 0, to: -1, step: 0 }
+}
+
+function measureRows(state: DragState): void {
+  const items = Array.from(listRef.value?.querySelectorAll<HTMLElement>('li[data-project-path]') ?? [])
+  state.rows = items
+    .filter(each => sortablePaths.value.includes(each.dataset.projectPath ?? ''))
+    .map((each) => {
+      const rect = each.getBoundingClientRect()
+      return { path: each.dataset.projectPath!, top: rect.top, height: rect.height }
+    })
+  state.from = state.rows.findIndex(each => each.path === state.path)
+  const gap = state.rows.length > 1 ? state.rows[1].top - (state.rows[0].top + state.rows[0].height) : 0
+  state.step = (state.rows[state.from]?.height ?? 0) + gap
+  state.to = state.from
+}
+
+function rowOf(path: string): HTMLElement | undefined {
+  const items = listRef.value?.querySelectorAll<HTMLElement>('li[data-project-path]') ?? []
+  return Array.from(items).find(each => each.dataset.projectPath === path)
+}
+
+function onListPointerMove(event: PointerEvent): void {
+  const state = drag.value
+  if (!state || state.pointerId !== event.pointerId)
+    return
+
+  const dy = event.clientY - state.startY
+  if (!state.active) {
+    if (Math.abs(dy) < DRAG_THRESHOLD_PX)
+      return
+    measureRows(state)
+    if (state.from === -1) {
+      drag.value = null
+      return
+    }
+    state.active = true
+    // capture 讓指標移出列之後事件仍送到這裡；門檻內不 capture，click 才會送到按鈕
+    rowOf(state.path)?.setPointerCapture?.(event.pointerId)
+  }
+
+  const self = state.rows[state.from]
+  const first = state.rows[0]
+  const last = state.rows[state.rows.length - 1]
+  state.offset = Math.min(Math.max(dy, first.top - self.top), last.top + last.height - self.top - self.height)
+
+  const center = self.top + self.height / 2 + state.offset
+  state.to = state.rows.filter((each, index) => {
+    const mid = each.top + each.height / 2
+    return index < state.from ? mid < center : index > state.from && mid <= center
+  }).length
+}
+
+function onListPointerUp(event: PointerEvent): void {
+  const state = drag.value
+  if (!state || state.pointerId !== event.pointerId)
+    return
+
+  drag.value = null
+  rowOf(state.path)?.releasePointerCapture?.(event.pointerId)
+  if (!state.active)
+    return
+
+  swallowClick = true
+  moveTo(state.path, state.to)
+}
+
+function onListPointerCancel(event: PointerEvent): void {
+  if (drag.value?.pointerId !== event.pointerId)
+    return
+
+  if (drag.value.active)
+    swallowClick = true
+  drag.value = null
+}
+
+function onListPointerLeave(): void {
+  if (drag.value && !drag.value.active)
+    drag.value = null
+}
+
+function onItemClickCapture(event: MouseEvent): void {
+  if (!swallowClick)
+    return
+  swallowClick = false
+  event.stopPropagation()
+}
+
+function rowStyle(path: string): { transform: string } | undefined {
+  const state = drag.value
+  if (!state?.active)
+    return undefined
+
+  const index = state.rows.findIndex(each => each.path === path)
+  if (index === -1)
+    return undefined
+  if (index === state.from)
+    return { transform: `translateY(${state.offset}px)` }
+  if (index > state.from && index <= state.to)
+    return { transform: `translateY(${-state.step}px)` }
+  if (index < state.from && index >= state.to)
+    return { transform: `translateY(${state.step}px)` }
+  return undefined
+}
 
 /** 開 dialog 前先收掉開著的移除確認；分流與提示全在 store */
 function startAdd(): void {
@@ -71,8 +243,25 @@ async function confirmRemove(path: string): Promise<void> {
         No projects yet.
       </p>
 
-      <ul class="mt-2 space-y-1">
-        <li v-for="project in visible" :key="project.path" class="group relative">
+      <ul
+        ref="listRef"
+        class="mt-2 space-y-1"
+        :class="dragging ? 'cursor-grabbing select-none' : ''"
+        @pointermove="onListPointerMove"
+        @pointerup="onListPointerUp"
+        @pointercancel="onListPointerCancel"
+        @pointerleave="onListPointerLeave"
+      >
+        <li
+          v-for="project in visible"
+          :key="project.path"
+          class="group relative"
+          :class="dragging ? (drag?.path === project.path ? 'z-1' : 'reorder-shift') : ''"
+          :style="rowStyle(project.path)"
+          :data-project-path="project.path"
+          @click.capture="onItemClickCapture"
+          @pointerdown="onItemPointerDown($event, project)"
+        >
           <!-- 移除確認就地取代該列：側欄 224px 放不下對話框，而且確認的對象就在這一行 -->
           <div
             v-if="confirming === project.path"
@@ -100,8 +289,10 @@ async function confirmRemove(path: string): Promise<void> {
                 : 'text-text-2 hover:text-text'"
               :aria-current="project.current ? 'true' : undefined"
               :disabled="projects.busy && !project.current"
-              :title="project.path"
+              :title="reorderHint(project)"
+              :data-project-path="project.path"
               @click="openProject(project.path)"
+              @keydown="onProjectKeydown($event, project)"
             >
               <!-- 與 Specs／Archived 同尺寸的 icon，整排側欄文字才對得齊；current 換成
                  開著的資料夾，位置指示不必再靠一個獨立的小圓點 -->
@@ -137,7 +328,9 @@ async function confirmRemove(path: string): Promise<void> {
                底色不透明是為了鍵盤 focus 這條路——那時列沒有 hover、下層 badge 還在，半透明
                會疊字。中性起手、滑上去才轉 error，銜接確認態的 btn-danger -->
             <button
+              v-if="!dragging"
               type="button"
+              data-remove
               class="absolute right-2.5 top-1/2 h-5 w-5 flex cursor-pointer items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 ease-[var(--sr-ease-out)] -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
               :disabled="projects.busy"
               :aria-label="`Remove ${project.name} from the list`"
@@ -176,3 +369,15 @@ async function confirmRemove(path: string): Promise<void> {
     </div>
   </div>
 </template>
+
+<style scoped>
+.reorder-shift {
+  transition: transform 150ms var(--sr-ease-in-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reorder-shift {
+    transition: none;
+  }
+}
+</style>

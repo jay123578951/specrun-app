@@ -115,3 +115,77 @@ describe('project-state — switchProject 的 skipConfigWrite', () => {
     expect(written.lastActivePath).toBe('/c')
   })
 })
+
+describe('project-state — reorderProjects', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.stubEnv('SPECRUN_PROJECT_PATH', '')
+  })
+
+  async function setup() {
+    const appConfig = makeAppConfigModule(makeConfig({ projects: ['/a', '/b', '/c'], lastActivePath: '/a' }))
+    vi.doMock('./app-config', () => appConfig)
+    const mod = await import('./project-state')
+    return { appConfig, ...mod }
+  }
+
+  it('路徑組相同時換順序並寫檔', async () => {
+    const { appConfig, reorderProjects, projectEntries } = await setup()
+    expect(await reorderProjects(['/c', '/a', '/b'])).toEqual({ ok: true })
+    expect((await projectEntries()).map(e => e.path)).toEqual(['/c', '/a', '/b'])
+    expect(appConfig.writeConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it('路徑組不同（缺項、多項、重複）被拒且不寫檔', async () => {
+    const { appConfig, reorderProjects, projectEntries } = await setup()
+    for (const bad of [['/a', '/b'], ['/a', '/b', '/x'], ['/a', '/a', '/b']]) {
+      expect(await reorderProjects(bad)).toEqual({ ok: false, message: 'The project list has changed. Try again.' })
+    }
+    expect(appConfig.writeConfig).not.toHaveBeenCalled()
+    expect((await projectEntries()).map(e => e.path)).toEqual(['/a', '/b', '/c'])
+  })
+
+  it('寫檔失敗時還原順序並回失敗', async () => {
+    const { appConfig, reorderProjects, projectEntries } = await setup()
+    appConfig.writeConfig.mockRejectedValueOnce(new Error('EACCES'))
+    expect(await reorderProjects(['/c', '/b', '/a'])).toEqual({ ok: false, message: 'Could not save the project order.' })
+    expect((await projectEntries()).map(e => e.path)).toEqual(['/a', '/b', '/c'])
+  })
+  it('成功時寫入設定檔的內容是新順序，且 lastActivePath 不變', async () => {
+    const { appConfig, reorderProjects } = await setup()
+    await reorderProjects(['/c', '/a', '/b'])
+    const written = appConfig.writeConfig.mock.calls[0]![0]
+    expect(written.projects).toEqual(['/c', '/a', '/b'])
+    expect(written.lastActivePath).toBe('/a')
+  })
+
+  it('寫檔失敗還原後，再送一次同樣的順序仍能成功', async () => {
+    const { appConfig, reorderProjects, projectEntries } = await setup()
+    appConfig.writeConfig.mockRejectedValueOnce(new Error('EACCES'))
+    expect((await reorderProjects(['/c', '/b', '/a'])).ok).toBe(false)
+    expect(await reorderProjects(['/c', '/b', '/a'])).toEqual({ ok: true })
+    expect((await projectEntries()).map(e => e.path)).toEqual(['/c', '/b', '/a'])
+  })
+
+  it('有暫時項時：暫時項仍置頂、不進寫入的清單；把暫時項放進順序會被拒', async () => {
+    vi.stubEnv('SPECRUN_PROJECT_PATH', '/tmp-proj')
+    const appConfig = makeAppConfigModule(makeConfig({ projects: ['/a', '/b', '/c'] }))
+    vi.doMock('./app-config', () => appConfig)
+    const { reorderProjects, projectEntries } = await import('./project-state')
+
+    expect((await reorderProjects(['/tmp-proj', '/a', '/b', '/c'])).ok).toBe(false)
+    expect(appConfig.writeConfig).not.toHaveBeenCalled()
+
+    expect(await reorderProjects(['/b', '/c', '/a'])).toEqual({ ok: true })
+    expect(appConfig.writeConfig.mock.calls[0]![0].projects).toEqual(['/b', '/c', '/a'])
+    const entries = await projectEntries()
+    expect(entries.map(e => e.path)).toEqual(['/tmp-proj', '/b', '/c', '/a'])
+    expect(entries[0]).toMatchObject({ temporary: true, current: true })
+  })
+
+  it('目前專案在重排後不變', async () => {
+    const { reorderProjects, currentProjectPath } = await setup()
+    await reorderProjects(['/c', '/b', '/a'])
+    expect(await currentProjectPath()).toBe('/a')
+  })
+})

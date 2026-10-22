@@ -85,6 +85,32 @@ describe('desktop/config-store', () => {
     expect(shell.files.size).toBe(0)
   })
 
+  it('persistOrThrow：成功時寫出與 persist 相同的檔案內容', async () => {
+    const shell = makeShell()
+    vi.doMock('./shell', () => shell)
+    const { config, persistOrThrow } = await import('./config-store')
+
+    const current = await config()
+    current.projects = ['/b', '/a']
+    await persistOrThrow()
+
+    expect(shell.files.get(CONFIG_PATH)).toBe('{\n  "projects": [\n    "/b",\n    "/a"\n  ],\n  "lastActivePath": null,\n  "openspecBin": null\n}\n')
+  })
+
+  it('persistOrThrow：writeTextFile 或 rename 失敗時把錯誤丟出，並清掉暫存檔', async () => {
+    const shell = makeShell()
+    shell.renamePath = vi.fn(async () => {
+      throw new Error('EXDEV')
+    })
+    vi.doMock('./shell', () => shell)
+    const { config, persistOrThrow } = await import('./config-store')
+
+    await config()
+    await expect(persistOrThrow()).rejects.toThrow('EXDEV')
+    expect(shell.removePath).toHaveBeenCalledTimes(1)
+    expect(shell.files.size).toBe(0)
+  })
+
   it('rename 失敗時清掉已寫入的暫存檔，且 persist 仍不拋出', async () => {
     const shell = makeShell()
     shell.renamePath = vi.fn(async () => {

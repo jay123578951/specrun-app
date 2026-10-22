@@ -6,7 +6,7 @@ import { pickFolder } from './desktop/folder-picker'
 import { openUrl, revealPath } from './desktop/opener'
 import { parkChange, unparkChange } from './desktop/park'
 import { getParkedDetail, listParked } from './desktop/parked'
-import { addProject, listProjects, removeProject, switchProject } from './desktop/projects'
+import { addProject, listProjects, removeProject, reorderProjects, switchProject } from './desktop/projects'
 import { getChangeDetail, getSpecContent, listChanges, listSpecs } from './desktop/reads'
 import { listRoadmap } from './desktop/roadmap'
 import { toggleTask } from './desktop/tasks'
@@ -26,6 +26,7 @@ export const desktopGateway: OpenSpecGateway = {
   addProject,
   removeProject,
   switchProject,
+  reorderProjects,
 
   listChanges,
   getChangeDetail,

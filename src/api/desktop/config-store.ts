@@ -38,6 +38,10 @@ export async function persist(): Promise<void> {
   }
 }
 
+export async function persistOrThrow(): Promise<void> {
+  await write(await config())
+}
+
 async function load(): Promise<AppConfig> {
   try {
     return parseConfig(await readTextFile(await configFilePath()))

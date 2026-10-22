@@ -1,7 +1,7 @@
 import type { ChangeListProbe, ProjectActionResult, ProjectEntry, ProjectsSnapshot } from '../types'
 import { projectDisplayNames } from '../project-display-names'
 import { runCli } from './cli'
-import { config, persist } from './config-store'
+import { config, persist, persistOrThrow } from './config-store'
 import { allowDirListing, allowPath, canonicalPath, readDir, resolveUserPath, statPath } from './shell'
 
 /**
@@ -247,6 +247,27 @@ export async function switchProject(input: string): Promise<ProjectActionResult>
   if (persisted)
     current.lastActivePath = target
   await persistAndNotify(previousCurrent, live.current)
+
+  return { ok: true, snapshot: await buildSnapshot({ badges: false }) }
+}
+
+export async function reorderProjects(paths: string[]): Promise<ProjectActionResult> {
+  const current = await config()
+  const before = current.projects
+  const sameSet = paths.length === before.length
+    && new Set(paths).size === paths.length
+    && paths.every(each => before.includes(each))
+  if (!sameSet)
+    return { ok: false, message: 'The project list has changed. Try again.' }
+
+  current.projects = [...paths]
+  try {
+    await persistOrThrow()
+  }
+  catch {
+    current.projects = before
+    return { ok: false, message: 'Could not save the project order.' }
+  }
 
   return { ok: true, snapshot: await buildSnapshot({ badges: false }) }
 }

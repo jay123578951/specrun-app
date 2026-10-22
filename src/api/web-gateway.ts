@@ -140,6 +140,14 @@ export const webGateway: OpenSpecGateway = {
     )
   },
 
+  reorderProjects(paths: string[]): Promise<ProjectActionResult> {
+    return projectRequest(
+      '/api/project/reorder',
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ paths }) },
+      'Could not save the project order.',
+    )
+  },
+
   switchProject(path: string): Promise<ProjectActionResult> {
     return projectRequest(
       '/api/project/switch',

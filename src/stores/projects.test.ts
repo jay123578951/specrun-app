@@ -11,6 +11,8 @@ const gateway = vi.hoisted(() => ({
   parkChange: vi.fn(),
   unparkChange: vi.fn(),
   pickFolder: vi.fn(),
+  reorderProjects: vi.fn(),
+  switchProject: vi.fn(),
 }))
 
 vi.mock('../api', () => ({ gateway }))
@@ -157,5 +159,246 @@ describe('projects store：startAdd 的「選擇進行中」狀態', () => {
     await Promise.all([projects.startAdd(), projects.startAdd()])
 
     expect(gateway.pickFolder).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('projects store：reorder', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    gateway.listParked.mockResolvedValue({ ok: true, parkAvailable: true, items: [] })
+  })
+
+  async function seeded() {
+    gateway.listProjects.mockResolvedValue({
+      ok: true,
+      snapshot: {
+        projects: [project('/a', { current: true }), project('/b'), project('/c')],
+        currentPath: '/a',
+        badgesIncluded: true,
+      },
+    })
+    const store = useProjectsStore()
+    await store.load()
+    return store
+  }
+
+  const paths = (store: ReturnType<typeof useProjectsStore>) => store.projects.map(each => each.path)
+
+  it('成功後順序維持，且不經過 busy', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockResolvedValue({ ok: true })
+
+    const done = store.reorder(['/c', '/a', '/b'])
+    expect(paths(store)).toEqual(['/c', '/a', '/b'])
+    expect(store.busy).toBe(false)
+    await done
+
+    expect(paths(store)).toEqual(['/c', '/a', '/b'])
+  })
+
+  it('失敗時彈回並發出 toast', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockResolvedValue({ ok: false, message: 'Could not save the project order.' })
+
+    await store.reorder(['/c', '/a', '/b'])
+
+    expect(paths(store)).toEqual(['/a', '/b', '/c'])
+    expect(useChangesStore().toasts[0]?.message).toBe('Could not save the project order.')
+  })
+
+  it('連續兩次排序只在第一次存完後再送最後一份', async () => {
+    const store = await seeded()
+    let release!: () => void
+    gateway.reorderProjects.mockImplementationOnce(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true })
+    }))
+    gateway.reorderProjects.mockResolvedValue({ ok: true })
+
+    const first = store.reorder(['/b', '/a', '/c'])
+    void store.reorder(['/b', '/c', '/a'])
+    void store.reorder(['/c', '/b', '/a'])
+    expect(gateway.reorderProjects).toHaveBeenCalledTimes(1)
+    release()
+    await first
+
+    expect(gateway.reorderProjects).toHaveBeenCalledTimes(2)
+    expect(gateway.reorderProjects).toHaveBeenLastCalledWith(['/c', '/b', '/a'])
+    expect(paths(store)).toEqual(['/c', '/b', '/a'])
+  })
+
+  it('排序存檔途中呼叫 switchTo 會等存完才開始', async () => {
+    const store = await seeded()
+    let release!: () => void
+    gateway.reorderProjects.mockImplementation(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true })
+    }))
+    gateway.switchProject.mockResolvedValue({
+      ok: true,
+      snapshot: { projects: [project('/a'), project('/b', { current: true }), project('/c')], currentPath: '/b', badgesIncluded: false },
+    })
+    gateway.listChanges.mockResolvedValue({ ok: true, targetPath: '/b', changes: [] })
+
+    const saved = store.reorder(['/b', '/a', '/c'])
+    const switched = store.switchTo('/b')
+    await Promise.resolve()
+    expect(gateway.switchProject).not.toHaveBeenCalled()
+    release()
+    await saved
+    await switched
+
+    expect(gateway.switchProject).toHaveBeenCalledTimes(1)
+  })
+  it('成功時不收回傳的清單快照，保留畫面上較新的狀態', async () => {
+    const store = await seeded()
+    // 回傳的是存檔當下的舊快照：順序、current、徽章都與畫面不同
+    gateway.reorderProjects.mockResolvedValue({
+      ok: true,
+      snapshot: { projects: [project('/a'), project('/b', { current: true, badge: 9 }), project('/c')], currentPath: '/b', badgesIncluded: false },
+    })
+
+    await store.reorder(['/c', '/a', '/b'])
+
+    expect(paths(store)).toEqual(['/c', '/a', '/b'])
+    expect(store.currentPath).toBe('/a')
+    expect(store.projects.find(each => each.path === '/a')?.current).toBe(true)
+    expect(store.projects.find(each => each.path === '/b')?.badge).toBeNull()
+  })
+
+  it('失敗彈回時保留各項目當下的 current 與徽章', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockImplementation(async () => {
+      // 存檔途中目前專案的徽章被背景刷新
+      store.projects = store.projects.map(each => (each.path === '/a' ? { ...each, badge: 4 } : each))
+      return { ok: false, message: 'The project list has changed. Try again.' }
+    })
+
+    await store.reorder(['/c', '/a', '/b'])
+
+    expect(paths(store)).toEqual(['/a', '/b', '/c'])
+    const a = store.projects.find(each => each.path === '/a')
+    expect(a?.current).toBe(true)
+    expect(a?.badge).toBe(4)
+    expect(useChangesStore().toasts[0]?.message).toBe('The project list has changed. Try again.')
+  })
+
+  it('gateway 丟出例外時同樣彈回並發出 toast', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockRejectedValue(new Error('boom'))
+
+    await store.reorder(['/c', '/a', '/b'])
+
+    expect(paths(store)).toEqual(['/a', '/b', '/c'])
+    expect(useChangesStore().toasts[0]?.message).toBe('Could not save the project order.')
+  })
+
+  it('排隊的那一份失敗時，回到第一份（最後一次存成功）而不是最初的順序', async () => {
+    const store = await seeded()
+    let release!: () => void
+    gateway.reorderProjects.mockImplementationOnce(() => new Promise((resolve) => {
+      release = () => resolve({ ok: true })
+    }))
+    gateway.reorderProjects.mockResolvedValueOnce({ ok: false, message: 'Could not save the project order.' })
+
+    const first = store.reorder(['/b', '/a', '/c'])
+    void store.reorder(['/c', '/b', '/a'])
+    expect(paths(store)).toEqual(['/c', '/b', '/a'])
+    release()
+    await first
+
+    expect(gateway.reorderProjects).toHaveBeenCalledTimes(2)
+    expect(paths(store)).toEqual(['/b', '/a', '/c'])
+    expect(useChangesStore().toasts).toHaveLength(1)
+  })
+
+  it('第一份失敗時，排隊的那一份不再送出，回到最初的順序', async () => {
+    const store = await seeded()
+    let release!: () => void
+    gateway.reorderProjects.mockImplementationOnce(() => new Promise((resolve) => {
+      release = () => resolve({ ok: false, message: 'Could not save the project order.' })
+    }))
+
+    const first = store.reorder(['/b', '/a', '/c'])
+    void store.reorder(['/c', '/b', '/a'])
+    release()
+    await first
+
+    expect(gateway.reorderProjects).toHaveBeenCalledTimes(1)
+    expect(paths(store)).toEqual(['/a', '/b', '/c'])
+  })
+
+  it('一次存成功後，下一次失敗回到這次存成功的順序', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockResolvedValueOnce({ ok: true })
+    await store.reorder(['/c', '/a', '/b'])
+
+    gateway.reorderProjects.mockResolvedValueOnce({ ok: false, message: 'Could not save the project order.' })
+    await store.reorder(['/b', '/c', '/a'])
+
+    expect(paths(store)).toEqual(['/c', '/a', '/b'])
+  })
+
+  it('失敗之後可以再排序（存檔狀態有重置）', async () => {
+    const store = await seeded()
+    gateway.reorderProjects.mockResolvedValueOnce({ ok: false, message: 'Could not save the project order.' })
+    await store.reorder(['/c', '/a', '/b'])
+
+    gateway.reorderProjects.mockResolvedValueOnce({ ok: true })
+    await store.reorder(['/b', '/a', '/c'])
+
+    expect(gateway.reorderProjects).toHaveBeenCalledTimes(2)
+    expect(gateway.reorderProjects).toHaveBeenLastCalledWith(['/b', '/a', '/c'])
+    expect(paths(store)).toEqual(['/b', '/a', '/c'])
+  })
+
+  it('暫時項留在最前面，送給 gateway 的順序不含暫時項', async () => {
+    gateway.listProjects.mockResolvedValue({
+      ok: true,
+      snapshot: {
+        projects: [project('/t', { temporary: true }), project('/a', { current: true }), project('/b'), project('/c')],
+        currentPath: '/a',
+        badgesIncluded: true,
+      },
+    })
+    const store = useProjectsStore()
+    await store.load()
+    gateway.reorderProjects.mockResolvedValue({ ok: true })
+
+    const done = store.reorder(['/c', '/a', '/b'])
+    expect(paths(store)).toEqual(['/t', '/c', '/a', '/b'])
+    await done
+
+    expect(gateway.reorderProjects).toHaveBeenCalledWith(['/c', '/a', '/b'])
+  })
+
+  it('排序存檔途中呼叫 switchTo，存完之後才送出 switchProject', async () => {
+    const store = await seeded()
+    let release!: () => void
+    const order: string[] = []
+    gateway.reorderProjects.mockImplementation(() => new Promise((resolve) => {
+      release = () => {
+        order.push('saved')
+        resolve({ ok: true })
+      }
+    }))
+    gateway.switchProject.mockImplementation(async () => {
+      order.push('switch')
+      return {
+        ok: true,
+        snapshot: { projects: [project('/b'), project('/a'), project('/c', { current: true })], currentPath: '/c', badgesIncluded: false },
+      }
+    })
+    gateway.listChanges.mockResolvedValue({ ok: true, targetPath: '/c', changes: [] })
+
+    const saved = store.reorder(['/b', '/a', '/c'])
+    const switched = store.switchTo('/c')
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(store.busy).toBe(false)
+    release()
+    await saved
+    await switched
+
+    expect(order).toEqual(['saved', 'switch'])
   })
 })
