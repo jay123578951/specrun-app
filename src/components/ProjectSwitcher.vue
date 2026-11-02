@@ -359,7 +359,7 @@ async function confirmRemove(path: string): Promise<void> {
     <div class="mt-auto px-3 pb-3 pt-2">
       <button
         type="button"
-        class="side-action border border-line border-dashed"
+        class="side-action border border-text-3/50 border-dashed"
         :disabled="projects.busy || projects.picking"
         @click="startAdd()"
       >
