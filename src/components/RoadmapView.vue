@@ -175,7 +175,7 @@ function plainTitle(item: RoadmapSummary): string {
               @keydown.space.prevent="toggle(item.file)"
             >
               <div class="h-7 flex items-center gap-3">
-                <h3 class="min-w-0 flex-1 truncate text-ui-title text-text font-tc" :title="plainTitle(item)">
+                <h3 class="min-w-0 truncate text-ui-title text-text font-tc" :title="plainTitle(item)">
                   <template v-for="(seg, i) in splitInlineCode(item.title)" :key="i">
                     <code v-if="seg.code" class="rounded bg-code-bg px-[0.3em] text-[0.85em] text-code-text font-mono">{{ seg.text }}</code>
                     <template v-else>
