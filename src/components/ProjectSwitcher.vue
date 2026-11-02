@@ -331,7 +331,7 @@ async function confirmRemove(path: string): Promise<void> {
               v-if="!dragging"
               type="button"
               data-remove
-              class="absolute right-2.5 top-1/2 h-5 w-5 flex cursor-pointer items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 ease-[var(--sr-ease-out)] -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
+              class="absolute right-2.5 top-1/2 h-5 w-5 flex items-center justify-center rounded bg-line text-text-2 opacity-0 transition-[opacity,color,background-color] duration-150 ease-[var(--sr-ease-out)] -translate-y-1/2 hover:bg-error/20 hover:text-error active:bg-error/30 group-hover:opacity-100 disabled:cursor-not-allowed focus-visible:opacity-100 kbd-focus"
               :disabled="projects.busy"
               :aria-label="`Remove ${project.name} from the list`"
               :title="`Remove ${project.name} from the list`"
@@ -348,7 +348,7 @@ async function confirmRemove(path: string): Promise<void> {
       <button
         v-if="collapsible"
         type="button"
-        class="mt-0.5 cursor-pointer rounded py-1 pl-9 pr-2.5 text-ui-sm text-text-3 transition-colors duration-150 ease-[var(--sr-ease-out)] hover:text-text active:text-text-2 kbd-focus"
+        class="mt-0.5 rounded py-1 pl-9 pr-2.5 text-ui-sm text-text-3 transition-colors duration-150 ease-[var(--sr-ease-out)] hover:text-text active:text-text-2 kbd-focus"
         @click="showAll = !showAll"
       >
         {{ showAll ? 'Show less' : `Show ${projects.projects.length - visible.length} more` }}

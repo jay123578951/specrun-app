@@ -210,7 +210,6 @@
 
 /* 可勾選的 checkbox（tasks tab）：data-line 同時是行號載體與互動態的選擇器 */
 .md-body .task-list-item-checkbox[data-line] {
-  cursor: pointer;
   transition:
     border-color 150ms var(--sr-ease-out),
     background-color 150ms var(--sr-ease-out);

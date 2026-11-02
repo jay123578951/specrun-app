@@ -232,10 +232,10 @@ function focusable(): HTMLElement[] {
               <!-- 兩模式互斥：原生 radio 才拿得到方向鍵與群組語意，focus ring 走全站同一條規則 -->
               <div class="mt-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <label
-                  class="flex items-center gap-2 text-ui-base text-text-2 transition-opacity duration-150 ease-[var(--sr-ease-out)] has-[:disabled]:opacity-55 has-[:enabled]:cursor-pointer has-[:enabled]:hover:text-text"
+                  class="flex items-center gap-2 text-ui-base text-text-2 transition-opacity duration-150 ease-[var(--sr-ease-out)] has-[:disabled]:opacity-55 has-[:enabled]:hover:text-text"
                 >
                   <input
-                    class="kbd-focus h-4 w-4 cursor-pointer accent-accent-bright disabled:cursor-not-allowed"
+                    class="kbd-focus h-4 w-4 accent-accent-bright disabled:cursor-not-allowed"
                     type="radio"
                     name="cli-mode"
                     :checked="isAuto"
@@ -245,10 +245,10 @@ function focusable(): HTMLElement[] {
                   Auto-detect
                 </label>
                 <label
-                  class="flex items-center gap-2 text-ui-base text-text-2 transition-opacity duration-150 ease-[var(--sr-ease-out)] has-[:disabled]:opacity-55 has-[:enabled]:cursor-pointer has-[:enabled]:hover:text-text"
+                  class="flex items-center gap-2 text-ui-base text-text-2 transition-opacity duration-150 ease-[var(--sr-ease-out)] has-[:disabled]:opacity-55 has-[:enabled]:hover:text-text"
                 >
                   <input
-                    class="kbd-focus h-4 w-4 cursor-pointer accent-accent-bright disabled:cursor-not-allowed"
+                    class="kbd-focus h-4 w-4 accent-accent-bright disabled:cursor-not-allowed"
                     type="radio"
                     name="cli-mode"
                     :checked="!isAuto"
@@ -432,7 +432,7 @@ function focusable(): HTMLElement[] {
                 <button
                   v-if="settings.workflowOthers.length > 0"
                   type="button"
-                  class="mt-1 h-9 w-full flex cursor-pointer items-center gap-1.5 rounded text-left text-ui-sm text-text-2 transition-[color] duration-150 ease-[var(--sr-ease-out)] hover:text-text kbd-focus"
+                  class="mt-1 h-9 w-full flex items-center gap-1.5 rounded text-left text-ui-sm text-text-2 transition-[color] duration-150 ease-[var(--sr-ease-out)] hover:text-text kbd-focus"
                   data-testid="workflow-others-toggle"
                   aria-controls="workflow-others"
                   :aria-expanded="settings.workflowOthersOpen"
