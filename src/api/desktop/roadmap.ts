@@ -1,9 +1,11 @@
 import type { RoadmapFileProbe, RoadmapListProbe, RoadmapListResult, RoadmapRefsProbe } from '../types'
+import type { SpawnLimits } from './shell'
 import { normalizeRoadmapList } from '../normalize-roadmap'
+import { CHANGED_ARGS, GIT_MAX_BUFFER, GIT_TIMEOUT_MS, LOG_ARGS, TRACKED_ARGS } from '../roadmap-git-args'
 import { isDirectory, listParkedNames, parkedDirOf, resolveGitDir } from './parked-store'
 import { join } from './paths'
 import { resolveTarget } from './projects'
-import { pathExists, readDir, readTextFile, statPath } from './shell'
+import { isMacOS, pathExists, readDir, readTextFile, spawnBin, statPath } from './shell'
 
 /**
  * 桌面形態的 roadmap 清單（對應 web 形態的 server/api/roadmap.get.ts）。這一側只做 IO
@@ -12,6 +14,7 @@ import { pathExists, readDir, readTextFile, statPath } from './shell'
  * 只讀 spec「讀取範圍」列的內容：`openspec/roadmap/` 頂層 `.md` 的內容與 mtime、
  * `openspec/roadmap.off` 是否存在，以及 specs／changes／archived／parked 四類名稱
  * （不含內容）。parked 名稱沿用桌面形態既有的 `listParkedNames`（同 parked.ts、archived.ts）。
+ * 另外在 `openspec/roadmap/` 內執行三條唯讀 git 指令（log、diff、ls-files），取得各檔的提交時間。
  */
 
 const OPENSPEC_DIR = 'openspec'
@@ -20,6 +23,10 @@ const OFF_FILE = 'roadmap.off'
 const SPECS_DIR = 'specs'
 const CHANGES_DIR = 'changes'
 const ARCHIVE_SUBDIR = 'archive'
+
+const GIT_LIMITS: SpawnLimits = { timeoutMs: GIT_TIMEOUT_MS, maxOutputBytes: GIT_MAX_BUFFER }
+
+let gitUsable: Promise<boolean> | undefined
 
 export async function listRoadmap(): Promise<RoadmapListResult> {
   try {
@@ -79,7 +86,47 @@ async function readRoadmapList(): Promise<RoadmapListProbe> {
   }
 
   const files = await Promise.all(listing.names.map(name => readRoadmapFile(roadmapDir, name)))
-  return { targetPath: target.targetPath, dirExists: listing.dirExists, offExists, files, refs }
+  const git = files.length > 0 ? await readRoadmapGit(roadmapDir) : undefined
+  return { targetPath: target.targetPath, dirExists: listing.dirExists, offExists, files, refs, ...(git && { git }) }
+}
+
+/** 沒裝 Xcode 開發工具的 Mac 上執行 /usr/bin/git 會跳出系統安裝提示，所以先問一次，整個 App 執行期間只問一次 */
+function isGitUsable(): Promise<boolean> {
+  gitUsable ??= checkGitUsable()
+  return gitUsable
+}
+
+async function checkGitUsable(): Promise<boolean> {
+  if (!(await isMacOS()))
+    return true
+  const outcome = await spawnBin('/usr/bin/xcode-select', ['-p'], '/', GIT_LIMITS)
+  return outcome.ok && !outcome.result.timedOut && outcome.result.status === 0
+}
+
+async function readRoadmapGit(roadmapDir: string): Promise<RoadmapListProbe['git']> {
+  try {
+    if (!(await isGitUsable()))
+      return undefined
+    const [log, changed, tracked] = await Promise.all([
+      runGit(roadmapDir, LOG_ARGS),
+      runGit(roadmapDir, CHANGED_ARGS),
+      runGit(roadmapDir, TRACKED_ARGS),
+    ])
+    return log === undefined || changed === undefined || tracked === undefined ? undefined : { log, changed, tracked }
+  }
+  catch {
+    return undefined
+  }
+}
+
+async function runGit(cwd: string, args: string[]): Promise<string | undefined> {
+  const outcome = await spawnBin('git', args, cwd, GIT_LIMITS)
+  if (!outcome.ok)
+    return undefined
+  const { result } = outcome
+  if (result.timedOut || result.truncated || result.status !== 0)
+    return undefined
+  return result.stdout
 }
 
 function notOpenspecProject(targetPath: string, message: string): RoadmapListProbe {

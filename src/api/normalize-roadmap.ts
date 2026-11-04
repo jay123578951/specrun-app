@@ -60,6 +60,58 @@ interface ParsedFile {
   body: string
 }
 
+/**
+ * 解析 `git log --no-show-signature --root --format=@%at --name-only -z --relative` 的輸出，回傳每個檔名最後一次提交的
+ * 作者時間（epoch ms）。git 依新到舊輸出，每個檔名取第一次出現的那筆。
+ * 輸出格式不合（檔名出現在任何時間記號之前）回傳 null。
+ */
+function parseGitLog(log: string): Map<string, number> | null {
+  const latest = new Map<string, number>()
+  let current: number | null = null
+  for (const raw of log.split('\0')) {
+    // `--format` 與 `-z` 併用時，第一個檔名前面多一個換行
+    const token = raw.replace(/^\n/, '')
+    if (!token)
+      continue
+    if (/^@\d+$/.test(raw)) {
+      current = Number(raw.slice(1)) * 1000
+      continue
+    }
+    if (current === null)
+      return null
+    if (!latest.has(token))
+      latest.set(token, current)
+  }
+  return latest
+}
+
+/**
+ * 解析 `git diff --numstat --no-renames -z --relative` 的輸出：每筆是 `新增數\t刪除數\t路徑`，
+ * 以 `\0` 結尾；二進位檔的兩個數字是 `-`。路徑本身可能含 tab，只切前兩個 tab。
+ */
+function parseGitChanged(changed: string): Set<string> | null {
+  const files = new Set<string>()
+  for (const record of changed.split('\0')) {
+    if (!record)
+      continue
+    const match = /^(?:\d+|-)\t(?:\d+|-)\t([\s\S]+)$/.exec(record)
+    if (!match)
+      return null
+    files.add(match[1]!)
+  }
+  return files
+}
+
+function resolveUpdatedAt(
+  file: string,
+  mtime: number | null,
+  git: { latest: Map<string, number>, changed: Set<string>, tracked: Set<string> } | null,
+): number | null {
+  if (!git || git.changed.has(file) || !git.tracked.has(file))
+    return mtime
+  return git.latest.get(file) ?? mtime
+}
+
 export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult {
   if (probe.failure) {
     const { kind, message } = probe.failure
@@ -74,6 +126,11 @@ export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult
   }
 
   const parsedFiles = probe.files.map(parseFile)
+  const latest = probe.git ? parseGitLog(probe.git.log) : null
+  const changed = probe.git ? parseGitChanged(probe.git.changed) : null
+  const git = probe.git && latest && changed
+    ? { latest, changed, tracked: new Set(probe.git.tracked.split('\0').filter(Boolean)) }
+    : null
   // 「屬於」欄只認本次清單內的規劃檔（rule 1 的存在性檢查），不需要 specs／changes／archived
   const partOfContext: RoadmapRefContext = { roadmapFiles: parsedFiles.map(p => p.file), specs: [], changes: [], archived: [] }
   const titleByFile = new Map(parsedFiles.map(p => [p.file, p.title]))
@@ -89,11 +146,11 @@ export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult
       next: p.next,
       needs: p.needsRaw !== undefined ? stripInlineMarkup(p.needsRaw) : null,
       partOf: resolvePartOf(p.parentRaw, partOfContext, titleByFile),
-      mtime: p.mtime,
+      updatedAt: resolveUpdatedAt(p.file, p.mtime, git),
       readFailed: p.readFailed,
       body: p.body,
     }))
-    .sort(byGroupThenMtimeDesc)
+    .sort(byGroupThenUpdatedAtDesc)
 
   return {
     ok: true,
@@ -105,16 +162,16 @@ export function normalizeRoadmapList(probe: RoadmapListProbe): RoadmapListResult
   }
 }
 
-function byGroupThenMtimeDesc(a: RoadmapSummary, b: RoadmapSummary): number {
+function byGroupThenUpdatedAtDesc(a: RoadmapSummary, b: RoadmapSummary): number {
   const groupDiff = GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group)
   if (groupDiff !== 0)
     return groupDiff
-  if (a.mtime !== b.mtime) {
-    if (a.mtime === null)
+  if (a.updatedAt !== b.updatedAt) {
+    if (a.updatedAt === null)
       return 1
-    if (b.mtime === null)
+    if (b.updatedAt === null)
       return -1
-    return b.mtime - a.mtime
+    return b.updatedAt - a.updatedAt
   }
   return a.file.localeCompare(b.file)
 }

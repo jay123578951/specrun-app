@@ -225,12 +225,12 @@ function plainTitle(item: RoadmapSummary): string {
                   </span>
 
                   <time
-                    v-if="item.mtime !== null"
+                    v-if="item.updatedAt !== null"
                     class="whitespace-nowrap text-ui-sm text-text-2 tabular-nums"
-                    :datetime="new Date(item.mtime).toISOString()"
-                    :title="formatAbsoluteTime(item.mtime)"
+                    :datetime="new Date(item.updatedAt).toISOString()"
+                    :title="formatAbsoluteTime(item.updatedAt)"
                   >
-                    {{ formatRelativeTime(item.mtime, now) }}
+                    {{ formatRelativeTime(item.updatedAt, now) }}
                   </time>
                 </div>
               </div>

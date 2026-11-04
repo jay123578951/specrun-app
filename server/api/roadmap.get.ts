@@ -4,13 +4,15 @@ import path from 'node:path'
 import { archiveDirOf, listArchivedDirs, openspecDirOf } from '../utils/archive-store'
 import { resolveTargetDir } from '../utils/openspec-cli'
 import { isDirectory, listParkedNames, parkedDirOf, pathExists, resolveGitDir } from '../utils/parked-store'
+import { readRoadmapGit } from '../utils/roadmap-git'
 
 /**
  * `GET /api/roadmap`：規劃檔清單一趟回傳（design D1）。
  *
  * 只讀 spec「讀取範圍」列的內容：`openspec/roadmap/` 頂層 `.md` 的內容與 mtime、
  * `openspec/roadmap.off` 是否存在，以及 specs／changes／archived／parked 四類名稱
- * （不含內容）。解析、分組、切段一律交給共用的 normalize-roadmap（design D2）。
+ * （不含內容）。另外在 `openspec/roadmap/` 內執行三條唯讀 git 指令（log、diff、ls-files），
+ * 取得各檔的提交時間。解析、分組、切段一律交給共用的 normalize-roadmap（design D2）。
  * 不做快取——與 archived 同一個規模量級。
  */
 
@@ -54,7 +56,8 @@ export default defineEventHandler(async (): Promise<RoadmapListProbe> => {
   }
 
   const files = await Promise.all(listing.names.map(name => readRoadmapFile(roadmapDir, name)))
-  return { targetPath: target.targetPath, dirExists: listing.dirExists, offExists, files, refs }
+  const git = files.length > 0 ? await readRoadmapGit(roadmapDir) : undefined
+  return { targetPath: target.targetPath, dirExists: listing.dirExists, offExists, files, refs, ...(git && { git }) }
 })
 
 function notOpenspecProject(targetPath: string, message: string): RoadmapListProbe {

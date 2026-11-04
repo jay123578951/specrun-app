@@ -207,6 +207,148 @@ describe('normalizeRoadmapList: 排序', () => {
   })
 })
 
+describe('normalizeRoadmapList: 更新時刻依據 git', () => {
+  const log = (...commits: [number, string[]][]) =>
+    commits.map(([ts, names]) => `@${ts}\0${names.map((n, i) => (i === 0 ? `\n${n}` : n)).join('\0')}\0`).join('')
+  const gitProbe = (git: { log: string, changed: string, tracked: string } | undefined, names = ['a.md', 'b.md']) =>
+    listProbe(names.map(n => file(n, '# t        1/2\n', { mtime: 9_000_000 })), { git })
+  const ALL = 'a.md\0b.md\0c.md\0中文.md\0new.md\0'
+  const at = (probe: RoadmapListProbe, name: string) => itemOf(probe, name.replace(/\.md$/, '')).updatedAt
+
+  it('用作者時間（秒轉毫秒），同檔取最新一筆', () => {
+    const probe = gitProbe({ log: log([200, ['a.md']], [100, ['a.md', 'b.md']]), changed: '', tracked: ALL })
+    expect(at(probe, 'a.md')).toBe(200_000)
+    expect(at(probe, 'b.md')).toBe(100_000)
+  })
+
+  it('中文檔名與子目錄同名檔', () => {
+    const probe = gitProbe({ log: log([300, ['sub/a.md']], [100, ['a.md', '中文.md']]), changed: '', tracked: ALL }, ['a.md', '中文.md'])
+    expect(at(probe, 'a.md')).toBe(100_000)
+    expect(at(probe, '中文.md')).toBe(100_000)
+  })
+
+  it('有未提交修改用檔案修改時刻，內容沒變的檔仍用提交時間', () => {
+    const probe = gitProbe({ log: log([100, ['a.md', 'b.md']]), changed: '1\t0\ta.md\0', tracked: ALL })
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+    expect(at(probe, 'b.md')).toBe(100_000)
+  })
+
+  it('已追蹤但 log 裡沒有的檔用檔案修改時刻', () => {
+    const probe = gitProbe({ log: log([100, ['a.md']]), changed: '', tracked: ALL })
+    expect(at(probe, 'b.md')).toBe(9_000_000)
+  })
+
+  it('連續兩個時間記號（merge commit 沒有檔案）：後一個 commit 的檔仍歸後一個時間', () => {
+    const probe = gitProbe({ log: '@1585699200\0@1583020800\0\nb.md\0', changed: '', tracked: ALL })
+    expect(at(probe, 'b.md')).toBe(1_583_020_800_000)
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+  })
+
+  it('沒有 git 欄位全部用檔案修改時刻', () => {
+    const probe = gitProbe(undefined)
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+  })
+
+  it('輸出格式不合全部用檔案修改時刻', () => {
+    const probe = gitProbe({ log: 'a.md\0@100\0', changed: '', tracked: ALL })
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+    expect(at(probe, 'b.md')).toBe(9_000_000)
+  })
+
+  it('同一個 commit 的卡片依檔名排序', () => {
+    const probe = gitProbe({ log: log([100, ['b.md', 'a.md']]), changed: '', tracked: ALL }, ['b.md', 'a.md'])
+    const result = normalizeRoadmapList(probe)
+    expect(result.ok && result.items.map(i => i.file)).toEqual(['a.md', 'b.md'])
+  })
+
+  it('同一個 commit 的卡片即使檔案修改時刻不同，仍顯示相同時間並依檔名排序', () => {
+    const probe = listProbe([
+      file('b.md', '# t        1/2\n', { mtime: 9_000_000 }),
+      file('a.md', '# t        1/2\n', { mtime: 1_000 }),
+    ], { git: { log: log([100, ['a.md', 'b.md']]), changed: '', tracked: ALL } })
+    const result = normalizeRoadmapList(probe)
+    expect(result.ok && result.items.map(i => [i.file, i.updatedAt])).toEqual([['a.md', 100_000], ['b.md', 100_000]])
+  })
+
+  it('組內排序依提交時間，不依檔案修改時刻', () => {
+    const probe = listProbe([
+      file('a.md', '# t        1/2\n', { mtime: 9_000_000 }),
+      file('b.md', '# t        1/2\n', { mtime: 1_000 }),
+    ], { git: { log: log([300, ['b.md']], [100, ['a.md']]), changed: '', tracked: ALL } })
+    const result = normalizeRoadmapList(probe)
+    expect(result.ok && result.items.map(i => i.file)).toEqual(['b.md', 'a.md'])
+  })
+
+  it('存檔後（出現在未提交清單）跳到組內第一個', () => {
+    const probe = listProbe([
+      file('a.md', '# t        1/2\n', { mtime: 1_000 }),
+      file('b.md', '# t        1/2\n', { mtime: 9_000_000 }),
+    ], { git: { log: log([500, ['a.md']], [100, ['b.md']]), changed: '1\t0\tb.md\0', tracked: ALL } })
+    const result = normalizeRoadmapList(probe)
+    expect(result.ok && result.items.map(i => i.file)).toEqual(['b.md', 'a.md'])
+  })
+
+  it('git 成功但沒有任何提交紀錄：全部用檔案修改時刻', () => {
+    const probe = gitProbe({ log: '', changed: '', tracked: '' })
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+    expect(at(probe, 'b.md')).toBe(9_000_000)
+  })
+
+  it('改檔名：新檔名顯示該 commit 的作者時間，不追舊檔名', () => {
+    const probe = gitProbe({ log: log([200, ['new.md']], [100, ['old.md']]), changed: '', tracked: ALL }, ['new.md'])
+    expect(at(probe, 'new.md')).toBe(200_000)
+  })
+
+  it('檔案修改時刻取不到：有提交時間仍用提交時間；沒有則為 null', () => {
+    const probe = listProbe([
+      file('a.md', '# t        1/2\n', { mtime: undefined }),
+      file('b.md', '# t        1/2\n', { mtime: undefined }),
+      file('c.md', '# t        1/2\n', { mtime: undefined }),
+    ], { git: { log: log([100, ['a.md', 'c.md']]), changed: '1\t0\tc.md\0', tracked: ALL } })
+    expect(at(probe, 'a.md')).toBe(100_000)
+    expect(at(probe, 'b.md')).toBeNull()
+    expect(at(probe, 'c.md')).toBeNull()
+  })
+
+  it('不在 tracked 內的卡片用檔案修改時刻，即使 log 裡有它', () => {
+    const probe = gitProbe({ log: log([100, ['a.md', 'b.md']]), changed: '', tracked: 'a.md\0' })
+    expect(at(probe, 'a.md')).toBe(100_000)
+    expect(at(probe, 'b.md')).toBe(9_000_000)
+  })
+
+  it.each([
+    ['缺欄位', 'a.md\0'],
+    ['數字欄不是數字', 'x\t0\ta.md\0'],
+    ['只有一個 tab', '1\ta.md\0'],
+  ])('changed 格式不合（%s）：整份退回檔案修改時刻', (_name, changed) => {
+    const probe = gitProbe({ log: log([100, ['a.md', 'b.md']]), changed, tracked: ALL })
+    expect(at(probe, 'a.md')).toBe(9_000_000)
+    expect(at(probe, 'b.md')).toBe(9_000_000)
+  })
+
+  it('changed 解析：二進位檔、中文路徑、路徑含 tab', () => {
+    const names = ['bin.md', '中文.md', 'x\ty.md', 'keep.md']
+    const probe = gitProbe({
+      log: log([100, names]),
+      changed: '-\t-\tbin.md\0' + '2\t1\t中文.md\0' + '3\t0\tx\ty.md\0',
+      tracked: `${names.join('\0')}\0`,
+    }, names)
+    expect(at(probe, 'bin.md')).toBe(9_000_000)
+    expect(at(probe, '中文.md')).toBe(9_000_000)
+    expect(at(probe, 'x\ty.md')).toBe(9_000_000)
+    expect(at(probe, 'keep.md')).toBe(100_000)
+  })
+
+  it('有 git 資料時，提交時間為 0 仍算取得到（排在 null 之前）', () => {
+    const probe = listProbe([
+      file('a.md', '# t        1/2\n', { mtime: undefined }),
+      file('b.md', '# t        1/2\n', { mtime: undefined }),
+    ], { git: { log: log([0, ['b.md']]), changed: '', tracked: ALL } })
+    const result = normalizeRoadmapList(probe)
+    expect(result.ok && result.items.map(i => [i.file, i.updatedAt])).toEqual([['b.md', 0], ['a.md', null]])
+  })
+})
+
 describe('normalizeRoadmapList: Next／Needs／part of', () => {
   it('進行中項目：Next 取拆分表 ⬅ 接下來那列的範圍欄', () => {
     const content = [

@@ -211,8 +211,7 @@ export interface RoadmapSummary {
   needs: string | null
   /** 開頭段 `- **屬於**：` 行中第一個對得到本次清單內規劃檔的 `*.md` 引用，其父項標題；取不到為 null */
   partOf: string | null
-  /** 最後修改時刻（epoch ms）；stat 失敗時為 null */
-  mtime: number | null
+  updatedAt: number | null
   /** 單檔內容讀取失敗；true 時 title 退回檔名、group 恆為 other、body 為空字串（單筆降級，不拖垮清單） */
   readFailed: boolean
   /** 去除第一個 `# ` 標題行後的全文，供詳情面板渲染（design D1，避免另開一支詳情通道） */
@@ -584,6 +583,7 @@ export interface RoadmapListProbe {
   offExists: boolean
   files: RoadmapFileProbe[]
   refs: RoadmapRefsProbe
+  git?: { log: string, changed: string, tracked: string }
   /** 目標專案或列舉本身失敗；有值時 files 為空 */
   failure?: RoadmapProbeFailure
 }

@@ -33,7 +33,7 @@ function item(file: string, group: RoadmapSummary['group'], overrides: Partial<R
     next: null,
     needs: null,
     partOf: null,
-    mtime: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000,
     readFailed: false,
     body: `body of ${file}`,
     ...overrides,
@@ -170,10 +170,10 @@ describe('roadmapView 清單分組與卡片內容', () => {
     expect(wrapper.get('article').attributes('aria-label')).toBe('Open 色彩透明度寫法失效（/N）')
   })
 
-  it('更新時間顯示相對時間，滑鼠停留提供完整時刻；沒有 mtime 時不顯示時間', async () => {
+  it('更新時間顯示相對時間，滑鼠停留提供完整時刻；沒有 updatedAt 時不顯示時間', async () => {
     const wrapper = await mountReady(ok([
-      item('a.md', 'other', { mtime: Date.now() - 60_000 }),
-      item('b.md', 'in-progress', { progress: { completed: 1, total: 2 }, mtime: null }),
+      item('a.md', 'other', { updatedAt: Date.now() - 60_000 }),
+      item('b.md', 'in-progress', { progress: { completed: 1, total: 2 }, updatedAt: null }),
     ]))
 
     const times = wrapper.findAll('time')
@@ -324,7 +324,7 @@ describe('roadmapView 更新時間隨時間更新', () => {
 
   it('開著不動跨過午夜後一分鐘內，更新時間改為相對寫法', async () => {
     vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 30))
-    const wrapper = await mountReady(ok([item('a.md', 'available', { mtime: new Date(2026, 5, 10, 18, 38).getTime() })]))
+    const wrapper = await mountReady(ok([item('a.md', 'available', { updatedAt: new Date(2026, 5, 10, 18, 38).getTime() })]))
     await nextTick()
     expect(wrapper.text()).toContain('18:38')
 
@@ -336,8 +336,8 @@ describe('roadmapView 更新時間隨時間更新', () => {
   it('視窗切回可見時，每張卡片的更新時間立即重算', async () => {
     vi.setSystemTime(new Date(2026, 5, 10, 23, 59, 30))
     const wrapper = await mountReady(ok([
-      item('a.md', 'available', { mtime: new Date(2026, 5, 10, 18, 38).getTime() }),
-      item('b.md', 'available', { mtime: new Date(2026, 5, 10, 19, 38).getTime() }),
+      item('a.md', 'available', { updatedAt: new Date(2026, 5, 10, 18, 38).getTime() }),
+      item('b.md', 'available', { updatedAt: new Date(2026, 5, 10, 19, 38).getTime() }),
     ]))
     await nextTick()
     expect(wrapper.text()).toContain('18:38')

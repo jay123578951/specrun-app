@@ -33,14 +33,14 @@ const splitOptions = computed(() => ({ resolveRef: roadmap.resolveRef, splitTabl
     @collapse="roadmap.close()"
   >
     <template #actions>
-      <!-- 不可互動：取不到（mtime 為 null）整個不渲染、不留佔位（Requirement 詳情 header） -->
+      <!-- 不可互動：取不到（updatedAt 為 null）整個不渲染、不留佔位（Requirement 詳情 header） -->
       <time
-        v-if="roadmap.openItem?.mtime !== null && roadmap.openItem?.mtime !== undefined"
+        v-if="roadmap.openItem?.updatedAt !== null && roadmap.openItem?.updatedAt !== undefined"
         class="shrink-0 font-mono text-ui-xs tabular-nums text-text-3"
-        :datetime="new Date(roadmap.openItem.mtime).toISOString()"
-        :title="formatCreatedAtFull(roadmap.openItem.mtime)"
+        :datetime="new Date(roadmap.openItem.updatedAt).toISOString()"
+        :title="formatCreatedAtFull(roadmap.openItem.updatedAt)"
       >
-        Updated {{ formatCreatedAt(roadmap.openItem.mtime) }}
+        Updated {{ formatCreatedAt(roadmap.openItem.updatedAt) }}
       </time>
       <div class="flex shrink-0 items-center gap-2">
         <CopyNameButton v-if="roadmap.openItem" :name="plainTitle" label="title" />

@@ -1,4 +1,5 @@
 import type { ChangeListProbe } from '../types'
+import type { SpawnOutcome } from './shell'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -80,6 +81,8 @@ function makeShell(tree: FakeTree) {
     makeDir: vi.fn(async () => {}),
     renamePath: vi.fn(async () => {}),
     removePath: vi.fn(async () => {}),
+    isMacOS: vi.fn(async () => false),
+    spawnBin: vi.fn(async (): Promise<SpawnOutcome> => ({ ok: false, message: 'ENOENT' })),
     setReadDirImpl: (fn: typeof readDirImpl) => { readDirImpl = fn },
   }
   return shell
@@ -132,7 +135,7 @@ describe('desktop/roadmap', () => {
     expect(result.ok && result.items[0]).toMatchObject({
       title: '培訓機構管理',
       statusText: '1/4',
-      mtime: 1_700_000_000_000,
+      updatedAt: 1_700_000_000_000,
     })
   })
 
@@ -180,7 +183,7 @@ describe('desktop/roadmap', () => {
 
     const result = await listRoadmap()
     expect(result.ok).toBe(true)
-    expect(result.ok && result.items[0]).toMatchObject({ file: 'a.md', mtime: null, readFailed: false })
+    expect(result.ok && result.items[0]).toMatchObject({ file: 'a.md', updatedAt: null, readFailed: false })
   })
 
   it('roadmap/ 存在但列舉失敗：回可重試的讀取失敗，不是空清單', async () => {
@@ -273,5 +276,178 @@ describe('desktop/roadmap', () => {
 
     const result = await listRoadmap()
     expect(result.ok && result.refs.parked).toEqual([])
+  })
+
+  describe('git 提交時間', () => {
+    const LOG = '@1700000100\0\na.md\0'
+    const spawnOk = (stdout: string, over: Partial<{ status: number | null, timedOut: boolean, truncated: boolean }> = {}): SpawnOutcome => ({
+      ok: true,
+      result: { status: 0, stdout, stderr: '', timedOut: false, truncated: false, ...over },
+    })
+    const tree = () => makeShell({
+      dirs: [REPO, OPENSPEC, ROADMAP],
+      files: { [`${ROADMAP}/a.md`]: '# A        1/4\n' },
+      mtimes: { [`${ROADMAP}/a.md`]: 1_700_000_000_000 },
+    })
+    const verbOf = (args: unknown[]) => ((args[1] as string[])[0] === 'log' ? 'log' : (args[1] as string[])[0] === 'ls-files' ? 'ls-files' : 'diff')
+    const answer = (over: Partial<Record<'log' | 'diff' | 'ls-files', SpawnOutcome>> = {}) =>
+      async (...args: unknown[]): Promise<SpawnOutcome> =>
+        over[verbOf(args)] ?? spawnOk({ 'log': LOG, 'diff': '', 'ls-files': 'a.md\0' }[verbOf(args)])
+    const gitCalls = (shell: ReturnType<typeof makeShell>) =>
+      shell.spawnBin.mock.calls.filter(call => (call as unknown[])[0] === 'git')
+
+    it('成功：在 roadmap 目錄執行三條指令，結果交給 normalize 得到提交時間', async () => {
+      const shell = tree()
+      shell.spawnBin.mockImplementation(answer())
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ updatedAt: 1_700_000_100_000 })
+      const calls = gitCalls(shell)
+      expect(calls).toHaveLength(3)
+      expect(calls.every(call => (call as unknown[])[2] === ROADMAP)).toBe(true)
+    })
+
+    it.each([
+      ['spawn 失敗', { ok: false, message: 'ENOENT' } as SpawnOutcome],
+      ['非零結束', spawnOk(LOG, { status: 128 })],
+      ['逾時', spawnOk(LOG, { timedOut: true })],
+      ['輸出被截斷', spawnOk(LOG, { truncated: true })],
+    ])('%s：不帶 git，退回檔案修改時刻', async (_name, outcome) => {
+      const shell = tree()
+      shell.spawnBin.mockResolvedValue(outcome)
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ updatedAt: 1_700_000_000_000 })
+    })
+
+    it.each(['log', 'diff', 'ls-files'] as const)('只有 %s 那條失敗：整個不帶', async (which) => {
+      const shell = tree()
+      shell.spawnBin.mockImplementation(answer({ [which]: spawnOk('', { status: 1 }) }))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ updatedAt: 1_700_000_000_000 })
+    })
+
+    it('目錄不存在或沒有卡片：不執行任何外部程式', async () => {
+      const empty = makeShell({ dirs: [REPO, OPENSPEC, ROADMAP] })
+      await (await load(empty, makeProjects(REPO))).listRoadmap()
+      expect(empty.spawnBin).not.toHaveBeenCalled()
+
+      vi.resetModules()
+      const missing = makeShell({ dirs: [REPO, OPENSPEC] })
+      await (await load(missing, makeProjects(REPO))).listRoadmap()
+      expect(missing.spawnBin).not.toHaveBeenCalled()
+    })
+
+    it('macOS：xcode-select 失敗時不呼叫 git，且連續載入只檢查一次', async () => {
+      const shell = tree()
+      shell.isMacOS.mockResolvedValue(true)
+      shell.spawnBin.mockResolvedValue(spawnOk('', { status: 2 }))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const first = await listRoadmap()
+      await listRoadmap()
+      expect(first.ok && first.items[0]).toMatchObject({ updatedAt: 1_700_000_000_000 })
+      expect(gitCalls(shell)).toHaveLength(0)
+      expect(shell.spawnBin).toHaveBeenCalledTimes(1)
+      expect(shell.spawnBin.mock.calls[0]).toEqual(['/usr/bin/xcode-select', ['-p'], '/', expect.anything()])
+    })
+
+    it('macOS：xcode-select 通過後照常讀 git，只檢查一次', async () => {
+      const shell = tree()
+      shell.isMacOS.mockResolvedValue(true)
+      shell.spawnBin.mockImplementation(answer())
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      await listRoadmap()
+      await listRoadmap()
+      const checks = shell.spawnBin.mock.calls.filter(call => (call as unknown[])[0] === '/usr/bin/xcode-select')
+      expect(checks).toHaveLength(1)
+      expect(gitCalls(shell)).toHaveLength(6)
+    })
+
+    it('非 macOS：不執行 xcode-select', async () => {
+      const shell = tree()
+      shell.spawnBin.mockResolvedValue(spawnOk(''))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      await listRoadmap()
+      expect(shell.spawnBin.mock.calls.some(call => (call as unknown[])[0] === '/usr/bin/xcode-select')).toBe(false)
+    })
+
+    it('三條指令的參數符合設計，且只讀不寫索引', async () => {
+      const shell = tree()
+      shell.spawnBin.mockResolvedValue(spawnOk(''))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      await listRoadmap()
+      const argLists = gitCalls(shell).map(call => (call as unknown[])[1])
+      expect(argLists).toContainEqual(['log', '--no-show-signature', '--root', '--format=@%at', '--name-only', '-z', '--relative', '--', '.'])
+      expect(argLists).toContainEqual(['--no-optional-locks', '-c', 'diff.autoRefreshIndex=false', 'diff', '--numstat', '--no-renames', '-z', '--relative', 'HEAD', '--', '.'])
+      expect(argLists).toContainEqual(['ls-files', '-z', '--', '.'])
+    })
+
+    it('多張卡片各自判斷：未提交的用檔案修改時刻，其餘用提交時間', async () => {
+      const shell = makeShell({
+        dirs: [REPO, OPENSPEC, ROADMAP],
+        files: { [`${ROADMAP}/a.md`]: '# A        1/4\n', [`${ROADMAP}/b.md`]: '# B        1/4\n' },
+        mtimes: { [`${ROADMAP}/a.md`]: 1_700_000_000_000, [`${ROADMAP}/b.md`]: 1_700_000_000_000 },
+      })
+      shell.spawnBin.mockImplementation(async (...args: unknown[]) => spawnOk({
+        'log': '@1700000100\0\na.md\0b.md\0',
+        'diff': '1\t0\ta.md\0',
+        'ls-files': 'a.md\0b.md\0',
+      }[verbOf(args)]))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      const byFile = Object.fromEntries((result.ok ? result.items : []).map(item => [item.file, item.updatedAt]))
+      expect(byFile).toEqual({ 'a.md': 1_700_000_000_000, 'b.md': 1_700_000_100_000 })
+    })
+
+    it('spawnBin 丟例外：不帶 git，清單照常', async () => {
+      const shell = tree()
+      shell.spawnBin.mockRejectedValue(new Error('invoke refused'))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ file: 'a.md', updatedAt: 1_700_000_000_000 })
+    })
+
+    it('diff 那條失敗、log 成功：整個不帶', async () => {
+      const shell = tree()
+      shell.spawnBin.mockImplementation(answer({ diff: spawnOk('', { truncated: true }) }))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ updatedAt: 1_700_000_000_000 })
+    })
+
+    it.each([
+      ['spawn 失敗', { ok: false, message: 'ENOENT' } as SpawnOutcome],
+      ['逾時', spawnOk('', { timedOut: true })],
+    ])('macOS：xcode-select %s 也不呼叫 git', async (_name, outcome) => {
+      const shell = tree()
+      shell.isMacOS.mockResolvedValue(true)
+      shell.spawnBin.mockResolvedValue(outcome)
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      const result = await listRoadmap()
+      expect(result.ok && result.items[0]).toMatchObject({ updatedAt: 1_700_000_000_000 })
+      expect(gitCalls(shell)).toHaveLength(0)
+    })
+
+    it('macOS：同時兩次載入也只檢查一次 xcode-select', async () => {
+      const shell = tree()
+      shell.isMacOS.mockResolvedValue(true)
+      shell.spawnBin.mockResolvedValue(spawnOk('', { status: 2 }))
+      const { listRoadmap } = await load(shell, makeProjects(REPO))
+
+      await Promise.all([listRoadmap(), listRoadmap()])
+      expect(shell.spawnBin).toHaveBeenCalledTimes(1)
+    })
   })
 })

@@ -40,7 +40,7 @@ function item(file: string, group: RoadmapSummary['group'], overrides: Partial<R
     next: null,
     needs: null,
     partOf: null,
-    mtime: 1_700_000_000_000,
+    updatedAt: 1_700_000_000_000,
     readFailed: false,
     body: '',
     ...overrides,
@@ -104,16 +104,16 @@ describe('roadmapPanel header', () => {
   })
 
   it('顯示 Updated 加不含年份的月日時分，title 為含年份的完整時刻', () => {
-    const mtime = new Date('2026-09-21T14:52:00').getTime()
-    const { wrapper } = openPanel([item('a.md', 'other', { mtime })], 'a.md')
+    const updatedAt = new Date('2026-09-21T14:52:00').getTime()
+    const { wrapper } = openPanel([item('a.md', 'other', { updatedAt })], 'a.md')
 
     const time = wrapper.get('time')
     expect(time.text()).toBe('Updated 09-21 14:52')
     expect(time.attributes('title')).toBe('2026-09-21 14:52')
   })
 
-  it('沒有 mtime 時不顯示 Updated，整欄不留佔位', () => {
-    const { wrapper } = openPanel([item('a.md', 'other', { mtime: null })], 'a.md')
+  it('沒有 updatedAt 時不顯示 Updated，整欄不留佔位', () => {
+    const { wrapper } = openPanel([item('a.md', 'other', { updatedAt: null })], 'a.md')
 
     expect(wrapper.find('time').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Updated')

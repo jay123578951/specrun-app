@@ -38,7 +38,7 @@ function item(file: string, group: RoadmapSummary['group'], overrides: Partial<R
     next: null,
     needs: null,
     partOf: null,
-    mtime: 1,
+    updatedAt: 1,
     readFailed: false,
     body: '',
     ...overrides,
