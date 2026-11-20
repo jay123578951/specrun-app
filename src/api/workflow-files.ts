@@ -54,16 +54,46 @@ export function compareWithCli(version: string, cliVersion: string | null): Work
   return diff < 0 ? 'behind' : diff > 0 ? 'ahead' : 'current'
 }
 
+/**
+ * `update --dry-run --json` 的結果：有檔案要變動＝落後，沒有＝已是最新。
+ * openspec 2.0 起技能檔不再寫 generatedBy，只能這樣問 CLI。
+ * 結束代碼非 0（含 1.15 以前不認得 --dry-run）或輸出不是預期形狀時回 null：答不出來就不比較。
+ */
+export function parseUpdatePreview(run: { exitCode: number | null, stdout: string }): WorkflowFilesComparison | null {
+  if (run.exitCode !== 0)
+    return null
+  try {
+    const changes = (JSON.parse(stripAnsi(run.stdout)) as { changes?: unknown })?.changes
+    return Array.isArray(changes) ? (changes.length > 0 ? 'behind' : 'current') : null
+  }
+  catch {
+    return null
+  }
+}
+
 export function buildWorkflowEntry(
-  input: { path: string, exists: boolean, generatedBy: (string | null)[] },
+  input: {
+    path: string
+    exists: boolean
+    generatedBy: (string | null)[]
+    /** 有 openspec 技能檔但都沒有版本號時，向 CLI 問來的結果；沒問或問不出來為 null */
+    preview?: WorkflowFilesComparison | null
+  },
   cliVersion: string | null,
 ): WorkflowFilesEntry {
   if (!input.exists)
     return { path: input.path, version: null, status: 'missing' }
   const version = oldestVersion(input.generatedBy)
-  if (version === null)
+  if (version !== null)
+    return { path: input.path, version, status: compareWithCli(version, cliVersion) }
+  if (input.generatedBy.length === 0)
     return { path: input.path, version: null, status: 'unset' }
-  return { path: input.path, version, status: compareWithCli(version, cliVersion) }
+  return { path: input.path, version: null, status: cliVersion ? (input.preview ?? null) : null }
+}
+
+/** 有技能檔、但沒有任何一個讀得到版本號：這種專案才需要向 CLI 問 */
+export function needsUpdatePreview(generatedBy: (string | null)[]): boolean {
+  return generatedBy.length > 0 && generatedBy.every(v => v === null)
 }
 
 export interface UpdateRun {

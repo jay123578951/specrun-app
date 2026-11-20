@@ -2,7 +2,7 @@ import type { WorkflowFilesEntry, WorkflowFilesUpdateResult } from '../../src/ap
 import { Buffer } from 'node:buffer'
 import { open, readdir, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { buildWorkflowEntry, extractGeneratedBy, parseUpdateResult, readSkillHead } from '../../src/api/workflow-files'
+import { buildWorkflowEntry, extractGeneratedBy, needsUpdatePreview, parseUpdatePreview, parseUpdateResult, readSkillHead } from '../../src/api/workflow-files'
 import { cliSettings } from './cli-resolver'
 import { runCli, toProbeFailure } from './openspec-cli'
 import { projectEntries } from './project-state'
@@ -38,14 +38,25 @@ async function readProject(project: string, cliVersion: string | null): Promise<
   let names: string[] = []
   try {
     names = (await readdir(skillsDir, { withFileTypes: true }))
-      .filter(entry => entry.isDirectory() && entry.name.startsWith(SKILL_PREFIX))
+      .filter(entry => (entry.isDirectory() || entry.isSymbolicLink()) && entry.name.startsWith(SKILL_PREFIX))
       .map(entry => entry.name)
   }
   catch {
   }
 
   const generatedBy = await Promise.all(names.map(name => readGeneratedBy(path.join(skillsDir, name, SKILL_FILE))))
-  return buildWorkflowEntry({ path: project, exists: true, generatedBy }, cliVersion)
+  const preview = cliVersion && needsUpdatePreview(generatedBy) ? await previewUpdate(project) : null
+  return buildWorkflowEntry({ path: project, exists: true, generatedBy, preview }, cliVersion)
+}
+
+async function previewUpdate(project: string): Promise<ReturnType<typeof parseUpdatePreview>> {
+  try {
+    const { error, stdout } = await runCli(['update', project, '--dry-run', '--json'], project)
+    return parseUpdatePreview({ exitCode: error ? (typeof error.code === 'number' ? error.code : null) : 0, stdout })
+  }
+  catch {
+    return null
+  }
 }
 
 async function readGeneratedBy(file: string): Promise<string | null> {

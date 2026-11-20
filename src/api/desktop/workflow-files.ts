@@ -1,5 +1,5 @@
 import type { WorkflowFilesEntry, WorkflowFilesListResult, WorkflowFilesUpdateResult } from '../types'
-import { buildWorkflowEntry, extractGeneratedBy, parseUpdateResult, readSkillHead } from '../workflow-files'
+import { buildWorkflowEntry, extractGeneratedBy, needsUpdatePreview, parseUpdatePreview, parseUpdateResult, readSkillHead } from '../workflow-files'
 import { cliSettings, runCli } from './cli'
 import { config } from './config-store'
 import { join } from './paths'
@@ -39,14 +39,25 @@ async function readProject(project: string, cliVersion: string | null): Promise<
   let names: string[] = []
   try {
     names = (await readDir(skillsDir))
-      .filter(entry => entry.isDirectory && entry.name.startsWith(SKILL_PREFIX))
+      .filter(entry => (entry.isDirectory || entry.isSymlink) && entry.name.startsWith(SKILL_PREFIX))
       .map(entry => entry.name)
   }
   catch {
   }
 
   const generatedBy = await Promise.all(names.map(name => readGeneratedBy(join(skillsDir, name, SKILL_FILE))))
-  return buildWorkflowEntry({ path: project, exists: true, generatedBy }, cliVersion)
+  const preview = cliVersion && needsUpdatePreview(generatedBy) ? await previewUpdate(project) : null
+  return buildWorkflowEntry({ path: project, exists: true, generatedBy, preview }, cliVersion)
+}
+
+async function previewUpdate(project: string): Promise<ReturnType<typeof parseUpdatePreview>> {
+  try {
+    const outcome = await runCli(['update', project, '--dry-run', '--json'], project)
+    return outcome.ok ? parseUpdatePreview({ exitCode: outcome.exitCode, stdout: outcome.stdout }) : null
+  }
+  catch {
+    return null
+  }
 }
 
 async function readGeneratedBy(file: string): Promise<string | null> {

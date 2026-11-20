@@ -21,6 +21,8 @@ interface Project {
   unreadable?: string[]
   /** 授權時丟錯 */
   denied?: boolean
+  /** 這些 skill 是連結（openspec 2.0 起的擺法）：readDir 回報為連結，連結另一頭在授權範圍外、讀不到 */
+  linked?: string[]
 }
 
 interface OpenFile { file: string, bytes: Uint8Array, offset: number, closed: boolean }
@@ -38,11 +40,14 @@ function makeFakes(projects: Record<string, Project>, cli: { bin: string | null,
       const project = Object.keys(projects).find(p => dir === `${p}/.claude/skills`)
       if (!project || !projects[project]!.skills)
         throw new Error(`ENOENT ${dir}`)
-      return Object.keys(projects[project]!.skills!).map(name => ({ name, isDirectory: true, isFile: false, isSymlink: false }))
+      return Object.keys(projects[project]!.skills!).map((name) => {
+        const linked = projects[project]!.linked?.includes(name) ?? false
+        return { name, isDirectory: !linked, isFile: false, isSymlink: linked }
+      })
     }),
     openFileForRead: vi.fn(async (file: string) => {
       const [, project, name] = /^(.*)\/\.claude\/skills\/([^/]+)\/SKILL\.md$/.exec(file)!
-      if (projects[project!]!.unreadable?.includes(name!))
+      if (projects[project!]!.unreadable?.includes(name!) || projects[project!]!.linked?.includes(name!))
         throw new Error(`EACCES ${file}`)
       const rid = open.length
       open.push({ file, bytes: new TextEncoder().encode(skill(projects[project!]!.skills![name!]!)), offset: 0, closed: false })
@@ -247,5 +252,74 @@ describe('desktop/workflow-files: updateWorkflowFiles', () => {
     for (const input of ['/a/', '/a/../a', '/a/.', 'a', '/a2', '/a/.claude', '/b/../etc'])
       expect(await updateWorkflowFiles(input)).toMatchObject({ ok: false })
     expect(fakes.cliModule.runCli).not.toHaveBeenCalled()
+  })
+})
+
+describe('desktop/workflow-files: 技能檔沒有版本號（openspec 2.0 起）', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  const linkedProject = (): Project => ({ skills: { 'openspec-x': null, 'openspec-y': null }, linked: ['openspec-x', 'openspec-y'] })
+
+  it('連結也算技能檔；讀不到版本號就以 update --dry-run --json 問 CLI', async () => {
+    const fakes = makeFakes({ '/stale': linkedProject(), '/fresh': linkedProject() }, { bin: 'openspec', version: '2.1.1' })
+    fakes.cliModule.runCli.mockImplementation(async (args: string[]) => ({
+      ok: true,
+      exitCode: 0,
+      stdout: JSON.stringify({ changes: args[1] === '/stale' ? [{ path: 'x', action: 'add', tool: 'claude' }] : [] }),
+      stderr: '',
+    }))
+    const { listWorkflowFiles } = await load(fakes)
+
+    expect(await listWorkflowFiles()).toEqual({
+      ok: true,
+      entries: [
+        { path: '/stale', version: null, status: 'behind' },
+        { path: '/fresh', version: null, status: 'current' },
+      ],
+    })
+    expect(fakes.cliModule.runCli.mock.calls).toEqual([
+      [['update', '/stale', '--dry-run', '--json'], '/stale'],
+      [['update', '/fresh', '--dry-run', '--json'], '/fresh'],
+    ])
+  })
+
+  it('cLI 答不出來、執行失敗或丟錯：不給比較結果，其他專案照常', async () => {
+    const fakes = makeFakes({
+      '/old-cli': linkedProject(),
+      '/spawn-failed': linkedProject(),
+      '/threw': linkedProject(),
+      '/versioned': { skills: { 'openspec-x': '1.13.1' } },
+    }, { bin: 'openspec', version: '1.14.1' })
+    fakes.cliModule.runCli.mockImplementation(async (args: string[]) => {
+      if (args[1] === '/spawn-failed')
+        return { ok: false, failure: { kind: 'spawn-failed', message: 'timed out' } }
+      if (args[1] === '/threw')
+        throw new Error('exploded')
+      return { ok: true, exitCode: 1, stdout: '', stderr: 'error: unknown option \'--dry-run\'' }
+    })
+    const { listWorkflowFiles } = await load(fakes)
+
+    expect(await listWorkflowFiles()).toEqual({
+      ok: true,
+      entries: [
+        { path: '/old-cli', version: null, status: null },
+        { path: '/spawn-failed', version: null, status: null },
+        { path: '/threw', version: null, status: null },
+        { path: '/versioned', version: '1.13.1', status: 'behind' },
+      ],
+    })
+  })
+
+  it('讀得到版本號、沒有技能檔、cli 不可用：都不問 CLI', async () => {
+    const withCli = makeFakes({ '/versioned': { skills: { 'openspec-x': '1.13.1' } }, '/bare': {} }, { bin: 'openspec', version: '2.1.1' })
+    await (await load(withCli)).listWorkflowFiles()
+    expect(withCli.cliModule.runCli).not.toHaveBeenCalled()
+
+    vi.resetModules()
+    const noCli = makeFakes({ '/linked': linkedProject() }, { bin: null, version: null })
+    expect(await (await load(noCli)).listWorkflowFiles()).toEqual({ ok: true, entries: [{ path: '/linked', version: null, status: null }] })
+    expect(noCli.cliModule.runCli).not.toHaveBeenCalled()
   })
 })

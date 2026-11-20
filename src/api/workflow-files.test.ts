@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
-import { buildWorkflowEntry, compareVersions, compareWithCli, extractGeneratedBy, oldestVersion, parseUpdateResult, readSkillHead } from './workflow-files'
+import { buildWorkflowEntry, compareVersions, compareWithCli, extractGeneratedBy, needsUpdatePreview, oldestVersion, parseUpdatePreview, parseUpdateResult, readSkillHead } from './workflow-files'
 
 const skill = (v: string) => `---\nname: openspec-explore\nmetadata:\n  author: openspec\n  version: "1.0"\n  generatedBy: "${v}"\n---\n\nbody generatedBy: "9.9.9"\n`
 
@@ -55,7 +54,7 @@ describe('compareWithCli', () => {
 describe('buildWorkflowEntry', () => {
   it('資料夾不存在與未設定，即使 CLI 不可用也有狀態', () => {
     expect(buildWorkflowEntry({ path: '/a', exists: false, generatedBy: [] }, null)).toEqual({ path: '/a', version: null, status: 'missing' })
-    expect(buildWorkflowEntry({ path: '/b', exists: true, generatedBy: [null] }, '1.14.1')).toEqual({ path: '/b', version: null, status: 'unset' })
+    expect(buildWorkflowEntry({ path: '/b', exists: true, generatedBy: [] }, null)).toEqual({ path: '/b', version: null, status: 'unset' })
   })
 
   it('取最舊後與 CLI 比較', () => {
@@ -95,9 +94,9 @@ describe('補充：extractGeneratedBy 格式變體', () => {
     expect(extractGeneratedBy('---\r\nmetadata:\r\n  generatedBy: "1.13.1"\r\n---\r\nbody')).toBe('1.13.1')
   })
 
-  it('專案實際的 SKILL.md 讀得到版本', () => {
-    const text = readFileSync(new URL('../../.claude/skills/openspec-explore/SKILL.md', import.meta.url), 'utf8')
-    expect(extractGeneratedBy(text)).toMatch(/^\d+\.\d+\.\d+$/)
+  it('openspec 2.0 起的 SKILL.md 沒有 generatedBy：回 null', () => {
+    const text = '---\nname: openspec-propose\nmetadata:\n  author: openspec\n  version: "1.0"\n---\n\nbody\n'
+    expect(extractGeneratedBy(text)).toBeNull()
   })
 })
 
@@ -214,5 +213,49 @@ describe('readSkillHead', () => {
     expect(text).toContain('中文說明')
     expect(text).not.toContain('\uFFFD')
     expect(extractGeneratedBy(text)).toBe('1.13.1')
+  })
+})
+
+describe('parseUpdatePreview', () => {
+  it('有檔案要變動為落後，沒有為已是最新（2.1.1 實測輸出）', () => {
+    const pending = JSON.stringify({ changes: [{ path: '.agents/skills/.openspec-target', action: 'add', tool: 'openspec' }] })
+    expect(parseUpdatePreview({ exitCode: 0, stdout: pending })).toBe('behind')
+    expect(parseUpdatePreview({ exitCode: 0, stdout: '{\n  "changes": [],\n  "notes": [],\n  "failures": []\n}\n' })).toBe('current')
+  })
+
+  it('答不出來回 null：非 0 結束、1.14 不認得 --dry-run、輸出不是 JSON 或沒有 changes', () => {
+    const noRoot = JSON.stringify({ changes: [], status: [{ severity: 'error', code: 'update_error' }] })
+    expect(parseUpdatePreview({ exitCode: 1, stdout: noRoot })).toBeNull()
+    expect(parseUpdatePreview({ exitCode: 1, stdout: '' })).toBeNull()
+    expect(parseUpdatePreview({ exitCode: null, stdout: '' })).toBeNull()
+    expect(parseUpdatePreview({ exitCode: 0, stdout: 'Updating 1 tool(s)' })).toBeNull()
+    expect(parseUpdatePreview({ exitCode: 0, stdout: '{"notes":[]}' })).toBeNull()
+  })
+})
+
+describe('buildWorkflowEntry：技能檔沒有版本號（openspec 2.0 起）', () => {
+  it('有技能檔但都沒有版本號：狀態取 CLI 問來的結果，版本為 null', () => {
+    expect(buildWorkflowEntry({ path: '/p', exists: true, generatedBy: [null, null], preview: 'behind' }, '2.1.1'))
+      .toEqual({ path: '/p', version: null, status: 'behind' })
+    expect(buildWorkflowEntry({ path: '/p', exists: true, generatedBy: [null, null], preview: 'current' }, '2.1.1'))
+      .toEqual({ path: '/p', version: null, status: 'current' })
+  })
+
+  it('cLI 答不出來或不可用：不給比較結果', () => {
+    expect(buildWorkflowEntry({ path: '/p', exists: true, generatedBy: [null], preview: null }, '1.14.1'))
+      .toEqual({ path: '/p', version: null, status: null })
+    expect(buildWorkflowEntry({ path: '/p', exists: true, generatedBy: [null], preview: 'behind' }, null))
+      .toEqual({ path: '/p', version: null, status: null })
+  })
+
+  it('讀得到版本號時照舊比版本，不看 CLI 問來的結果', () => {
+    expect(buildWorkflowEntry({ path: '/p', exists: true, generatedBy: ['1.14.1', null], preview: 'current' }, '2.1.1'))
+      .toEqual({ path: '/p', version: '1.14.1', status: 'behind' })
+  })
+
+  it('只有「有技能檔且全部沒有版本號」才需要問 CLI', () => {
+    expect(needsUpdatePreview([null, null])).toBe(true)
+    expect(needsUpdatePreview([])).toBe(false)
+    expect(needsUpdatePreview(['1.14.1', null])).toBe(false)
   })
 })

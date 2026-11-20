@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +52,7 @@ describe('server/utils/workflow-files', () => {
   it('列出各專案：取最舊版本、與 CLI 比較、未設定、資料夾不存在，彼此獨立', async () => {
     const mixed = await makeProject('mixed', ['1.14.1', '1.14.1', '1.8.0'])
     const current = await makeProject('current', ['1.14.1'])
-    const unset = await makeProject('unset', [null])
+    const unset = await makeProject('unset', [])
     const gone = path.join(root, 'gone')
     const { listProjectWorkflowFiles } = await load([mixed, current, unset, gone], { bin: 'openspec', version: '1.14.1' })
 
@@ -62,6 +62,68 @@ describe('server/utils/workflow-files', () => {
       { path: unset, version: null, status: 'unset' },
       { path: gone, version: null, status: 'missing' },
     ])
+  })
+
+  /** openspec 2.0 起的擺法：真檔在 .agents/skills，.claude/skills 底下是連結，檔案開頭沒有 generatedBy */
+  async function makeLinkedProject(name: string): Promise<string> {
+    const dir = path.join(root, name)
+    const real = path.join(dir, '.agents', 'skills', 'openspec-propose')
+    await mkdir(real, { recursive: true })
+    await writeFile(path.join(real, 'SKILL.md'), skill(null))
+    await mkdir(path.join(dir, '.claude', 'skills'), { recursive: true })
+    await symlink('../../.agents/skills/openspec-propose', path.join(dir, '.claude', 'skills', 'openspec-propose'))
+    return dir
+  }
+
+  it('技能檔是連結且沒有版本號：以 update --dry-run --json 問 CLI，有變動為落後、沒有為已是最新', async () => {
+    const stale = await makeLinkedProject('stale')
+    const fresh = await makeLinkedProject('fresh')
+    runCli.mockImplementation(async (args: string[]) => ({
+      error: null,
+      stdout: JSON.stringify({ changes: args[1] === stale ? [{ path: 'x', action: 'add', tool: 'claude' }] : [] }),
+      stderr: '',
+    }))
+    const { listProjectWorkflowFiles } = await load([stale, fresh], { bin: 'openspec', version: '2.1.1' })
+
+    expect(await listProjectWorkflowFiles()).toEqual([
+      { path: stale, version: null, status: 'behind' },
+      { path: fresh, version: null, status: 'current' },
+    ])
+    expect(runCli.mock.calls.map(c => c[0])).toEqual([
+      ['update', stale, '--dry-run', '--json'],
+      ['update', fresh, '--dry-run', '--json'],
+    ])
+  })
+
+  it('cLI 答不出來（1.14 不認得 --dry-run）或執行丟錯：不給比較結果，其他專案照常', async () => {
+    const linked = await makeLinkedProject('linked')
+    const broken = await makeLinkedProject('broken')
+    const old = await makeProject('old', ['1.13.1'])
+    runCli.mockImplementation(async (args: string[]) => {
+      if (args[1] === broken)
+        throw new Error('spawn exploded')
+      return { error: Object.assign(new Error('x'), { code: 1 }), stdout: '', stderr: 'error: unknown option \'--dry-run\'' }
+    })
+    const { listProjectWorkflowFiles } = await load([linked, broken, old], { bin: 'openspec', version: '1.14.1' })
+
+    expect(await listProjectWorkflowFiles()).toEqual([
+      { path: linked, version: null, status: null },
+      { path: broken, version: null, status: null },
+      { path: old, version: '1.13.1', status: 'behind' },
+    ])
+  })
+
+  it('讀得到版本號、沒有技能檔、cli 不可用：都不問 CLI', async () => {
+    const old = await makeProject('old', ['1.13.1'])
+    const bare = await makeProject('bare', [])
+    const linked = await makeLinkedProject('linked')
+    const withCli = await load([old, bare], { bin: 'openspec', version: '2.1.1' })
+    await withCli.listProjectWorkflowFiles()
+    vi.resetModules()
+    const noCli = await load([linked], { bin: null, version: null })
+    expect(await noCli.listProjectWorkflowFiles()).toEqual([{ path: linked, version: null, status: null }])
+
+    expect(runCli).not.toHaveBeenCalled()
   })
 
   it('cli 不可用：只回版本，status 為 null', async () => {
@@ -241,11 +303,13 @@ describe('server/utils/workflow-files', () => {
     await writeFile(longFile, `---\nname: x\ndescription: ${'d'.repeat(1500)}\nmetadata:\n  generatedBy: "1.2.0"\n---\nbody\n`)
     const plain = await makeProject('plain', ['1.13.1'])
     await writeFile(path.join(plain, '.claude', 'skills', 'openspec-s0', 'SKILL.md'), `# title\n  generatedBy: "1.13.1"\n`)
+    runCli.mockResolvedValue({ error: null, stdout: '{"changes":[]}', stderr: '' })
     const { listProjectWorkflowFiles } = await load([long, plain], { bin: 'openspec', version: '1.14.1' })
 
+    // plain 讀不到版本號，改由 CLI 回答（這裡答沒有變動）
     expect(await listProjectWorkflowFiles()).toEqual([
       { path: long, version: '1.2.0', status: 'behind' },
-      { path: plain, version: null, status: 'unset' },
+      { path: plain, version: null, status: 'current' },
     ])
   })
 })
