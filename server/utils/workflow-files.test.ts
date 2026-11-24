@@ -89,10 +89,12 @@ describe('server/utils/workflow-files', () => {
       { path: stale, version: null, status: 'behind' },
       { path: fresh, version: null, status: 'current' },
     ])
-    expect(runCli.mock.calls.map(c => c[0])).toEqual([
+    // 各專案平行讀取，誰先問到 CLI 不固定
+    expect(runCli).toHaveBeenCalledTimes(2)
+    expect(runCli.mock.calls.map(c => c[0])).toEqual(expect.arrayContaining([
       ['update', stale, '--dry-run', '--json'],
       ['update', fresh, '--dry-run', '--json'],
-    ])
+    ]))
   })
 
   it('cLI 答不出來（1.14 不認得 --dry-run）或執行丟錯：不給比較結果，其他專案照常', async () => {
