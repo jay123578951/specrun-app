@@ -4,8 +4,12 @@ import path from 'node:path'
 import { currentProjectPath } from './project-state'
 
 /**
- * 目標專案 `openspec/changes/**` 的變動來源：整個 server 共用一個 watcher，
- * 事件經 debounce 合併後廣播給所有訂閱者（design D3／D4）。
+ * 目標專案 `openspec/changes/**`、`openspec/roadmap/**` 與 `openspec/roadmap.off` 的變動來源：
+ * 整個 server 共用一個 watcher，事件經 debounce 合併後廣播給所有訂閱者（design D3／D4）。
+ *
+ * 一律監看整個 `openspec/`，再過濾出上述三處：`changes/` 與 `roadmap/` 不一定已經存在，
+ * 直接監看 `openspec/` 才收得到它們之後被建出來的第一個檔案。範圍外的事件在進入
+ * debounce 之前就濾掉。
  *
  * 通知刻意粗粒度——只喊「有變動」、不帶 change 名或路徑（design D1），
  * 訂閱者自行重取；漏報由下一次任何變動補上，重複報則被 debounce 吃掉。
@@ -70,14 +74,10 @@ async function ensureWatching(): Promise<void> {
   if (!target || mine !== generation)
     return
 
-  const changesDir = path.join(target, 'openspec', 'changes')
-  const created
-    // changes/ 還不存在就退一層看 openspec/，等它被建出來；範圍外的事件在這裡濾掉
-    = tryWatch(changesDir, notify)
-      ?? tryWatch(path.dirname(changesDir), (filename) => {
-        if (isInChangesDir(filename))
-          notify()
-      })
+  const created = tryWatch(path.join(target, 'openspec'), (filename) => {
+    if (isInScope(filename))
+      notify()
+  })
 
   if (mine !== generation) {
     created?.close()
@@ -107,10 +107,10 @@ function stopWatching(): void {
   watcher = null
 }
 
-/** 退一層監看時，filename 相對 `openspec/`——只有 changes/ 底下的算數 */
-function isInChangesDir(filename: string): boolean {
+function isInScope(filename: string): boolean {
   const relative = filename.split(path.sep).join('/')
-  return relative === 'changes' || relative.startsWith('changes/')
+  return relative === 'roadmap.off'
+    || ['changes', 'roadmap'].some(dir => relative === dir || relative.startsWith(`${dir}/`))
 }
 
 function notify(): void {

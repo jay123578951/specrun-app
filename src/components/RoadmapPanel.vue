@@ -20,9 +20,9 @@ const sections = computed(() => splitRoadmapSections(roadmap.openItem?.body ?? '
 const plainTitle = computed(() => stripInlineMarkup(roadmap.openItem?.title ?? ''))
 const titleSegments = computed(() => splitInlineCode(roadmap.openItem?.title ?? ''))
 
-/** `resolveRef` 是 store 固定的函式參照，這兩個選項物件只會算一次，不會每次重渲染都換新身分 */
-const refOptions = computed(() => ({ resolveRef: roadmap.resolveRef }))
-const splitOptions = computed(() => ({ resolveRef: roadmap.resolveRef, splitTable: true }))
+const refsKey = computed(() => JSON.stringify(roadmap.refContext))
+const refOptions = computed(() => ({ resolveRef: roadmap.resolveRef, key: refsKey.value }))
+const splitOptions = computed(() => ({ resolveRef: roadmap.resolveRef, splitTable: true, key: refsKey.value }))
 </script>
 
 <template>

@@ -19,6 +19,11 @@ const gateway = vi.hoisted(() => ({
 
 vi.mock('../api', () => ({ gateway }))
 
+vi.mock('../markdown/render', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../markdown/render')>()
+  return { ...actual, renderMarkdown: vi.fn(actual.renderMarkdown) }
+})
+
 /** 暖機：MarkdownView 首次 render 要動態載入 shiki，先暖機一次避免各案例各等各的 */
 beforeAll(async () => {
   await renderMarkdown('warmup', { interactive: false })
@@ -49,8 +54,6 @@ function item(file: string, group: RoadmapSummary['group'], overrides: Partial<R
 
 /**
  * 面板不自己 enter()，直接把 store 灌成「已載完」的狀態，比照 SettingsModal.test.ts 的作法。
- * `refs`（spec／change／archived 名稱清單）不在 store 對外的回傳面上，本檔的引用連結測試
- * 只驗 kind roadmap（靠 `items` 本身，見 buildRoadmapRefContext），不需要也設不到它。
  */
 function openPanel(items: RoadmapSummary[], openFileName: string) {
   const store = useRoadmapStore()
@@ -287,5 +290,79 @@ describe('roadmapPanel 引用連結跳轉', () => {
 
     expect(wrapper.find('.md-ref').exists()).toBe(false)
     expect(wrapper.get('code').text()).toBe('no-such-file.md')
+  })
+})
+
+describe('roadmapPanel 背景重新載入後的引用連結', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    gateway.listRoadmap.mockReset()
+    vi.mocked(renderMarkdown).mockClear()
+  })
+
+  function okResult(items: RoadmapSummary[], changes: string[] = []) {
+    return { ok: true, targetPath: '/p', dirExists: true, offExists: false, items, refs: { specs: [], changes, archived: [], parked: [] } }
+  }
+
+  it('名稱清單多了一個 change，內文裡該名稱由純文字變成 change 連結', async () => {
+    const items = [item('a.md', 'other', { body: '見 `new-change` 這項' })]
+    const { store, wrapper } = openPanel(items, 'a.md')
+    await waitForRender()
+    expect(wrapper.find('.md-ref').exists()).toBe(false)
+
+    gateway.listRoadmap.mockResolvedValue(okResult(items, ['new-change']))
+    await store.loadSilently()
+    await waitForRender()
+
+    const ref = wrapper.get('.md-ref')
+    expect(ref.attributes('data-ref-kind')).toBe('change')
+    expect(ref.attributes('data-ref-target')).toBe('new-change')
+  })
+
+  it('內文與名稱清單都沒變時，面板的 markdown 沒有重新渲染', async () => {
+    const { store } = openPanel([item('a.md', 'other', { body: '見 `x` 這項' })], 'a.md')
+    await waitForRender()
+    vi.mocked(renderMarkdown).mockClear()
+
+    gateway.listRoadmap.mockResolvedValue(okResult([item('a.md', 'other', { body: '見 `x` 這項' })]))
+    await store.loadSilently()
+    await waitForRender()
+
+    expect(renderMarkdown).not.toHaveBeenCalled()
+  })
+
+  it('只有另一個規劃檔的內文改變時，開著的面板沒有重新渲染', async () => {
+    const { store } = openPanel([
+      item('a.md', 'other', { body: '見 `x` 這項' }),
+      item('b.md', 'other', { body: 'old' }),
+    ], 'a.md')
+    await waitForRender()
+    vi.mocked(renderMarkdown).mockClear()
+
+    gateway.listRoadmap.mockResolvedValue(okResult([
+      item('a.md', 'other', { body: '見 `x` 這項' }),
+      item('b.md', 'other', { body: 'new', updatedAt: 1_800_000_000_000 }),
+    ]))
+    await store.loadSilently()
+    await waitForRender()
+
+    expect(renderMarkdown).not.toHaveBeenCalled()
+  })
+
+  it('開著的規劃檔在背景重新載入後不在清單上：面板關閉、沒有錯誤提示', async () => {
+    const { store, wrapper } = openPanel([
+      item('a.md', 'other', { body: '內文 A' }),
+      item('b.md', 'other', { body: '內文 B' }),
+    ], 'a.md')
+    await waitForRender()
+    expect(wrapper.text()).toContain('內文 A')
+
+    gateway.listRoadmap.mockResolvedValue(okResult([item('b.md', 'other', { body: '內文 B' })]))
+    await store.loadSilently()
+    await waitForRender()
+
+    expect(store.openFileName).toBeNull()
+    expect(store.listError).toBeNull()
+    expect(wrapper.text()).not.toContain('內文 A')
   })
 })

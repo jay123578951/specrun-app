@@ -230,4 +230,313 @@ describe('roadmap store', () => {
       expect(useViewStore().currentView).toBe('archived')
     })
   })
+
+  describe('loadSilently', () => {
+    it('成功時換上新資料，refreshing 全程為 false', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      serverSays([item('a.md', 'available'), item('b.md', 'available')])
+      const seen: boolean[] = []
+      const p = store.loadSilently()
+      seen.push(store.refreshing)
+      await p
+      seen.push(store.refreshing)
+
+      expect(store.count).toBe(2)
+      expect(seen).toEqual([false, false])
+    })
+
+    it('失敗時 items 與 listError 都不變', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      gateway.listRoadmap.mockResolvedValue({ ok: false, targetPath: '/p', error: { kind: 'unknown', message: 'x' } })
+      await store.loadSilently()
+
+      expect(store.count).toBe(1)
+      expect(store.listError).toBeNull()
+    })
+
+    it('原本有 listError 時成功會清掉並填入清單', async () => {
+      gateway.listRoadmap.mockResolvedValue({ ok: false, targetPath: '/p', error: { kind: 'unknown', message: 'x' } })
+      const store = useRoadmapStore()
+      await store.enter()
+      expect(store.listError).not.toBeNull()
+
+      serverSays([item('a.md', 'available')])
+      await store.loadSilently()
+
+      expect(store.listError).toBeNull()
+      expect(store.count).toBe(1)
+    })
+
+    it('開著的檔案消失時 openFileName 變 null', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+      store.openFile('a.md')
+
+      serverSays([])
+      await store.loadSilently()
+
+      expect(store.openFileName).toBeNull()
+    })
+
+    it('load() 進行中插入一次背景重新載入後 refreshing 最終回到 false', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending: Array<(v: unknown) => void> = []
+      gateway.listRoadmap.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
+      const loading = store.load()
+      expect(store.refreshing).toBe(true)
+      const silent = store.loadSilently()
+
+      const ok = { ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('a.md', 'available')], refs: { specs: [], changes: [], archived: [], parked: [] } }
+      pending[1](ok)
+      await silent
+      pending[0](ok)
+      await loading
+
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('reset() 後才回來的回應不會把資料填回去', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      let resolve!: (v: unknown) => void
+      gateway.listRoadmap.mockImplementation(() => new Promise(r => (resolve = r)))
+      const silent = store.loadSilently()
+      store.reset()
+      resolve({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('z.md', 'available')], refs: { specs: [], changes: [], archived: [], parked: [] } })
+      await silent
+
+      expect(store.count).toBe(0)
+    })
+
+    it('成功時 items、targetPath、dirExists、offExists、refs 全換成新回應，firstLoadPending 不變', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+      expect(store.dirExists).toBe(true)
+
+      gateway.listRoadmap.mockResolvedValue({
+        ok: true,
+        targetPath: '/q',
+        dirExists: false,
+        offExists: true,
+        items: [item('a.md', 'available', { body: 'new body' })],
+        refs: { specs: [], changes: ['my-change'], archived: [], parked: [] },
+      })
+      await store.loadSilently()
+
+      expect(store.items[0].body).toBe('new body')
+      expect(store.targetPath).toBe('/q')
+      expect(store.dirExists).toBe(false)
+      expect(store.offExists).toBe(true)
+      expect(store.resolveRef('my-change')).toEqual({ kind: 'change', target: 'my-change' })
+      expect(store.firstLoadPending).toBe(false)
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('失敗時清單、狀態旗標與開著的面板全部保留', async () => {
+      serverSays([item('a.md', 'available'), item('b.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+      store.openFile('b.md')
+
+      gateway.listRoadmap.mockResolvedValue({ ok: false, targetPath: '/other', error: { kind: 'unknown', message: 'x' } })
+      await store.loadSilently()
+
+      expect(store.items.map(i => i.file)).toEqual(['a.md', 'b.md'])
+      expect(store.targetPath).toBe('/p')
+      expect(store.dirExists).toBe(true)
+      expect(store.listError).toBeNull()
+      expect(store.openFileName).toBe('b.md')
+      expect(store.refreshing).toBe(false)
+      expect(store.firstLoadPending).toBe(false)
+    })
+
+    it('開著的檔案仍在新清單時面板維持開啟', async () => {
+      serverSays([item('a.md', 'available'), item('b.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+      store.openFile('b.md')
+
+      serverSays([item('b.md', 'available', { body: 'changed' })])
+      await store.loadSilently()
+
+      expect(store.openFileName).toBe('b.md')
+      expect(store.openItem?.body).toBe('changed')
+    })
+
+    it('首次載入未完成時背景成功，firstLoadPending 仍維持 true', async () => {
+      const pending: Array<(v: unknown) => void> = []
+      gateway.listRoadmap.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
+      const store = useRoadmapStore()
+      const loading = store.enter()
+      const silent = store.loadSilently()
+      const ok = { ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('a.md', 'available')], refs: { specs: [], changes: [], archived: [], parked: [] } }
+
+      pending[1](ok)
+      await silent
+      expect(store.firstLoadPending).toBe(true)
+      expect(store.refreshing).toBe(false)
+
+      pending[0](ok)
+      await loading
+      expect(store.firstLoadPending).toBe(false)
+    })
+
+    it('load() 先回來、背景後回來時 refreshing 也回到 false，且較新的背景資料落地', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending: Array<(v: unknown) => void> = []
+      gateway.listRoadmap.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
+      const loading = store.load()
+      const silent = store.loadSilently()
+      const refs = { specs: [], changes: [], archived: [], parked: [] }
+
+      pending[0]({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('old.md', 'available')], refs })
+      await loading
+      expect(store.refreshing).toBe(false)
+
+      pending[1]({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('new.md', 'available')], refs })
+      await silent
+      expect(store.items.map(i => i.file)).toEqual(['new.md'])
+    })
+
+    it('較新的 load() 已落地後，晚到的舊背景回應不得覆寫', async () => {
+      serverSays([item('a.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending: Array<(v: unknown) => void> = []
+      gateway.listRoadmap.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
+      const silent = store.loadSilently()
+      const loading = store.load()
+      const refs = { specs: [], changes: [], archived: [], parked: [] }
+
+      pending[1]({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('fresh.md', 'available')], refs })
+      await loading
+      pending[0]({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: [item('stale.md', 'available')], refs })
+      await silent
+
+      expect(store.items.map(i => i.file)).toEqual(['fresh.md'])
+    })
+  })
+
+  describe('load() 進行中插入失敗的背景重新載入', () => {
+    const refs = { specs: [], changes: [], archived: [], parked: [] }
+    const okOf = (...files: string[]) => ({ ok: true, targetPath: '/p', dirExists: true, offExists: false, items: files.map(f => item(f, 'available')), refs })
+    const failure = { ok: false, targetPath: '/p', error: { kind: 'unknown' as const, message: 'x' } }
+
+    function holdRequests() {
+      const pending: Array<(v: unknown) => void> = []
+      gateway.listRoadmap.mockImplementation(() => new Promise(resolve => pending.push(resolve)))
+      return pending
+    }
+
+    it('進頁的 load() 未回來時背景先失敗、load() 後成功：資料寫進去，旗標清掉', async () => {
+      const pending = holdRequests()
+      const store = useRoadmapStore()
+      const entering = store.enter()
+      const silent = store.loadSilently()
+
+      pending[1](failure)
+      await silent
+      pending[0](okOf('a.md'))
+      await entering
+
+      expect(store.items.map(i => i.file)).toEqual(['a.md'])
+      expect(store.dirExists).toBe(true)
+      expect(store.listError).toBeNull()
+      expect(store.firstLoadPending).toBe(false)
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('進頁的 load() 先成功、背景後失敗：資料保留，旗標清掉', async () => {
+      const pending = holdRequests()
+      const store = useRoadmapStore()
+      const entering = store.enter()
+      const silent = store.loadSilently()
+
+      pending[0](okOf('a.md'))
+      await entering
+      pending[1](failure)
+      await silent
+
+      expect(store.items.map(i => i.file)).toEqual(['a.md'])
+      expect(store.listError).toBeNull()
+      expect(store.firstLoadPending).toBe(false)
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('手動刷新的 load() 未回來時背景先失敗、load() 後成功：新資料寫進去，refreshing 回到 false', async () => {
+      serverSays([item('old.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending = holdRequests()
+      const loading = store.load()
+      const silent = store.loadSilently()
+      expect(store.refreshing).toBe(true)
+
+      pending[1](failure)
+      await silent
+      pending[0](okOf('new.md'))
+      await loading
+
+      expect(store.items.map(i => i.file)).toEqual(['new.md'])
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('背景失敗後 load() 自己也失敗：清單清空並設 listError', async () => {
+      serverSays([item('old.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending = holdRequests()
+      const loading = store.load()
+      const silent = store.loadSilently()
+      const error = { kind: 'call-failed' as const, message: 'boom' }
+
+      pending[1](failure)
+      await silent
+      pending[0]({ ok: false, targetPath: '/p', error })
+      await loading
+
+      expect(store.items).toEqual([])
+      expect(store.listError).toEqual(error)
+      expect(store.refreshing).toBe(false)
+    })
+
+    it('較新的背景重新載入已寫進資料後，較舊的 load() 才失敗：資料保留，不設 listError', async () => {
+      serverSays([item('old.md', 'available')])
+      const store = useRoadmapStore()
+      await store.enter()
+
+      const pending = holdRequests()
+      const loading = store.load()
+      const silent = store.loadSilently()
+
+      pending[1](okOf('fresh.md'))
+      await silent
+      pending[0]({ ok: false, targetPath: '/p', error: { kind: 'call-failed' as const, message: 'boom' } })
+      await loading
+
+      expect(store.items.map(i => i.file)).toEqual(['fresh.md'])
+      expect(store.listError).toBeNull()
+      expect(store.dirExists).toBe(true)
+      expect(store.refreshing).toBe(false)
+    })
+  })
 })

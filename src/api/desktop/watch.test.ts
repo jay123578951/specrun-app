@@ -98,7 +98,7 @@ describe('desktop/watch', () => {
     await settle()
 
     expect(shell.watchPaths).toHaveBeenCalledWith(
-      ['/real/proj/openspec/changes'],
+      ['/real/proj/openspec'],
       expect.objectContaining({ recursive: true }),
       expect.any(Function),
     )
@@ -117,8 +117,8 @@ describe('desktop/watch', () => {
     expect(isWatching()).toBe(false)
   })
 
-  it('changes/ 監看不了就退一層看 openspec/，範圍外的事件丟棄', async () => {
-    const shell = makeShell(dir => dir === '/real/a/openspec')
+  it('監看整個 openspec/，範圍外的事件丟棄', async () => {
+    const shell = makeShell()
     vi.doMock('./shell', () => shell)
     vi.doMock('./projects', () => makeProjects('/real/a'))
     const { isWatching, subscribeToChanges } = await import('./watch')
@@ -127,15 +127,11 @@ describe('desktop/watch', () => {
     subscribeToChanges(listener)
     await settle()
 
-    expect(shell.watchPaths).toHaveBeenCalledTimes(2)
-    expect(shell.watchPaths).toHaveBeenLastCalledWith(
-      ['/real/a/openspec'],
-      expect.objectContaining({ recursive: true }),
-      expect.any(Function),
-    )
+    expect(shell.watchPaths).toHaveBeenCalledTimes(1)
     expect(isWatching()).toBe(true)
 
-    shell.emit(1, ['/real/a/openspec/project.md'])
+    shell.emit(1, ['/real/a/openspec/config.yaml'])
+    shell.emit(1, ['/real/a/openspec/specs/foo/spec.md'])
     await vi.advanceTimersByTimeAsync(400)
     expect(listener).not.toHaveBeenCalled()
 
@@ -144,7 +140,63 @@ describe('desktop/watch', () => {
     expect(listener).toHaveBeenCalledTimes(1)
   })
 
-  it('兩層都監看不了就記為未接上，且不重試', async () => {
+  it.each([
+    ['規劃檔修改、新增或刪除', '/real/a/openspec/roadmap/foo.md'],
+    ['roadmap 目錄原本不存在而後出現第一個檔案', '/real/a/openspec/roadmap/first.md'],
+    ['roadmap.off 建立或刪除', '/real/a/openspec/roadmap.off'],
+  ])('%s會通知', async (_name, changed) => {
+    const shell = makeShell()
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./projects', () => makeProjects('/real/a'))
+    const { subscribeToChanges } = await import('./watch')
+
+    const listener = vi.fn()
+    subscribeToChanges(listener)
+    await settle()
+
+    shell.emit(1, [changed])
+    await vi.advanceTimersByTimeAsync(400)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('名稱只是長得像範圍的路徑不通知', async () => {
+    const shell = makeShell()
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./projects', () => makeProjects('/real/a'))
+    const { subscribeToChanges } = await import('./watch')
+
+    const listener = vi.fn()
+    subscribeToChanges(listener)
+    await settle()
+
+    shell.emit(1, [
+      '/real/a/openspec/roadmap.offx',
+      '/real/a/openspec/roadmap.off/inner.md',
+      '/real/a/openspec/roadmap-old/foo.md',
+      '/real/a/openspec/roadmapx.md',
+      '/real/a/openspec/changes-old/foo.md',
+      '/real/a/other/openspec/roadmap/foo.md',
+    ])
+    await vi.advanceTimersByTimeAsync(400)
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('同一批事件裡只要有一個路徑在範圍內就通知一則', async () => {
+    const shell = makeShell()
+    vi.doMock('./shell', () => shell)
+    vi.doMock('./projects', () => makeProjects('/real/a'))
+    const { subscribeToChanges } = await import('./watch')
+
+    const listener = vi.fn()
+    subscribeToChanges(listener)
+    await settle()
+
+    shell.emit(1, ['/real/a/openspec/config.yaml', '/real/a/openspec/roadmap/a.md', '/real/a/openspec/specs/x/spec.md'])
+    await vi.advanceTimersByTimeAsync(400)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('openspec/ 監看不了就記為未接上，且不重試', async () => {
     const shell = makeShell(() => false)
     vi.doMock('./shell', () => shell)
     vi.doMock('./projects', () => makeProjects('/real/a'))
@@ -156,7 +208,7 @@ describe('desktop/watch', () => {
 
     subscribeToChanges(vi.fn())
     await settle()
-    expect(shell.watchPaths).toHaveBeenCalledTimes(2)
+    expect(shell.watchPaths).toHaveBeenCalledTimes(1)
   })
 
   it('底層逐則送上來的一批只產生一則通知', async () => {
@@ -236,7 +288,7 @@ describe('desktop/watch', () => {
 
     expect(shell.unwatchPaths).toHaveBeenCalledWith(1)
     expect(shell.watchPaths).toHaveBeenLastCalledWith(
-      ['/real/b/openspec/changes'],
+      ['/real/b/openspec'],
       expect.objectContaining({ recursive: true }),
       expect.any(Function),
     )
@@ -288,8 +340,8 @@ describe('desktop/watch', () => {
     expect(isWatching()).toBe(true)
     expect(shell.handlers.size).toBe(1)
     const watched = shell.watchPaths.mock.calls.map(call => call[0]![0])
-    expect(watched).not.toContain('/real/b/openspec/changes')
-    expect(watched.at(-1)).toBe('/real/c/openspec/changes')
+    expect(watched).not.toContain('/real/b/openspec')
+    expect(watched.at(-1)).toBe('/real/c/openspec')
   })
 
   it('訂閱後立即取消訂閱：接上後立刻收掉，不留下沒有訂閱者的監看', async () => {
@@ -325,8 +377,8 @@ describe('desktop/watch', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
-  it('退一層監看時，changes 目錄自己的事件不算範圍內（isInside 不含根目錄，這點與 web 形態不同）', async () => {
-    const shell = makeShell(dir => dir === '/real/a/openspec')
+  it('changes 目錄自己的事件不算範圍內（isInside 不含根目錄，這點與 web 形態不同）', async () => {
+    const shell = makeShell()
     vi.doMock('./shell', () => shell)
     vi.doMock('./projects', () => makeProjects('/real/a'))
     const { subscribeToChanges } = await import('./watch')
@@ -396,7 +448,7 @@ describe('desktop/watch', () => {
     await settle()
 
     expect(shell.watchPaths).toHaveBeenLastCalledWith(
-      ['/real/c/openspec/changes'],
+      ['/real/c/openspec'],
       expect.objectContaining({ recursive: true }),
       expect.any(Function),
     )

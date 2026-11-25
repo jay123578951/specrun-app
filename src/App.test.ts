@@ -130,3 +130,38 @@ describe('app.vue：Roadmap 頁槽位與鍵盤分派', () => {
     expect(roadmap.openFileName).toBeNull()
   })
 })
+
+describe('app.vue：變動通知與 Roadmap 重讀', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    Element.prototype.scrollIntoView = vi.fn()
+  })
+
+  function lastNotify(): () => Promise<void> {
+    const calls = gateway.subscribeToChanges.mock.calls as unknown as Array<[() => Promise<void>]>
+    return calls[calls.length - 1]![0]
+  }
+
+  it('停在 Roadmap 頁收到通知會再呼叫一次 listRoadmap', async () => {
+    await mountOnRoadmap([item('a.md', 'other')])
+    expect(gateway.listRoadmap).toHaveBeenCalledTimes(1)
+
+    await lastNotify()()
+
+    expect(gateway.listRoadmap).toHaveBeenCalledTimes(2)
+  })
+
+  it('停在 Changes 頁收到通知不呼叫 listRoadmap', async () => {
+    gateway.listProjects.mockResolvedValue({ ok: true, snapshot: { projects: [], currentPath: null, badgesIncluded: true } })
+    gateway.listChanges.mockResolvedValue({ ok: true, targetPath: '', changes: [] })
+    gateway.listParked.mockResolvedValue({ ok: true, parkAvailable: true, items: [] })
+    useViewStore().currentView = 'changes'
+    mount(App, { attachTo: document.body })
+    await flushPromises()
+
+    await lastNotify()()
+
+    expect(gateway.listRoadmap).not.toHaveBeenCalled()
+  })
+})

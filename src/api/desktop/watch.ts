@@ -1,14 +1,18 @@
-import { isInside, join, parentDir } from './paths'
+import { isInside, join } from './paths'
 import { resolveTarget, subscribeToCurrentProjectChange } from './projects'
 import { unwatchPaths, watchPaths } from './shell'
 
 /**
- * 桌面形態下目標專案 `openspec/changes/**` 的變動來源：整個 App 共用一個監看，
- * 事件經尾端合併後通知所有訂閱者。語意與 web 形態那側（server/utils/change-watcher.ts）
- * 逐字相同——換的只有持有者與執行形態，不是使用者看到的結果。唯一的差異：退一層
- * 監看 `openspec/` 時，`changes/` 目錄自己被搬動或建立的事件，web 形態算數
- * （change-watcher.ts 的 `isInChangesDir` 把 `relative === 'changes'` 也算進去），
- * 這裡不算——`paths.ts` 的 `isInside` 不把根目錄自己算在「底下」。
+ * 桌面形態下目標專案 `openspec/changes/**`、`openspec/roadmap/**` 與 `openspec/roadmap.off`
+ * 的變動來源：整個 App 共用一個監看，事件經尾端合併後通知所有訂閱者。語意與 web 形態
+ * 那側（server/utils/change-watcher.ts）一致——換的只有持有者與執行形態，不是使用者
+ * 看到的結果。
+ *
+ * 一律監看整個 `openspec/`，再用路徑過濾出上述三處：`changes/` 與 `roadmap/` 不一定
+ * 已經存在，直接監看 `openspec/` 才收得到它們之後被建出來的第一個檔案。範圍外的事件
+ * 在進入合併等待之前就濾掉。與 web 形態唯一的差異：`changes/`、`roadmap/` 目錄自己被
+ * 搬動或建立的事件，web 形態算數，這裡不算——`paths.ts` 的 `isInside` 不把根目錄自己
+ * 算在「底下」。
  *
  * 通知刻意粗粒度——只喊「有變動」、不帶 change 名或路徑，訂閱者收到後自行重取；
  * 漏報由下一次任何變動補上，重複報則被尾端合併吃掉。
@@ -86,14 +90,14 @@ async function ensureWatching(): Promise<void> {
   if (!target.ok || mine !== generation)
     return
 
-  const changesDir = join(target.targetPath, 'openspec', 'changes')
-  // changes/ 還不存在就退一層看 openspec/，等它被建出來；範圍外的事件在這裡濾掉
-  const created
-    = await tryWatch(changesDir, notify)
-      ?? await tryWatch(parentDir(changesDir), (paths) => {
-        if (paths.some(each => isInside(each, changesDir)))
-          notify()
-      })
+  const openspecDir = join(target.targetPath, 'openspec')
+  const changesDir = join(openspecDir, 'changes')
+  const roadmapDir = join(openspecDir, 'roadmap')
+  const roadmapOff = join(openspecDir, 'roadmap.off')
+  const created = await tryWatch(openspecDir, (paths) => {
+    if (paths.some(each => each === roadmapOff || isInside(each, changesDir) || isInside(each, roadmapDir)))
+      notify()
+  })
   if (created === null)
     return
 

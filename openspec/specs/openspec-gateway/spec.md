@@ -279,11 +279,11 @@ active 與 parked 兩側 SHALL 適用同一套取得與降級規則。park 與 u
 
 ### Requirement: 檔案變動通知
 
-系統 SHALL 提供變動通知的訂閱通道：目標專案 `openspec/changes/` 底下任何檔案或目錄的新增、修改、刪除，SHALL 於短暫延遲後通知所有訂閱者。通知 SHALL 為粗粒度——MUST NOT 帶個別 change 或檔案的細節，訂閱者收到後自行重取資料；短時間內的連環變動 SHALL 合併為一則通知；`openspec/changes/` 以外的檔案變動 MUST NOT 觸發通知。切換目標專案後，通知來源 SHALL 跟隨改為新目標專案，原專案的變動 MUST NOT 再觸發通知。
+系統 SHALL 提供變動通知的訂閱通道：目標專案 `openspec/changes/` 底下、`openspec/roadmap/` 底下與 `openspec/roadmap.off` 的新增、修改、刪除，SHALL 於短暫延遲後通知所有訂閱者。通知 SHALL 為粗粒度——MUST NOT 帶個別 change 或檔案的細節，訂閱者收到後自行重取資料；短時間內的連環變動 SHALL 合併為一則通知；上述範圍以外的檔案變動 MUST NOT 觸發通知。切換目標專案後，通知來源 SHALL 跟隨改為新目標專案，原專案的變動 MUST NOT 再觸發通知。
 
 連環變動合併為一則的保證 SHALL 由本通道自己負責，MUST NOT 假定底層的檔案監看機制已經合併過——部分形態的監看機制即使設了延遲，仍是把一批變動逐則送上來。
 
-監看的目標路徑 SHALL 為解開 symlink 後的實際位置。變動事件回報的是實際位置，監看路徑與它不一致時，「這則變動落不落在 `openspec/changes/` 底下」的判斷會把每一則都當成範圍外。
+監看的目標路徑 SHALL 為解開 symlink 後的實際位置。變動事件回報的是實際位置，監看路徑與它不一致時，「這則變動落不落在通知範圍內」的判斷會把每一則都當成範圍外。
 
 #### Scenario: 單檔修改觸發通知
 
@@ -300,9 +300,29 @@ active 與 parked 兩側 SHALL 適用同一套取得與降級規則。park 與 u
 - **WHEN** 底層監看機制把一批變動逐則送上通道
 - **THEN** 訂閱者仍只收到一則通知，而非每則一次
 
+#### Scenario: 規劃檔修改觸發通知
+
+- **WHEN** 外部工具修改 `openspec/roadmap/` 底下的某個規劃檔
+- **THEN** 訂閱者於短暫延遲後收到一則「有變動」通知，通知不含檔案路徑，也不標示變動來自 roadmap
+
+#### Scenario: 規劃檔新增與刪除觸發通知
+
+- **WHEN** 外部工具在 `openspec/roadmap/` 底下新增一個規劃檔，或刪除既有的規劃檔
+- **THEN** 訂閱者於短暫延遲後收到一則「有變動」通知
+
+#### Scenario: roadmap 目錄原本不存在
+
+- **WHEN** 訂閱時目標專案還沒有 `openspec/roadmap/`，之後該目錄被建立並寫入第一個規劃檔
+- **THEN** 訂閱者收到通知，MUST NOT 需要重新訂閱或重開 App
+
+#### Scenario: 停用標記出現或消失觸發通知
+
+- **WHEN** 外部工具建立或刪除 `openspec/roadmap.off`
+- **THEN** 訂閱者於短暫延遲後收到一則「有變動」通知
+
 #### Scenario: 範圍外變動不通知
 
-- **WHEN** 目標專案 `openspec/changes/` 以外的檔案（如 `src/` 下的程式碼）被修改
+- **WHEN** 目標專案通知範圍以外的檔案（如 `src/` 下的程式碼、`openspec/specs/` 底下的 spec、`openspec/config.yaml`）被修改
 - **THEN** 不發出任何通知
 
 #### Scenario: 經 symlink 加入的專案照常通知
@@ -312,7 +332,7 @@ active 與 parked 兩側 SHALL 適用同一套取得與降級規則。park 與 u
 
 #### Scenario: 切換後通知跟隨
 
-- **WHEN** 使用者從專案 A 切換至專案 B 後，外部工具分別修改 A 與 B 的 `openspec/changes/` 內容
+- **WHEN** 使用者從專案 A 切換至專案 B 後，外部工具分別修改 A 與 B 通知範圍內的檔案
 - **THEN** 只有 B 的變動觸發通知
 
 #### Scenario: 目標未實際改變時不重接

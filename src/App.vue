@@ -78,7 +78,6 @@ let unsubscribe: (() => void) | null = null
 
 onMounted(async () => {
   // 檔案變動的自動重載從這裡起訂閱；通知已在 server 端 debounce 過。
-  // watcher 只服務 changes 那一側——Specs 頁刻意不擴充監看（進頁重載即可）
   unsubscribe = gateway.subscribeToChanges(syncFromWatcher)
 
   window.addEventListener('keydown', onKeydown)
@@ -103,6 +102,8 @@ onUnmounted(() => {
 async function syncFromWatcher(): Promise<void> {
   await store.loadSilently()
   await detail.syncWithChanges(store.changes.map(change => change.name))
+  if (onRoadmap.value)
+    await roadmap.loadSilently()
 }
 
 function move(step: number): void {

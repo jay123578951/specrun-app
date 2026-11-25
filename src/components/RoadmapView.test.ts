@@ -5,6 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useProjectsStore } from '../stores/projects'
+import { useRoadmapStore } from '../stores/roadmap'
 import { useViewStore } from '../stores/view'
 import RoadmapView from './RoadmapView.vue'
 
@@ -352,5 +353,49 @@ describe('roadmapView 更新時間隨時間更新', () => {
     expect(wrapper.text()).not.toContain('19:38')
     expect(wrapper.text()).toContain('5h ago')
     expect(wrapper.text()).toContain('4h ago')
+  })
+})
+
+describe('roadmapView 背景重新載入的原地更新', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    gateway.listRoadmap.mockReset()
+  })
+
+  it('狀態字 0/4 變 1/4：卡片移到 In progress 組，沒有載入佔位、刷新控制不進入進行中', async () => {
+    const wrapper = await mountReady(ok([item('a.md', 'available')]))
+    const store = useRoadmapStore()
+    expect(wrapper.text()).toContain('Available (1)')
+
+    let resolve!: (r: RoadmapListResult) => void
+    gateway.listRoadmap.mockReturnValue(new Promise<RoadmapListResult>((r) => {
+      resolve = r
+    }))
+    const pending = store.loadSilently()
+    await nextTick()
+    expect(wrapper.find('[aria-hidden="true"].animate-pulse').exists()).toBe(false)
+    expect(wrapper.get('button.btn').attributes('aria-busy')).toBe('false')
+
+    resolve(ok([item('a.md', 'in-progress', { progress: { completed: 1, total: 4 } })]))
+    await pending
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('In progress (1)')
+    expect(wrapper.text()).toContain('1/4')
+    expect(wrapper.text()).not.toContain('Available (')
+    expect(wrapper.find('.animate-pulse').exists()).toBe(false)
+    expect(wrapper.get('button.btn').attributes('aria-busy')).toBe('false')
+  })
+
+  it('背景重新載入失敗：清單維持原樣、沒有錯誤提示', async () => {
+    const wrapper = await mountReady(ok([item('a.md', 'available')]))
+    const store = useRoadmapStore()
+
+    gateway.listRoadmap.mockResolvedValue({ ok: false, targetPath: '/p', error: { kind: 'unknown', detail: 'boom' } })
+    await store.loadSilently()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Available (1)')
+    expect(wrapper.text()).not.toContain('Could not load the roadmap')
   })
 })

@@ -50,6 +50,8 @@ export const useRoadmapStore = defineStore('roadmap', () => {
   }
 
   let listSeq = 0
+  let writtenSeq = 0
+  let flagSeq = 0
 
   /** 進入 Roadmap 頁：不接續上次狀態，清空後重新載入（Requirement 切頁即關與重新載入） */
   async function enter(): Promise<void> {
@@ -58,7 +60,8 @@ export const useRoadmapStore = defineStore('roadmap', () => {
   }
 
   function reset(): void {
-    listSeq++
+    writtenSeq = ++listSeq
+    flagSeq++
     items.value = []
     targetPath.value = ''
     dirExists.value = false
@@ -77,21 +80,18 @@ export const useRoadmapStore = defineStore('roadmap', () => {
    */
   async function load(): Promise<void> {
     const mine = ++listSeq
+    const flagMine = ++flagSeq
     if (!firstLoadPending.value)
       refreshing.value = true
 
     try {
       const result = await gateway.listRoadmap()
-      if (mine !== listSeq)
+      if (mine < writtenSeq)
         return
 
+      writtenSeq = mine
       if (result.ok) {
-        items.value = result.items
-        targetPath.value = result.targetPath
-        dirExists.value = result.dirExists
-        offExists.value = result.offExists
-        refs.value = result.refs
-        listError.value = null
+        applyList(result)
       }
       else {
         // 清單是這頁的全部內容，沒有「留著舊資料只丟 toast」的餘地（同 specs／archived）
@@ -100,17 +100,40 @@ export const useRoadmapStore = defineStore('roadmap', () => {
         dirExists.value = false
         offExists.value = false
         listError.value = result.error
+        closeIfMissing()
       }
-
-      if (openFileName.value !== null && !items.value.some(item => item.file === openFileName.value))
-        close()
     }
     finally {
-      if (mine === listSeq) {
+      if (flagMine === flagSeq) {
         firstLoadPending.value = false
         refreshing.value = false
       }
     }
+  }
+
+  async function loadSilently(): Promise<void> {
+    const mine = ++listSeq
+    const result = await gateway.listRoadmap()
+    if (!result.ok || mine < writtenSeq)
+      return
+
+    writtenSeq = mine
+    applyList(result)
+  }
+
+  function applyList(result: Extract<Awaited<ReturnType<typeof gateway.listRoadmap>>, { ok: true }>): void {
+    items.value = result.items
+    targetPath.value = result.targetPath
+    dirExists.value = result.dirExists
+    offExists.value = result.offExists
+    refs.value = result.refs
+    listError.value = null
+    closeIfMissing()
+  }
+
+  function closeIfMissing(): void {
+    if (openFileName.value !== null && !items.value.some(item => item.file === openFileName.value))
+      close()
   }
 
   /** 開啟／原地切換：清單裡已有全文，不必等待即可切換（Requirement 詳情 slideover、引用連結的跳轉） */
@@ -149,6 +172,7 @@ export const useRoadmapStore = defineStore('roadmap', () => {
     targetPath,
     dirExists,
     offExists,
+    refContext,
     firstLoadPending,
     refreshing,
     listError,
@@ -160,6 +184,7 @@ export const useRoadmapStore = defineStore('roadmap', () => {
     enter,
     reset,
     load,
+    loadSilently,
     openFile,
     close,
     move,

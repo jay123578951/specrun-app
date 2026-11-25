@@ -14,6 +14,13 @@ context: |
   - 麵包屑頁切換 ← 側欄 Specs/Archived 入口、側欄當前頁高亮（move-page-nav-to-breadcrumb 移除）
   - 品牌記號 ← Logo（側欄最上方那一段的稱呼，add-orb-logo 改名）
 
+  操作流程驗證用的 dev server 起法（srun:feat 的操作流程驗證照這段起，跨 run 沿用）：
+  - 先確認 5173 沒人在聽（`lsof -nP -iTCP:5173 -sTCP:LISTEN`）。有人在聽就停下來問人，不另起第二份
+  - 啟動指令：`HOME=<暫存資料夾>/home pnpm dev`。vite 聽 127.0.0.1:5173，Nitro API 聽 localhost:3210，入口是 http://127.0.0.1:5173/
+  - 帶 HOME 的原因：App 的專案清單存在 `$HOME/Library/Application Support/specrun-app/config.json`，換掉 HOME 才不會動到使用者自己的專案清單
+  - 資料來源：在暫存資料夾建一個含 `openspec/` 的測試專案（git repo），用 `POST http://localhost:3210/api/projects`，body 為 `{"path":"<測試專案路徑>"}` 加進去
+  - 沒有登入
+
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
